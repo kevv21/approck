@@ -31,11 +31,53 @@ const GS = 0x1d;
  * Codepages que suelen traer estos clones. Si los acentos salen mal,
  * probalos en orden desde la pagina /estacion con el boton de prueba.
  */
+/**
+ * Codepages ordenados de mas a menos compatible.
+ *
+ * CP437 va primero porque es la linea base del estandar ESC/POS: toda
+ * impresora termica lo implementa, y ya trae todo lo que necesita el espanol
+ * en minusculas (a e i o u con tilde, n con virgulilla, ¿ y ¡). CP1252 es
+ * comun pero NO universal, asi que como predeterminado dejaba fuera a las
+ * impresoras mas viejas o mas baratas.
+ *
+ * Si ninguno funciona, quedan dos salidas que no dependen del firmware:
+ * quitar acentos, o el modo imagen de raster.ts.
+ */
 export const CODEPAGES = [
-  { n: 16, nombre: "CP1252 (Latin-1) - probar primero" },
-  { n: 2, nombre: "CP850 (Multilingual)" },
-  { n: 0, nombre: "CP437 (USA/Standard)" },
+  { n: 0, nombre: "CP437 - estandar, funciona en casi todas" },
+  { n: 2, nombre: "CP850 - agrega mayusculas con tilde" },
+  { n: 16, nombre: "CP1252 - Windows / Latin-1" },
 ] as const;
+
+/** El mas compatible: es el que toda impresora ESC/POS trae. */
+export const CODEPAGE_DEFAULT = 0;
+
+const CLAVE_CP = "approck:codepage";
+const CLAVE_TRANS = "approck:transliterar";
+
+/**
+ * Codepage elegido tras la prueba, recordado en este dispositivo.
+ * Cada impresora puede traer uno distinto segun el lote, asi que la eleccion
+ * es por dispositivo y no un ajuste global.
+ */
+export function codepageGuardado(): number {
+  try {
+    const v = localStorage.getItem(CLAVE_CP);
+    return v !== null ? Number(v) : CODEPAGE_DEFAULT;
+  } catch { return CODEPAGE_DEFAULT; }
+}
+
+export function guardarCodepage(n: number): void {
+  try { localStorage.setItem(CLAVE_CP, String(n)); } catch { /* modo privado */ }
+}
+
+export function transliterarGuardado(): boolean {
+  try { return localStorage.getItem(CLAVE_TRANS) === "1"; } catch { return false; }
+}
+
+export function guardarTransliterar(v: boolean): void {
+  try { localStorage.setItem(CLAVE_TRANS, v ? "1" : "0"); } catch { /* noop */ }
+}
 
 const SIN_ACENTO: Record<string, string> = {
   á: "a", é: "e", í: "i", ó: "o", ú: "u", ü: "u", ñ: "n",
@@ -54,18 +96,85 @@ export function transliterar(s: string): string {
 }
 
 /**
- * CP1252 coincide con Latin-1 en el rango 0xA0-0xFF, que cubre todo el
- * espanol (a=0xE1, e=0xE9, i=0xED, o=0xF3, u=0xFA, n=0xF1, N=0xD1).
+ * TABLAS DE CODIFICACION POR CODEPAGE
+ *
+ * `ESC t n` le dice a la impresora como INTERPRETAR los bytes, pero no
+ * convierte nada: hay que mandarle los bytes correctos para ese codepage.
+ * Mandar bytes CP1252 con el codepage puesto en CP850 imprime basura, que
+ * es exactamente lo que hacia el selector antes de estas tablas.
+ *
+ * CP1252 no lleva tabla: en 0xA0-0xFF coincide con Latin-1, asi que el punto
+ * de codigo Unicode ya es el byte correcto.
  */
-function aBytesCp1252(s: string): number[] {
+const CP437: Record<string, number> = {
+  "ç": 0x87, "ü": 0x81, "é": 0x82, "â": 0x83, "ä": 0x84,
+  "à": 0x85, "å": 0x86, "ê": 0x88, "ë": 0x89, "è": 0x8a,
+  "ï": 0x8b, "î": 0x8c, "ì": 0x8d, "Ä": 0x8e, "Å": 0x8f,
+  "É": 0x90, "ô": 0x93, "ö": 0x94, "ò": 0x95, "û": 0x96,
+  "ù": 0x97, "ÿ": 0x98, "Ö": 0x99, "Ü": 0x9a,
+  "á": 0xa0, "í": 0xa1, "ó": 0xa2, "ú": 0xa3,
+  "ñ": 0xa4, "Ñ": 0xa5, "ª": 0xa6, "º": 0xa7, "¿": 0xa8,
+  "½": 0xab, "¼": 0xac, "¡": 0xad, "«": 0xae, "»": 0xaf,
+};
+
+/** CP850 comparte casi todo con CP437 y ademas SI trae mayusculas acentuadas. */
+const CP850: Record<string, number> = {
+  ...CP437,
+  "Á": 0xb5, "Â": 0xb6, "À": 0xb7, "Ã": 0xc6, "ã": 0xc7,
+  "Ê": 0xd2, "Ë": 0xd3, "È": 0xd4, "Í": 0xd6,
+  "Î": 0xd7, "Ï": 0xd8, "Ì": 0xde, "Ó": 0xe0, "Ô": 0xe2,
+  "Ò": 0xe3, "õ": 0xe4, "Õ": 0xe5, "Ú": 0xe9, "Û": 0xea,
+  "Ù": 0xeb, "°": 0xf8,
+};
+
+const TABLAS: Record<number, Record<string, number>> = { 0: CP437, 2: CP850 };
+
+/** Tablas inversas, para poder leer de vuelta lo que se codifico. */
+const INVERSAS: Record<number, Record<number, string>> = Object.fromEntries(
+  Object.entries(TABLAS).map(([cp, tabla]) => [
+    Number(cp),
+    Object.fromEntries(Object.entries(tabla).map(([ch, b]) => [b, ch])),
+  ])
+);
+
+/**
+ * Decodifica bytes de un codepage a texto.
+ * Lo usa la vista previa: sin esto, la pantalla muestra basura en cuanto el
+ * codepage deja de ser CP1252, y la caja aprueba un recibo que no es el que
+ * sale.
+ */
+export function desdeBytes(bytes: number[] | Uint8Array, codepage: number): string {
+  const inv = INVERSAS[codepage];
+  let out = "";
+  for (const b of bytes) {
+    if (b < 0x80) { out += String.fromCharCode(b); continue; }
+    out += inv ? (inv[b] ?? "?") : String.fromCharCode(b);
+  }
+  return out;
+}
+
+/**
+ * Convierte texto a los bytes del codepage indicado.
+ * Lo que no existe en ese codepage se transcribe sin acento, que siempre es
+ * legible, en vez de imprimir un simbolo al azar.
+ */
+export function aBytes(s: string, codepage: number): number[] {
+  const tabla = TABLAS[codepage];
   const out: number[] = [];
+
   for (const ch of s) {
     const c = ch.codePointAt(0)!;
-    if (c <= 0xff) out.push(c);
-    else {
-      const alt = SIN_ACENTO[ch] ?? "?";
-      for (const a of alt) out.push(a.charCodeAt(0));
+    if (c < 0x80) { out.push(c); continue; }
+
+    if (tabla) {
+      const b = tabla[ch];
+      if (b !== undefined) { out.push(b); continue; }
+    } else if (c <= 0xff) {
+      out.push(c); // CP1252 / Latin-1: el punto de codigo ya es el byte
+      continue;
     }
+
+    for (const a of SIN_ACENTO[ch] ?? "?") out.push(a.charCodeAt(0));
   }
   return out;
 }
@@ -86,7 +195,7 @@ export class EscPos {
 
   constructor(opts: OpcionesEncoder = {}) {
     this.opts = {
-      codepage: opts.codepage ?? 16,
+      codepage: opts.codepage ?? CODEPAGE_DEFAULT,
       transliterar: opts.transliterar ?? false,
       ancho: opts.ancho ?? 58,
     };
@@ -120,7 +229,7 @@ export class EscPos {
 
   texto(s: string): this {
     const limpio = this.opts.transliterar ? transliterar(s) : s;
-    this.buf.push(...aBytesCp1252(limpio));
+    this.buf.push(...aBytes(limpio, this.opts.codepage));
     return this;
   }
 

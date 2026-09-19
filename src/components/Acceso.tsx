@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/sesion";
 import { registrar } from "@/lib/auth/auditoria";
 import { hayConfig } from "@/lib/supabase";
+import { usePathname } from "next/navigation";
 
 /**
  * Puerta de entrada. Un PIN compartido y el nombre de quien trabaja.
@@ -21,6 +22,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [entrando, setEntrando] = useState(false);
   const [previos, setPrevios] = useState<string[]>([]);
+  const ruta = usePathname();
 
   useEffect(() => {
     setSesion(sesionActual());
@@ -30,7 +32,9 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   // Mientras se lee sessionStorage no se dibuja nada, para no mostrar la
   // pantalla de acceso un instante a quien ya entró.
   if (sesion === undefined) return null;
-  if (!hayConfig) return <>{children}</>;
+  // /prueba queda libre: es el diagnóstico de impresora, y se usa antes
+  // de tener la base configurada o el PIN a mano.
+  if (!hayConfig || ruta === "/prueba") return <>{children}</>;
 
   if (sesion) {
     return (

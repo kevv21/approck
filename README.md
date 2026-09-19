@@ -59,6 +59,16 @@ apilan descuentos.
 
 ---
 
+## Probar primero
+
+Antes de configurar nada: **[docs/PROBAR.md](docs/PROBAR.md)** explica cómo
+verificar la impresora desde el teléfono en cinco minutos, sin base de datos.
+La pantalla `/prueba` resuelve los acentos imprimiendo los tres juegos de
+caracteres en una sola hoja: mirás el papel y elegís el que se lee bien.
+
+Sin Supabase configurado la app arranca en **modo demo** con los 48 productos
+de la carta, así se puede recorrer la interfaz sin instalar nada más.
+
 ## Puesta en marcha
 
 ### 1. Base de datos (5 minutos)
@@ -199,10 +209,15 @@ leyeran el precio por FK, **todos los cierres históricos cambiarían solos**.
   fallan si alguna línea se pasa del ancho.
 - **No tiene cortador automático.** No se envía `GS V`; se avanzan 4 líneas
   y se corta a mano.
-- Hay que enviar `ESC t n` para elegir codepage o los acentos salen como
-  basura. Por defecto CP1252; si falla, el desplegable de `/estacion` tiene
-  CP850 y CP437, y `transliterar: true` en el encoder quita los acentos como
-  último recurso.
+- Los acentos tienen cuatro niveles de respaldo, de más a menos bonito:
+  **CP437** por defecto, que es la línea base del estándar ESC/POS y la trae
+  toda impresora; **CP850**, que agrega mayúsculas con tilde; **CP1252** para
+  Windows; y si ninguno sirve, **quitar acentos** o el **modo imagen**, que
+  manda el ticket como mapa de bits (`GS v 0`) y funciona en cualquier
+  modelo porque la impresora no interpreta caracteres, solo pinta puntos.
+- `ESC t n` le dice a la impresora cómo interpretar los bytes, pero no
+  convierte nada: hay que mandarle los bytes de ESE codepage. La ñ es 0xA4
+  en CP437 y CP850, pero 0xF1 en CP1252.
 - BLE deja ~20 bytes útiles por paquete. El ticket se manda en trozos de 20
   bytes con 25ms de pausa; de un golpe sale cortado a la mitad.
 - Servicio BLE `49535343-fe7d-4ae5-8fa9-9fafd205e455` (UART transparente de

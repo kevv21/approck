@@ -191,9 +191,22 @@ describe("comanda de cocina", () => {
 });
 
 describe("codificación de caracteres", () => {
-  it("los acentos sobreviven al encoder CP1252", () => {
-    const bytes = construirTicket(datos(), { transliterar: false });
-    expect(Array.from(bytes)).toContain(0xf1); // ñ de Toña
+  it("cada codepage codifica la ñ con SU propio byte", () => {
+    // Este es el bug que tenía el selector: mandaba siempre bytes CP1252
+    // aunque la impresora estuviera puesta en CP850, y salía basura.
+    const cp437 = construirTicket(datos(), { codepage: 0 });
+    const cp850 = construirTicket(datos(), { codepage: 2 });
+    const cp1252 = construirTicket(datos(), { codepage: 16 });
+    expect(Array.from(cp437)).toContain(0xa4);  // ñ en CP437
+    expect(Array.from(cp850)).toContain(0xa4);  // ñ en CP850
+    expect(Array.from(cp1252)).toContain(0xf1); // ñ en CP1252
+    expect(Array.from(cp1252)).not.toContain(0xa4);
+  });
+
+  it("la vista previa se lee bien en cualquier codepage", () => {
+    for (const cp of [0, 2, 16]) {
+      expect(previsualizarTicket(datos(), cp), `cp${cp}`).toContain("Toña");
+    }
   });
 
   it("transliterar preserva el maquetado al quitar acentos", () => {

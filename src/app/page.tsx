@@ -11,6 +11,7 @@ import { hayInternet } from "@/lib/offline/conexion";
 import { previsualizarTicket, type DatosTicket } from "@/lib/ticket";
 import { descargarHtml, imprimirHtml } from "@/lib/printer";
 import { hayConfig } from "@/lib/supabase";
+import menuDemo from "@/lib/menu-demo.json";
 import {
   CONFIG_DEFAULT, METODOS_PAGO, TIPOS_ORDEN,
   type ConfigCobro, type Descuento, type LineaOrden,
@@ -47,7 +48,14 @@ export default function Caja() {
   const [menuDesdeCache, setMenuDesdeCache] = useState(false);
 
   useEffect(() => {
-    if (!hayConfig) return;
+    if (!hayConfig) {
+      // Modo demo: sin base configurada la app igual se puede recorrer con el
+      // menú real empaquetado. No guarda nada, pero deja probar el flujo
+      // completo y la vista previa del recibo desde el teléfono.
+      setMenu(menuDemo as Producto[]);
+      setCat((menuDemo as Producto[])[0]?.categoria ?? "");
+      return;
+    }
     // Con respaldo local: si no hay internet se usa la copia guardada, para
     // poder seguir tomando órdenes.
     cargarMenuConRespaldo(cargarMenu, guardarMenuLocal)
@@ -120,6 +128,10 @@ export default function Caja() {
 
   const cobrar = async () => {
     if (lineas.length === 0) return;
+    if (!hayConfig) {
+      setAviso({ txt: "Modo demo: no hay dónde guardar la orden.", mal: true });
+      return;
+    }
     if (metodoPago === "efectivo" && recibidoCent > 0 && cambio < 0) {
       setAviso({ txt: "El monto recibido es menor que el total.", mal: true });
       return;
@@ -155,6 +167,10 @@ export default function Caja() {
   /** Guarda sin cobrar. Funciona sin conexión: se sube sola al reconectar. */
   const guardarSinCobrar = async () => {
     if (lineas.length === 0) return;
+    if (!hayConfig) {
+      setAviso({ txt: "Modo demo: no hay dónde guardar la orden.", mal: true });
+      return;
+    }
     setGuardando(true);
     setAviso(null);
     try {
@@ -179,6 +195,10 @@ export default function Caja() {
 
   const imprimirPrecuenta = async () => {
     if (lineas.length === 0) return;
+    if (!hayConfig) {
+      setAviso({ txt: "Modo demo: usá \"Imprimir en navegador\" para ver el ticket.", mal: true });
+      return;
+    }
     setGuardando(true);
     setAviso(null);
     try {
@@ -205,23 +225,19 @@ export default function Caja() {
 
   const previsualizacion = previsualizarTicket(datosTicket());
 
-  if (!hayConfig) {
-    return (
-      <div className="mx-auto max-w-lg p-6">
-        <div className="panel p-5">
-          <h2 className="mb-2 text-lg font-bold">Falta configurar Supabase</h2>
-          <p className="text-sm" style={{ color: "var(--txt-2)" }}>
-            Copia <code className="mono">.env.example</code> a{" "}
-            <code className="mono">.env.local</code> y pon la URL y la anon key
-            de tu proyecto. Los pasos completos están en el README.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto grid max-w-7xl gap-3 p-3 lg:grid-cols-[1fr_400px]">
+      {!hayConfig && (
+        <div className="panel p-3 text-sm lg:col-span-2"
+             style={{ borderColor: "var(--acc)" }}>
+          <b style={{ color: "var(--acc)" }}>Modo demo.</b>{" "}
+          <span style={{ color: "var(--txt-2)" }}>
+            Sin base de datos configurada. Podés armar órdenes y ver el recibo,
+            pero nada se guarda ni se imprime. Para probar la impresora andá a{" "}
+            <b>Probar</b>; para usarlo de verdad, configurá Supabase (ver README).
+          </span>
+        </div>
+      )}
       {/* ---------------------------------------------------------- menú -- */}
       <section className="panel p-3">
         <div className="mb-3 flex flex-wrap gap-1.5">

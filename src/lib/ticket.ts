@@ -1,6 +1,6 @@
 import {
-  EscPos, centrar, columnasPara, envolver, parLineado,
-  type AnchoPapel,
+  CODEPAGES, CODEPAGE_DEFAULT, EscPos, centrar, columnasPara, desdeBytes,
+  envolver, parLineado, type AnchoPapel,
 } from "./escpos";
 import { fmtPlano as fmt } from "./money";
 import { TIPOS_ORDEN, etiquetaPago, type MetodoPago, type TipoOrden, type Totales } from "./types";
@@ -286,9 +286,9 @@ export function construirTicket(
  * se ve pegado a la izquierda en la app y centrado en el papel, y la caja
  * aprueba un recibo que no es el que sale.
  */
-export function previsualizarTicket(d: DatosTicket): string {
+export function previsualizarTicket(d: DatosTicket, codepage = CODEPAGE_DEFAULT): string {
   const cols = columnasPara(d.ancho ?? 58);
-  const bytes = construirTicket(d, { transliterar: false });
+  const bytes = construirTicket(d, { transliterar: false, codepage });
 
   const lineas: string[] = [];
   let actual = "";
@@ -318,11 +318,59 @@ export function previsualizarTicket(d: DatosTicket): string {
     }
     if (b === 0x1d && bytes[i + 1] === 0x21) { i += 2; continue; } // tamano
     if (b === 0x0a) { volcar(); continue; }
-    actual += String.fromCharCode(b);
+    actual += desdeBytes([b], codepage);
   }
   if (actual) volcar();
 
   return lineas.join("\n");
+}
+
+/**
+ * HOJA DE DIAGNOSTICO
+ *
+ * Imprime el MISMO texto en espanol con los tres codepages, uno debajo del
+ * otro, en una sola pasada. En vez de probar de a uno y comparar de memoria,
+ * se mira el papel y se ve cual bloque se lee bien.
+ *
+ * Cada bloque se arma con su propio encoder, porque los bytes de la ñ son
+ * distintos en cada codepage (0xF1 en CP1252, 0xA4 en CP437 y CP850).
+ */
+export function hojaCodepages(ancho: AnchoPapel = 58): Uint8Array {
+  const cols = columnasPara(ancho);
+  const bytes: number[] = [];
+
+  const cabecera = new EscPos({ codepage: 0, ancho }).init();
+  cabecera.alinear(1).negrita(true).linea("PRUEBA DE ACENTOS");
+  cabecera.negrita(false).linea(`${ancho}mm - ${cols} columnas`).alinear(0);
+  cabecera.linea("Mira cual bloque se lee bien");
+  cabecera.linea("y elegi ese numero en la app.");
+  bytes.push(...cabecera.bytes());
+
+  for (const cp of CODEPAGES) {
+    // Encoder propio por bloque: mismo texto, bytes distintos.
+    const p = new EscPos({ codepage: cp.n, ancho });
+    p.separador("=");
+    p.negrita(true).linea(`>>> OPCION ${cp.n}`).negrita(false);
+    p.linea(cp.nombre);
+    p.separador("-");
+    p.linea("Toña  Jamón  Piña");
+    p.linea("Española  Champiñón");
+    p.linea("¿Cuántos? ¡Sí! Año Niño");
+    p.linea("MAYUSCULAS: ÑOÑO ÁÉÍÓÚ");
+    p.nl();
+    bytes.push(...p.bytes());
+  }
+
+  const pie = new EscPos({ codepage: 0, ancho });
+  pie.separador("=");
+  pie.alinear(1);
+  pie.linea("Si ninguno se lee bien,");
+  pie.linea("activa 'quitar acentos'.");
+  pie.alinear(0);
+  pie.avanzar(4);
+  bytes.push(...pie.bytes());
+
+  return new Uint8Array(bytes);
 }
 
 /** Ticket de prueba para verificar codepage y alineacion en la impresora. */
