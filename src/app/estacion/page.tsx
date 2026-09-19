@@ -108,7 +108,7 @@ export default function Estacion() {
         anotar(`Prueba impresa con codepage ${codepage}`);
       } else {
         await encolarBytes(null, "prueba", ticketPrueba(codepage), `prueba cp${codepage}`);
-        anotar("Prueba encolada (conectá la impresora para que salga)");
+        anotar("Prueba encolada (conecta la impresora para que salga)");
         refrescar();
       }
     } catch (e) { setError((e as Error).message); }
@@ -121,7 +121,7 @@ export default function Estacion() {
       <div className="panel p-4">
         <h1 className="text-lg font-bold">Estación de impresión</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
-          Dejá esta pantalla abierta en el Android de caja, enchufado y con la
+          Deja esta pantalla abierta en el Android de caja, enchufado y con la
           PT-210 encendida. Es el único dispositivo que habla con la impresora;
           el resto solo manda trabajos a la cola.
         </p>
@@ -135,7 +135,7 @@ export default function Estacion() {
           <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
             {esIOS()
               ? "Safari en iPhone y iPad no implementa Web Bluetooth y Apple no tiene planes de hacerlo. Este iPhone sirve perfecto para tomar órdenes: los tickets van a la cola y salen en el Android de caja."
-              : "Usá Chrome o Edge. Firefox y Safari no soportan Web Bluetooth."}
+              : "Usa Chrome o Edge. Firefox y Safari no soportan Web Bluetooth."}
           </p>
           <p className="mt-2 text-sm" style={{ color: "var(--txt-2)" }}>
             Trabajos en cola ahora mismo: <b>{cola.length}</b>
@@ -168,7 +168,7 @@ export default function Estacion() {
           <div className="rounded-lg p-3" style={{ background: "var(--panel-2)" }}>
             <div className="mb-2 text-sm font-semibold">Prueba de impresión</div>
             <p className="mb-2 text-xs" style={{ color: "var(--txt-2)" }}>
-              Si los acentos y la ñ salen como signos raros, probá otro codepage
+              Si los acentos y la ñ salen como signos raros, prueba otro codepage
               hasta que &quot;Toña&quot; y &quot;Jamón&quot; se lean bien.
             </p>
             <div className="flex flex-wrap gap-2">

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { construirTicket, previsualizarTicket, type DatosTicket } from "./ticket";
 import { calcularTotales } from "./pricing";
 import { centavos } from "./money";
-import { COLUMNAS, envolver, parLineado } from "./escpos";
+import { COLUMNAS, envolver, parLineado, transliterar } from "./escpos";
 import { CONFIG_DEFAULT, type LineaOrden } from "./types";
 
 const lineas: LineaOrden[] = [
@@ -48,9 +48,26 @@ describe("maquetado a 32 columnas", () => {
     expect(parLineado("Una etiqueta larguisima que no cabe", "1,160.00").length).toBeLessThanOrEqual(COLUMNAS);
   });
 
+  it("el ticket del cliente lleva la ortografía correcta", () => {
+    const txt = previsualizarTicket(datos({ atendio: "Ana", reimpresion: true }));
+    for (const esperado of ["Atendió:", "Envío", "REIMPRESIÓN", "¡Gracias por su compra!"]) {
+      expect(txt).toContain(esperado);
+    }
+  });
+
   it("los acentos sobreviven al encoder CP1252", () => {
     const bytes = construirTicket(datos(), { transliterar: false });
     expect(Array.from(bytes)).toContain(0xf1); // enie de Toña
+  });
+
+  it("transliterar preserva el maquetado al quitar acentos", () => {
+    const txt = previsualizarTicket(datos());
+    const plano = transliterar(txt);
+    // Mismo numero de lineas: los saltos no se convierten en "?"
+    expect(plano.split("\n")).toHaveLength(txt.split("\n").length);
+    expect(plano).toContain("Tona");
+    expect(plano).toContain("Envio");
+    expect(plano).not.toMatch(/\?{2,}/);
   });
 
   it("transliterar elimina todo byte fuera de ASCII", () => {
@@ -72,7 +89,7 @@ describe("maquetado a 32 columnas", () => {
     expect(txt).toContain("Desc. pizzas");
     expect(txt).toContain("IVA 15%");
     expect(txt).toContain("Propina 10%");
-    expect(txt).toContain("Envio");
+    expect(txt).toContain("Envío");
     expect(txt).toContain("Cambio:");
   });
 });

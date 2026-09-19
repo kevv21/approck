@@ -50,7 +50,7 @@ apilan descuentos.
 
 1. **Base de la propina.** Aquí el 10% se calcula sobre el subtotal *antes*
    de IVA, que es la práctica más común, pero no encontré fuente normativa
-   que lo fije. Si en tu caso va sobre subtotal+IVA, cambiá `propinaSobre` a
+   que lo fije. Si en tu caso va sobre subtotal+IVA, cambia `propinaSobre` a
    `"base_con_iva"` en `src/lib/types.ts` (`CONFIG_DEFAULT`).
 2. **Los precios de la carta.** El sistema toma C$260 (Jamón) como base
    e imprime C$260 + IVA = C$299. Si hoy el cliente paga C$260 en total, los
@@ -63,8 +63,8 @@ apilan descuentos.
 
 ### 1. Base de datos (5 minutos)
 
-Creá un proyecto gratis en [supabase.com](https://supabase.com). En
-**SQL Editor**, ejecutá en orden:
+Crea un proyecto gratis en [supabase.com](https://supabase.com). En
+**SQL Editor**, ejecuta en orden:
 
 ```
 supabase/01_schema.sql      -- tablas, tipos, cola de impresión
@@ -78,7 +78,7 @@ supabase/03_seed_menu.sql   -- los 57 productos de la carta
 cp .env.example .env.local
 ```
 
-Poné `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
+Pon `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
 **Project Settings → API**.
 
 ### 3. Correr
@@ -100,20 +100,20 @@ npx next dev --experimental-https -H 0.0.0.0
 npx vercel
 ```
 
-Cargá las dos variables de entorno en el panel de Vercel. El plan gratuito
+Carga las dos variables de entorno en el panel de Vercel. El plan gratuito
 alcanza de sobra para el volumen de una pizzería, y no caduca.
 
 ### 5. Configurar la estación
 
-1. En el **Android de caja**, abrí `/estacion` en Chrome e instalala
+1. En el **Android de caja**, abre `/estacion` en Chrome e instalala
    ("Agregar a pantalla de inicio").
-2. Emparejá la PT-210 en los ajustes de Bluetooth de Android.
-3. Tocá **Conectar PT-210** y elegí la impresora.
-4. Tocá **Imprimir prueba**. Si "Toña" y "Jamón" salen con signos raros,
-   probá otro codepage del desplegable hasta que se lean bien.
-5. Dejá esa pantalla abierta y el teléfono enchufado.
+2. Empareja la PT-210 en los ajustes de Bluetooth de Android.
+3. Toca **Conectar PT-210** y elige la impresora.
+4. Toca **Imprimir prueba**. Si "Toña" y "Jamón" salen con signos raros,
+   prueba otro codepage del desplegable hasta que se lean bien.
+5. Deja esa pantalla abierta y el teléfono enchufado.
 
-En los demás dispositivos (incluidos iPhones) abrí `/` e instalá la PWA.
+En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
 
 ---
 
@@ -150,7 +150,7 @@ reparten por el método del mayor resto, así que la suma de las líneas siempre
 cuadra exactamente con el total.
 
 **Snapshot de precios.** `orden_item` guarda `nombre_snapshot` y
-`precio_snapshot`. Si mañana subís la Diabla de C$300 a C$320 y los reportes
+`precio_snapshot`. Si mañana subes la Diabla de C$300 a C$320 y los reportes
 leyeran el precio por FK, **todos los cierres históricos cambiarían solos**.
 
 **La PT-210 en concreto:**

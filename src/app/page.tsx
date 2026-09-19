@@ -137,8 +137,8 @@ export default function Caja() {
         <div className="panel p-5">
           <h2 className="mb-2 text-lg font-bold">Falta configurar Supabase</h2>
           <p className="text-sm" style={{ color: "var(--txt-2)" }}>
-            Copiá <code className="mono">.env.example</code> a{" "}
-            <code className="mono">.env.local</code> y poné la URL y la anon key
+            Copia <code className="mono">.env.example</code> a{" "}
+            <code className="mono">.env.local</code> y pon la URL y la anon key
             de tu proyecto. Los pasos completos están en el README.
           </p>
         </div>
@@ -215,7 +215,7 @@ export default function Caja() {
         <div className="panel p-3">
           {lineas.length === 0 ? (
             <p className="py-6 text-center text-sm" style={{ color: "var(--txt-2)" }}>
-              Tocá un producto para agregarlo
+              Toca un producto para agregarlo
             </p>
           ) : (
             <div className="space-y-2">

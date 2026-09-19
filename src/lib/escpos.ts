@@ -30,9 +30,13 @@ const SIN_ACENTO: Record<string, string> = {
   "“": '"', "”": '"', "‘": "'", "’": "'",
 };
 
-/** Quita acentos. Fallback garantizado si ningun codepage funciona. */
+/**
+ * Quita acentos. Fallback garantizado si ningun codepage funciona.
+ * Preserva saltos de linea y tabulaciones: son control de formato, no texto,
+ * y convertirlos en "?" destruye el maquetado del ticket.
+ */
 export function transliterar(s: string): string {
-  return s.replace(/[^\x20-\x7E]/g, (c) => SIN_ACENTO[c] ?? "?");
+  return s.replace(/[^\x20-\x7E\n\r\t]/g, (c) => SIN_ACENTO[c] ?? "?");
 }
 
 /**

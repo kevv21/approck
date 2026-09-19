@@ -15,7 +15,7 @@ export const NEGOCIO: DatosNegocio = {
   telefono: "",
   direccion: "",
   ruc: "",
-  pie: "Gracias por su compra!",
+  pie: "¡Gracias por su compra!",
 };
 
 export interface DatosTicket {
@@ -114,7 +114,7 @@ function construirCliente(d: DatosTicket, p: EscPos): void {
   if (NEGOCIO.ruc) p.linea(`RUC: ${NEGOCIO.ruc}`);
 
   if (d.reimpresion) {
-    p.negrita(true).linea("** REIMPRESION **").negrita(false);
+    p.negrita(true).linea("** REIMPRESIÓN **").negrita(false);
   }
   p.alinear(0).separador("=");
 
@@ -124,7 +124,7 @@ function construirCliente(d: DatosTicket, p: EscPos): void {
   if (d.cliente) for (const l of envolver(`Cliente: ${d.cliente}`, COLUMNAS)) p.linea(l);
   if (d.telefonoCliente) p.linea(`Tel: ${d.telefonoCliente}`);
   if (d.direccion) for (const l of envolver(`Dir: ${d.direccion}`, COLUMNAS)) p.linea(l);
-  if (d.atendio) p.linea(`Atendio: ${d.atendio}`);
+  if (d.atendio) p.linea(`Atendió: ${d.atendio}`);
   p.separador();
 
   // Items
@@ -146,7 +146,7 @@ function construirCliente(d: DatosTicket, p: EscPos): void {
   if (t.descBebidas > 0) p.linea(parLineado("Desc. bebidas", `-${fmt(t.descBebidas)}`));
   if (t.descGeneral > 0) p.linea(parLineado("Desc. general", `-${fmt(t.descGeneral)}`));
   if (t.descTotal > 0) p.linea(parLineado("Base gravable", fmt(t.baseProductos)));
-  if (t.costoEnvio > 0) p.linea(parLineado("Envio", fmt(t.costoEnvio)));
+  if (t.costoEnvio > 0) p.linea(parLineado("Envío", fmt(t.costoEnvio)));
   p.linea(parLineado("IVA 15%", fmt(t.iva)));
   if (t.propina > 0) p.linea(parLineado("Propina 10%", fmt(t.propina)));
 
@@ -221,12 +221,12 @@ export function ticketPrueba(codepage: number): Uint8Array {
   p.linea(`Codepage: ${codepage}`);
   p.separador("=");
   p.linea("12345678901234567890123456789012");
-  p.linea("Si esta linea llega justo al");
+  p.linea("Si esta línea llega justo al");
   p.linea("borde, las 32 columnas cuadran.");
   p.separador();
   p.linea("Acentos: Jamon Pina Espanola");
   p.linea("Acentos: Jamón Piña Española");
-  p.linea("Enie: Toña ñ Ñ - ¿Bien? ¡Si!");
+  p.linea("Enie: Toña ñ Ñ - ¿Bien? ¡Sí!");
   p.separador();
   p.linea(parLineado("TOTAL", "1,463.50"));
   p.avanzar(4);
