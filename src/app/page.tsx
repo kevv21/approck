@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import PanelDescuentos from "@/components/PanelDescuentos";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
-import { cargarMenu, encolar, guardarYEncolar, turnoAbierto } from "@/lib/repo";
+import { cargarMenu, encolar, turnoAbierto } from "@/lib/repo";
+import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
+import { guardarMenuLocal } from "@/lib/offline/db";
+import { hayInternet } from "@/lib/offline/conexion";
 import { previsualizarTicket, type DatosTicket } from "@/lib/ticket";
 import { descargarHtml, imprimirHtml } from "@/lib/printer";
 import { hayConfig } from "@/lib/supabase";
@@ -41,10 +44,21 @@ export default function Caja() {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
 
+  const [menuDesdeCache, setMenuDesdeCache] = useState(false);
+
   useEffect(() => {
     if (!hayConfig) return;
-    cargarMenu()
-      .then((m) => { setMenu(m); setCat(m[0]?.categoria ?? ""); })
+    // Con respaldo local: si no hay internet se usa la copia guardada, para
+    // poder seguir tomando órdenes.
+    cargarMenuConRespaldo(cargarMenu, guardarMenuLocal)
+      .then(({ productos, desdeCache }) => {
+        setMenu(productos);
+        setCat(productos[0]?.categoria ?? "");
+        setMenuDesdeCache(desdeCache);
+        if (desdeCache && productos.length === 0) {
+          setAviso({ txt: "No hay menú guardado en este dispositivo. Conectate una vez para descargarlo.", mal: true });
+        }
+      })
       .catch((e) => setAviso({ txt: `No se pudo cargar el menú: ${e.message}`, mal: true }));
     turnoAbierto().then((t) => setTurno(t)).catch(() => {});
   }, []);
@@ -113,16 +127,51 @@ export default function Caja() {
     setGuardando(true);
     setAviso(null);
     try {
-      const { orden } = await guardarYEncolar({
+      // El spec exige conexión para cobrar, y con razón: un cobro guardado
+      // solo en el teléfono no existe para el arqueo de caja.
+      if (!(await hayInternet())) {
+        setAviso({
+          txt: "Sin conexión no se puede cobrar. Podés seguir tomando órdenes: se suben solas al volver la señal.",
+          mal: true,
+        });
+        return;
+      }
+
+      const r = await guardarOrden({
         lineas, descuentos, config, tipo,
         mesa, cliente, telefonoCliente: telefono, direccion, notas, atendio,
         metodoPago, recibido: recibidoCent > 0 ? recibidoCent : undefined,
         motivoDescuento: motivoDesc, turnoId: turno?.id ?? null, imprimirCocina,
       });
-      setAviso({ txt: `Orden #${orden.numero} cobrada y enviada a la estación de impresión.` });
+      setAviso({ txt: `Orden #${r.numero} cobrada y enviada a la estación de impresión.` });
       limpiar();
     } catch (e) {
       setAviso({ txt: `Error al guardar: ${(e as Error).message}`, mal: true });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  /** Guarda sin cobrar. Funciona sin conexión: se sube sola al reconectar. */
+  const guardarSinCobrar = async () => {
+    if (lineas.length === 0) return;
+    setGuardando(true);
+    setAviso(null);
+    try {
+      const r = await guardarOrden({
+        lineas, descuentos, config, tipo,
+        mesa, cliente, telefonoCliente: telefono, direccion, notas, atendio,
+        metodoPago, motivoDescuento: motivoDesc,
+        turnoId: turno?.id ?? null, imprimirCocina,
+      });
+      setAviso({
+        txt: r.offline
+          ? `Orden guardada en este dispositivo como T-${r.numero}. Se sube sola al volver la conexión.`
+          : `Orden #${r.numero} guardada.`,
+      });
+      limpiar();
+    } catch (e) {
+      setAviso({ txt: `Error: ${(e as Error).message}`, mal: true });
     } finally {
       setGuardando(false);
     }
@@ -360,6 +409,10 @@ export default function Caja() {
               </button>
               <button className="btn btn-acc" disabled={guardando} onClick={cobrar}>
                 {guardando ? "Guardando..." : "Cobrar e imprimir"}
+              </button>
+              <button className="btn btn-ok col-span-2" disabled={guardando}
+                      onClick={guardarSinCobrar}>
+                Guardar orden {menuDesdeCache ? "(sin conexión)" : ""}
               </button>
               <button className="btn btn-ghost col-span-2" disabled={guardando}
                       onClick={imprimirPrecuenta}>Imprimir pre-cuenta</button>

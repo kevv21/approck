@@ -52,11 +52,20 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       → falta: conteo por denominación en C$ y US$, hojas `Pagos` y
         `Anulaciones`, fórmulas de Excel, nombre de archivo del spec,
         top productos, ticket promedio, bloqueo de sesión cerrada.
-- [ ] 6. Offline + sincronización — sin empezar
+- [x] 6. Offline + sincronización
+      → hecho: almacén local en IndexedDB (Dexie), menú cacheado para poder
+        tomar órdenes sin señal, cola de subida que respeta el orden de
+        creación, números temporales `T-n` reemplazados por el correlativo
+        real de Postgres al subir, indicador de conexión con pendientes en la
+        barra, service worker para que la app abra sin internet, y cobro y
+        cierre bloqueados sin conexión con mensaje claro, como exige el spec.
+      → clave: `id_local` único en la base. Sin eso, una caída justo después
+        de subir y antes de recibir la respuesta duplicaba la orden y se
+        cobraba dos veces.
 - [ ] 7. Reportes admin + auditoría — sin empezar, falta `audit_log`
 - [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
 
-**Avance real contra el spec completo: ~60%.** (58 pruebas)
+**Avance real contra el spec completo: ~72%.** (69 pruebas)
 
 ## Decisiones tomadas
 - Stack: Next.js + TypeScript + Tailwind. ✅ ya implementado.
@@ -83,8 +92,11 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
   el iPhone. Queda el límite conocido de que el puente necesita internet.
 - El codepage de la PT-210 **sigue sin verificarse en hardware real**.
   Se verifica con `cd bridge && npm run prueba`.
-- El puente necesita internet para imprimir. Si se cae la conexión, no salen
-  comandas. Se resuelve en la Fase 6 (offline) o pasando a certificado local.
+- **El puente sigue necesitando internet para imprimir.** El offline resuelve
+  tomar órdenes sin señal, pero las comandas de cocina no salen hasta que
+  vuelva la conexión, porque el puente consulta la cola en la nube. Cerrarlo
+  del todo exige un servidor local, que choca con mixed content (GAP.md §1.3).
+  Mitigación disponible hoy: el fallback HTML imprime desde el navegador.
 - "Enteros en centavos" vs "redondeo solo en el total final":
   **resuelto** calculando en milésimas de centavo (enteros) y redondeando
   solo al construir los totales visibles.

@@ -190,9 +190,12 @@ de Supabase se cae con el wifi del local y no siempre reconecta.
   para un local, en su red, con la URL no publicada. **No es seguridad para
   internet abierto.** El upgrade es Clerk (gratis en el GitHub Student Pack):
   cambiar `using (true)` por chequeos de rol en `02_rls.sql`.
-- **Sin modo offline.** Si se cae el internet, no se puede cobrar. La
-  siguiente iteración natural es una cola local con IndexedDB (Dexie) que
-  sincronice al volver la conexión.
+- **Offline parcial.** Se pueden tomar órdenes sin señal: quedan en
+  IndexedDB con un número temporal `T-n` y se suben solas al reconectar, con
+  el correlativo real que asigna Postgres. Cobrar y cerrar caja **requieren
+  conexión** a propósito: un cobro que existe solo en el teléfono no entra en
+  el arqueo. Lo que sigue sin resolverse es que **las comandas de cocina no
+  salen sin internet**, porque el puente consulta la cola en la nube.
 - **Sin comandas por estado.** Las órdenes se guardan como `pagada` al
   cobrar; no hay flujo de cocina (pendiente → listo → entregado).
 - **Un solo turno abierto a la vez**, forzado por índice único en la BD.

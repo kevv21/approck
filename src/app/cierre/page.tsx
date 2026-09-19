@@ -5,6 +5,7 @@ import { descargarBlob, generarCierreExcel, type FilaOrden } from "@/lib/excel";
 import { fmtC, centavos } from "@/lib/money";
 import { abrirTurno, cerrarTurno, reimprimir, turnoAbierto } from "@/lib/repo";
 import { hayConfig, supabase } from "@/lib/supabase";
+import { hayInternet } from "@/lib/offline/conexion";
 import { TIPOS_ORDEN } from "@/lib/types";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
@@ -88,6 +89,12 @@ export default function Cierre() {
                      placeholder="Efectivo contado C$" value={contado}
                      onChange={(e) => setContado(e.target.value)} />
               <button className="btn btn-mal" onClick={async () => {
+                // El spec exige conexión para cerrar caja: un arqueo calculado
+                // contra datos que quizá no subieron no sirve para nada.
+                if (!(await hayInternet())) {
+                  setAviso("Sin conexión no se puede cerrar la caja. El arqueo tiene que calcularse contra las órdenes ya subidas.");
+                  return;
+                }
                 await cerrarTurno(turno.id, centavos(parseFloat(contado || "0") || 0));
                 setTurno(null); setContado(""); setAviso("Turno cerrado.");
                 buscar();

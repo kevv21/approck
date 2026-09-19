@@ -65,6 +65,16 @@ export interface DatosGuardarOrden {
   turnoId?: string | null;
   /** Encolar tambien el ticket de cocina */
   imprimirCocina?: boolean;
+  /**
+   * UUID puesto por el dispositivo. Es la clave de idempotencia: si la orden
+   * sube pero la respuesta se pierde, el reintento la reconoce en vez de
+   * duplicarla.
+   */
+  idLocal?: string;
+  /** Se tomo sin conexion */
+  creadaOffline?: boolean;
+  /** Cuando la tomo el mesero, que puede ser mucho antes de subirla. */
+  tomadaAt?: string;
 }
 
 /**
@@ -73,11 +83,28 @@ export interface DatosGuardarOrden {
  * estacion de caja es la unica que habla con la PT-210.
  */
 export async function guardarYEncolar(d: DatosGuardarOrden) {
+  // Idempotencia: si esta orden ya subio en un intento anterior cuya
+  // respuesta se perdio, se devuelve la que existe en vez de crear otra.
+  if (d.idLocal) {
+    const { data: previa } = await supabase
+      .from("orden").select("*").eq("id_local", d.idLocal).maybeSingle();
+    if (previa) {
+      return {
+        orden: previa,
+        totales: calcularTotales(d.lineas, d.descuentos, d.config),
+        yaExistia: true,
+      };
+    }
+  }
+
   const t = calcularTotales(d.lineas, d.descuentos, d.config);
   const buscar = (a: Descuento["alcance"]) => d.descuentos.find((x) => x.alcance === a);
   const dg = buscar("general"), dp = buscar("pizza"), db = buscar("bebida");
 
   const { data: orden, error } = await supabase.from("orden").insert({
+    id_local: d.idLocal ?? null,
+    creada_offline: d.creadaOffline ?? false,
+    tomada_at: d.tomadaAt ?? new Date().toISOString(),
     turno_id: d.turnoId ?? null,
     tipo: d.tipo,
     mesa: d.mesa || null,
@@ -146,7 +173,7 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
   await encolar(orden.id, "cliente", base);
   if (d.imprimirCocina) await encolar(orden.id, "cocina", { ...base, documento: "cocina" });
 
-  return { orden, totales: t };
+  return { orden, totales: t, yaExistia: false };
 }
 
 export async function encolar(

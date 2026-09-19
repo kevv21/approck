@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import IndicadorConexion from "@/components/IndicadorConexion";
+import RegistrarSW from "@/components/RegistrarSW";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -40,8 +42,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {n.label}
             </Link>
           ))}
+          <IndicadorConexion />
         </header>
         <main className="pb-24">{children}</main>
+        <RegistrarSW />
       </body>
     </html>
   );
