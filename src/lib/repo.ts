@@ -1,6 +1,8 @@
 "use client";
 
 import { supabase } from "./supabase";
+import { registrar } from "./auth/auditoria";
+import { sesionActual } from "./auth/sesion";
 import { calcularTotales } from "./pricing";
 import { construirTicket, type DatosTicket } from "./ticket";
 import { previsualizarTicket } from "./ticket";
@@ -28,15 +30,34 @@ export async function abrirTurno(porQuien: string, fondoInicial: number) {
     .insert({ abierto_por: porQuien, fondo_inicial: fondoInicial })
     .select().single();
   if (error) throw error;
+
+  await registrar({
+    accion: "apertura_caja",
+    turnoId: data.id,
+    detalle: { turno: data.numero, fondo: fondoInicial },
+  });
   return data;
 }
 
 export async function cerrarTurno(id: string, efectivoContado: number, notas?: string) {
-  const { error } = await supabase
+  const quien = sesionActual()?.nombre ?? "(sin sesión)";
+  const { data, error } = await supabase
     .from("turno")
-    .update({ cerrado_at: new Date().toISOString(), efectivo_contado: efectivoContado, notas })
-    .eq("id", id);
+    .update({
+      cerrado_at: new Date().toISOString(),
+      efectivo_contado: efectivoContado,
+      cerrado_por: quien,
+      notas,
+    })
+    .eq("id", id).select("numero, fondo_inicial").single();
   if (error) throw error;
+
+  await registrar({
+    accion: "cierre_caja",
+    turnoId: id,
+    detalle: { turno: data.numero, contado: efectivoContado, notas: notas ?? null },
+  });
+  return data;
 }
 
 const b64 = (bytes: Uint8Array): string => {
@@ -113,6 +134,8 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     direccion: d.direccion || null,
     notas: d.notas || null,
     atendio: d.atendio || null,
+    mesero: d.atendio || sesionActual()?.nombre || null,
+    cajero: sesionActual()?.nombre || null,
     iva_bps: d.config.ivaBps,
     precios_incluyen_iva: d.config.preciosIncluyenIva,
     envio_gravado: d.config.envioGravado,
@@ -173,7 +196,52 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
   await encolar(orden.id, "cliente", base);
   if (d.imprimirCocina) await encolar(orden.id, "cocina", { ...base, documento: "cocina" });
 
+  // El spec exige que todo descuento quede registrado con usuario, hora y
+  // motivo. Se hace despues de guardar para no bloquear el cobro si falla.
+  if (t.descTotal > 0) {
+    await registrar({
+      accion: "descuento",
+      motivo: d.motivoDescuento || "(sin motivo)",
+      ordenId: orden.id,
+      turnoId: d.turnoId ?? null,
+      detalle: {
+        orden: orden.numero,
+        monto: t.descTotal,
+        pizzas: t.descPizzas,
+        bebidas: t.descBebidas,
+        general: t.descGeneral,
+        porLinea: t.descLineas,
+      },
+    });
+  }
+
   return { orden, totales: t, yaExistia: false };
+}
+
+/**
+ * Anula una orden ya cobrada. El motivo es OBLIGATORIO: una anulacion sin
+ * motivo es exactamente el agujero por donde se va la plata.
+ */
+export async function anularOrden(ordenId: string, motivo: string) {
+  const limpio = motivo.trim();
+  if (!limpio) throw new Error("La anulación necesita un motivo.");
+
+  const quien = sesionActual()?.nombre ?? "(sin sesión)";
+  const { data, error } = await supabase.from("orden").update({
+    estado: "anulada",
+    anulada_por: quien,
+    anulada_motivo: limpio,
+    anulada_at: new Date().toISOString(),
+  }).eq("id", ordenId).select("numero, total").single();
+  if (error) throw error;
+
+  await registrar({
+    accion: "anulacion",
+    motivo: limpio,
+    ordenId,
+    detalle: { orden: data.numero, monto: data.total },
+  });
+  return data;
 }
 
 export async function encolar(
@@ -264,6 +332,12 @@ export async function reimprimir(ordenId: string, cocina = false) {
     costoEnvio: o.costo_envio,
     envioGravado: o.envio_gravado ?? false,
     tipoCambio: o.tipo_cambio ?? 0,
+  });
+
+  await registrar({
+    accion: "reimpresion",
+    ordenId,
+    detalle: { orden: o.numero, documento: cocina ? "cocina" : "cliente" },
   });
 
   await encolar(ordenId, cocina ? "cocina" : "cliente", {

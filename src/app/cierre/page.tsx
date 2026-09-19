@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { descargarBlob, generarCierreExcel, type FilaOrden } from "@/lib/excel";
+import { descargarBlob, generarCierreExcel, nombreArchivoCierre, type FilaOrden } from "@/lib/excel";
 import { fmtC, centavos } from "@/lib/money";
-import { abrirTurno, cerrarTurno, reimprimir, turnoAbierto } from "@/lib/repo";
+import { abrirTurno, anularOrden, cerrarTurno, reimprimir, turnoAbierto } from "@/lib/repo";
+import { listarAuditoria, type FilaAuditoria } from "@/lib/auth/auditoria";
 import { hayConfig, supabase } from "@/lib/supabase";
 import { hayInternet } from "@/lib/offline/conexion";
-import { TIPOS_ORDEN } from "@/lib/types";
+import { METODOS_PAGO, TIPOS_ORDEN } from "@/lib/types";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 
 interface Turno {
-  id: string; abierto_por: string; abierto_at: string;
+  id: string; numero: number | null; abierto_por: string; abierto_at: string;
   fondo_inicial: number; efectivo_contado: number | null;
 }
 
@@ -24,6 +25,8 @@ export default function Cierre() {
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [quien, setQuien] = useState("");
+  const [bitacora, setBitacora] = useState<FilaAuditoria[]>([]);
+  const [verBitacora, setVerBitacora] = useState(false);
   const [fondo, setFondo] = useState("");
   const [contado, setContado] = useState("");
 
@@ -69,7 +72,7 @@ export default function Cierre() {
   const exportar = async () => {
     const { d, h } = rango();
     const blob = await generarCierreExcel({ desde: d, hasta: h, turno, ordenes });
-    descargarBlob(blob, `cierre-rockmunchies-${desde}${desde !== hasta ? `_a_${hasta}` : ""}.xlsx`);
+    descargarBlob(blob, nombreArchivoCierre(new Date(), turno?.numero));
   };
 
   return (
@@ -139,13 +142,23 @@ export default function Cierre() {
       {/* resumen */}
       <div className="panel grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
         <Kpi k="Órdenes" v={String(pagadas.length)} />
-        <Kpi k="Base gravable" v={fmtC(sumar((o) => o.base_gravable))} />
         <Kpi k="IVA 15%" v={fmtC(sumar((o) => o.iva))} />
-        <Kpi k="Total cobrado" v={fmtC(sumar((o) => o.total))} acc />
-        <Kpi k="Desc. pizzas" v={fmtC(sumar((o) => o.desc_pizzas))} />
-        <Kpi k="Desc. bebidas" v={fmtC(sumar((o) => o.desc_bebidas))} />
-        <Kpi k="Desc. general" v={fmtC(sumar((o) => o.desc_general))} />
+        <Kpi k="Descuentos" v={fmtC(sumar((o) => o.desc_total))} />
         <Kpi k="Propinas" v={fmtC(sumar((o) => o.propina))} />
+      </div>
+
+      {/* Por forma de pago. PedidosYa va aparte: esa plata no entra a la
+          caja el mismo día. */}
+      <div className="panel grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+        {METODOS_PAGO.map((m) => {
+          const del = pagadas.filter((o) => o.metodo_pago === m.valor);
+          return (
+            <Kpi key={m.valor}
+                 k={`${m.etiqueta}${m.valor === "pedidosya" ? " (aparte)" : ""} (${del.length})`}
+                 v={fmtC(del.reduce((a, o) => a + o.total, 0))}
+                 acc={m.valor === "efectivo"} />
+          );
+        })}
       </div>
 
       <div className="panel grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
@@ -156,6 +169,45 @@ export default function Cierre() {
                  v={fmtC(del.reduce((a, o) => a + o.total, 0))} />
           );
         })}
+      </div>
+
+      {/* bitácora */}
+      <div className="panel p-4">
+        <button className="flex w-full items-center justify-between text-sm font-bold uppercase tracking-wide"
+                style={{ color: "var(--txt-2)" }}
+                onClick={async () => {
+                  const v = !verBitacora;
+                  setVerBitacora(v);
+                  if (v) {
+                    const { d, h } = rango();
+                    try { setBitacora(await listarAuditoria(d.toISOString(), h.toISOString())); }
+                    catch { /* noop */ }
+                  }
+                }}>
+          <span>Bitácora del período</span>
+          <span>{verBitacora ? "−" : "+"}</span>
+        </button>
+        {verBitacora && (
+          bitacora.length === 0 ? (
+            <p className="mt-2 text-sm" style={{ color: "var(--txt-2)" }}>
+              Sin movimientos registrados.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm">
+              {bitacora.map((b) => (
+                <li key={b.id} className="flex flex-wrap gap-2 rounded px-2 py-1"
+                    style={{ background: "var(--panel-2)" }}>
+                  <span className="mono text-xs" style={{ color: "var(--txt-2)" }}>
+                    {new Date(b.created_at).toLocaleString("es-NI", { hour12: false })}
+                  </span>
+                  <b>{b.accion}</b>
+                  <span>{b.usuario}</span>
+                  {b.motivo && <span style={{ color: "var(--txt-2)" }}>· {b.motivo}</span>}
+                </li>
+              ))}
+            </ul>
+          )
+        )}
       </div>
 
       {/* listado */}
@@ -183,11 +235,29 @@ export default function Cierre() {
                   {o.desc_total > 0 ? `-${fmtC(o.desc_total)}` : ""}
                 </td>
                 <td className="mono px-3 py-2 font-bold">{fmtC(o.total)}</td>
-                <td className="px-3 py-2">
+                <td className="flex gap-1 px-3 py-2">
                   <button className="chip"
                           onClick={() => reimprimir((o as unknown as { id: string }).id)}>
                     Reimprimir
                   </button>
+                  {o.estado === "pagada" && (
+                    <button className="chip" style={{ color: "var(--mal)" }}
+                            onClick={async () => {
+                              // Motivo obligatorio: una anulación sin motivo es
+                              // el agujero por donde se va la plata.
+                              const motivo = prompt(`Motivo de la anulación de la orden #${o.numero}:`);
+                              if (!motivo?.trim()) return;
+                              try {
+                                await anularOrden((o as unknown as { id: string }).id, motivo);
+                                setAviso(`Orden #${o.numero} anulada.`);
+                                buscar();
+                              } catch (e) {
+                                setAviso(`Error: ${(e as Error).message}`);
+                              }
+                            }}>
+                      Anular
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

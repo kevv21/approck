@@ -10,14 +10,22 @@ export const TIPOS_ORDEN: { valor: TipoOrden; etiqueta: string; corto: string }[
   { valor: "retiro", etiqueta: "Retiro en local", corto: "RETIRO" },
 ];
 
-export type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "mixto";
+export type MetodoPago = "efectivo" | "banpro" | "bac" | "pedidosya";
 
-export const METODOS_PAGO: { valor: MetodoPago; etiqueta: string }[] = [
-  { valor: "efectivo", etiqueta: "Efectivo" },
-  { valor: "tarjeta", etiqueta: "Tarjeta" },
-  { valor: "transferencia", etiqueta: "Transferencia" },
-  { valor: "mixto", etiqueta: "Mixto" },
+/**
+ * PedidosYa va aparte a proposito: esa plata no entra a la caja el mismo dia,
+ * la plataforma la deposita despues y con comision descontada. Meterla en el
+ * arqueo junto al efectivo hace que la caja nunca cuadre.
+ */
+export const METODOS_PAGO: { valor: MetodoPago; etiqueta: string; enCaja: boolean }[] = [
+  { valor: "efectivo",  etiqueta: "Efectivo",   enCaja: true },
+  { valor: "banpro",    etiqueta: "Banpro",     enCaja: false },
+  { valor: "bac",       etiqueta: "BAC",        enCaja: false },
+  { valor: "pedidosya", etiqueta: "PedidosYa",  enCaja: false },
 ];
+
+export const etiquetaPago = (m: MetodoPago): string =>
+  METODOS_PAGO.find((x) => x.valor === m)?.etiqueta ?? m;
 
 export interface Producto {
   id: string;

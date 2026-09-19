@@ -48,11 +48,14 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
         estado visible, detección de iOS, prueba de codepage y de ancho.
       → nota: el puente CONSULTA la cola, no recibe conexiones. Recibir no
         funciona desde una PWA en HTTPS (GAP.md §1.3).
-- [~] 5. Sesiones de caja + cierre + Excel
-      → hecho: turnos con fondo inicial y arqueo, Excel de 4 hojas.
-      → falta: conteo por denominación en C$ y US$, hojas `Pagos` y
-        `Anulaciones`, fórmulas de Excel, nombre de archivo del spec,
-        top productos, ticket promedio, bloqueo de sesión cerrada.
+- [x] 5. Sesiones de caja + cierre + Excel
+      → El Excel se rehízo según lo que pidió el dueño: **una sola hoja al
+        estilo Rock Munchies** con encabezado, día y hora, y debajo los
+        consumibles, la forma de pago (Efectivo / Banpro / BAC) y
+        **PedidosYa aparte**. Los totales van como fórmulas de Excel, no
+        como valores fijos.
+      → Se descartaron las 6 hojas del spec original: para un cierre diario
+        que alguien imprime y firma, era papeleo.
 - [x] 6. Offline + sincronización
       → hecho: almacén local en IndexedDB (Dexie), menú cacheado para poder
         tomar órdenes sin señal, cola de subida que respeta el orden de
@@ -63,10 +66,16 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       → clave: `id_local` único en la base. Sin eso, una caída justo después
         de subir y antes de recibir la respuesta duplicaba la orden y se
         cobraba dos veces.
-- [ ] 7. Reportes admin + auditoría — sin empezar, falta `audit_log`
+- [x] 7. Auditoría
+      → `audit_log` con anulaciones, descuentos, reimpresiones, aperturas y
+        cierres de caja e intentos de acceso fallidos. Motivo obligatorio en
+        anulaciones y descuentos. La política de RLS permite insertar y leer
+        pero **no modificar ni borrar**: una bitácora que el cajero puede
+        editar no sirve de nada.
+      → Visible desde la pantalla de cierres, filtrada por período.
 - [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
 
-**Avance real contra el spec completo: ~72%.** (86 pruebas)
+**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~90%.** (99 pruebas)
 
 ## Fuera del spec original
 - [x] **Inventario** (`/inventario`): 59 insumos de Plantilla_Inventario.xlsx,
@@ -82,6 +91,10 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       precio unitario por línea, que recargaban el ticket.
 
 ## Decisiones tomadas
+- Métodos de pago: **Efectivo, Banpro, BAC y PedidosYa**, reemplazando
+  tarjeta/transferencia/mixto. PedidosYa se reporta aparte porque esa plata
+  no entra a la caja el mismo día: la plataforma deposita después y con
+  comisión descontada. Meterla en el arqueo hace que la caja nunca cuadre.
 - Stack: Next.js + TypeScript + Tailwind. ✅ ya implementado.
 - Backend: **se queda en Supabase**, decidido por el dueño. El spec dice
   Appwrite, pero Postgres hace GROUP BY y el cierre pide agregaciones (top

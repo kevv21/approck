@@ -153,6 +153,21 @@ uno en lo otro.
 
 ## El Excel del cierre
 
+Una sola hoja, al estilo de la casa: encabezado con el nombre, día y hora, y
+debajo cuatro bloques.
+
+1. **Consumibles** — qué se vendió, agrupado por producto
+2. **Forma de pago** — Efectivo, Banpro, BAC
+3. **PedidosYa, aparte** — esa plata no entra a la caja el mismo día: la
+   plataforma deposita después y con comisión. Sumarla al efectivo hace que
+   el arqueo nunca cuadre
+4. **Arqueo** — fondo inicial, esperado, contado y diferencia
+
+Los totales son **fórmulas de Excel**, no valores fijos: quien revise la hoja
+puede tocar una celda y ver el total recalcularse.
+
+### El detalle viejo del cierre
+
 Cuatro hojas:
 
 1. **Resumen** — ventas, descuentos desglosados por tipo, base gravable, IVA,
@@ -202,10 +217,13 @@ de Supabase se cae con el wifi del local y no siempre reconecta.
 
 ## Alcance y límites conocidos
 
-- **Seguridad.** Las políticas RLS abren las tablas a la clave anon. Sirve
-  para un local, en su red, con la URL no publicada. **No es seguridad para
-  internet abierto.** El upgrade es Clerk (gratis en el GitHub Student Pack):
-  cambiar `using (true)` por chequeos de rol en `02_rls.sql`.
+- **Seguridad.** Hay un PIN de acceso y un nombre por persona, pero las
+  políticas RLS abren las tablas a la clave anon: cualquiera con la URL puede
+  saltarse la pantalla llamando a la API directo. **Es control de acceso, no
+  seguridad.** Sirve para que nadie entre por accidente desde un teléfono
+  ajeno, no para resistir a un atacante. Lo que sí da garantías es la
+  bitácora, que registra quién hizo cada anulación y cada descuento.
+  PIN inicial: **1234**. Cambialo antes de operar.
 - **Offline parcial.** Se pueden tomar órdenes sin señal: quedan en
   IndexedDB con un número temporal `T-n` y se suben solas al reconectar, con
   el correlativo real que asigna Postgres. Cobrar y cerrar caja **requieren

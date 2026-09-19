@@ -3,7 +3,7 @@ import {
   type AnchoPapel,
 } from "./escpos";
 import { fmtPlano as fmt } from "./money";
-import { TIPOS_ORDEN, type MetodoPago, type TipoOrden, type Totales } from "./types";
+import { TIPOS_ORDEN, etiquetaPago, type MetodoPago, type TipoOrden, type Totales } from "./types";
 
 export interface DatosNegocio {
   nombre: string;
@@ -232,11 +232,7 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
 
   // 5. Pago (la pre-cuenta no lo lleva: todavía no se cobró)
   if (!esPrecuenta && d.metodoPago) {
-    const etiquetas: Record<MetodoPago, string> = {
-      efectivo: "Efectivo", tarjeta: "Tarjeta",
-      transferencia: "Transferencia", mixto: "Mixto",
-    };
-    p.linea(`Pago: ${etiquetas[d.metodoPago]}`);
+    p.linea(`Pago: ${etiquetaPago(d.metodoPago)}`);
     if (d.metodoPago === "efectivo" && d.recibido != null && d.recibido > 0) {
       const cambio = Math.max(0, d.recibido - t.total);
       const mp = columnaMontos([d.recibido, cambio]);
