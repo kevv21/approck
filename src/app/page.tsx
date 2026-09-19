@@ -5,7 +5,8 @@ import PanelDescuentos from "@/components/PanelDescuentos";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import { cargarMenu, encolar, guardarYEncolar, turnoAbierto } from "@/lib/repo";
-import { previsualizarTicket } from "@/lib/ticket";
+import { previsualizarTicket, type DatosTicket } from "@/lib/ticket";
+import { descargarHtml, imprimirHtml } from "@/lib/printer";
 import { hayConfig } from "@/lib/supabase";
 import {
   CONFIG_DEFAULT, METODOS_PAGO, TIPOS_ORDEN,
@@ -147,11 +148,13 @@ export default function Caja() {
     }
   };
 
-  const previsualizacion = previsualizarTicket({
+  const datosTicket = (): DatosTicket => ({
     numero: 0, tipo, mesa, cliente, telefonoCliente: telefono, direccion, notas,
     metodoPago, recibido: recibidoCent, mesero: atendio,
     fecha: new Date(), totales: t,
   });
+
+  const previsualizacion = previsualizarTicket(datosTicket());
 
   if (!hayConfig) {
     return (
@@ -360,6 +363,16 @@ export default function Caja() {
               </button>
               <button className="btn btn-ghost col-span-2" disabled={guardando}
                       onClick={imprimirPrecuenta}>Imprimir pre-cuenta</button>
+              {/* Respaldo del spec: si el puente está caído, igual se entrega
+                  algo. Funciona en cualquier navegador, iPhone incluido. */}
+              <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
+                      onClick={() => imprimirHtml(datosTicket())}>
+                Imprimir en navegador
+              </button>
+              <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
+                      onClick={() => descargarHtml(datosTicket())}>
+                Descargar recibo
+              </button>
               <button className="btn btn-ghost col-span-2 !min-h-0 !py-2 text-sm"
                       onClick={limpiar}>Cancelar orden</button>
             </div>

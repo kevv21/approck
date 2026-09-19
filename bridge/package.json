@@ -1,0 +1,18 @@
+{
+  "name": "approck-puente",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servicio de impresion para la PC de caja: consulta la cola y manda los tickets a la impresora termica.",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "puertos": "node index.mjs --listar-puertos",
+    "prueba": "node index.mjs --prueba"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "serialport": "^12.0.0"
+  },
+  "engines": { "node": ">=18" }
+}

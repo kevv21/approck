@@ -103,17 +103,25 @@ npx vercel
 Carga las dos variables de entorno en el panel de Vercel. El plan gratuito
 alcanza de sobra para el volumen de una pizzería, y no caduca.
 
-### 5. Configurar la estación
+### 5. Instalar el puente de impresión
 
-1. En el **Android de caja**, abre `/estacion` en Chrome e instalala
-   ("Agregar a pantalla de inicio").
-2. Empareja la PT-210 en los ajustes de Bluetooth de Android.
-3. Toca **Conectar PT-210** y elige la impresora.
-4. Toca **Imprimir prueba**. Si "Toña" y "Jamón" salen con signos raros,
-   prueba otro codepage del desplegable hasta que se lean bien.
-5. Deja esa pantalla abierta y el teléfono enchufado.
+El puente corre en la **PC de caja** y es lo que permite que un iPhone
+imprima. Instrucciones completas en [`bridge/README.md`](bridge/README.md):
+
+```bash
+cd bridge
+npm install
+cp .env.example .env     # mismos valores de Supabase + el puerto COM
+npm run puertos          # ver los puertos serie disponibles
+npm run prueba           # imprimir un ticket de prueba
+npm start                # dejarlo corriendo
+```
+
+Para probar sin la impresora en la mano: `SIMULAR=true npm start` guarda los
+tickets como archivos en `bridge/salida/`.
 
 En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
+`/estacion` muestra el estado del puente y la cola.
 
 ---
 

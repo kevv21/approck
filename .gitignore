@@ -8,3 +8,8 @@ build/
 next-env.d.ts
 .DS_Store
 certificates/
+
+# Puente de impresión
+bridge/node_modules/
+bridge/salida/
+bridge/.env

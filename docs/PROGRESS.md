@@ -37,11 +37,16 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
         leyenda "no es factura fiscal", **COPIA** en reimpresiones, ancho
         **58 y 80mm configurable**, precio unitario por línea,
         modificadores, equivalente en US$, mesero y cajero identificados.
-      → falta: fallback HTML + window.print() + PDF descargable.
-- [~] 4. Capa de impresión (puente LAN ESC/POS + fallbacks)
-      → hecho: Web Bluetooth para PT-210, cola con estado y reintentos,
-        detección de iOS, prueba de codepage.
-      → falta: interfaz `PrinterAdapter`, puente LAN, fallback PDF.
+      → hecho también: fallback HTML con window.print() y descarga del
+        recibo, que funciona en cualquier navegador incluido iPhone.
+      → falta: PDF nativo (hoy se genera desde el diálogo de impresión).
+- [x] 4. Capa de impresión (puente + fallbacks)
+      → hecho: interfaz `PrinterAdapter` con 4 implementaciones
+        intercambiables (puente, Bluetooth, serial COM, HTML), servicio del
+        puente en `bridge/` con latido, reintentos y modo simulado, cola con
+        estado visible, detección de iOS, prueba de codepage y de ancho.
+      → nota: el puente CONSULTA la cola, no recibe conexiones. Recibir no
+        funciona desde una PWA en HTTPS (GAP.md §1.3).
 - [~] 5. Sesiones de caja + cierre + Excel
       → hecho: turnos con fondo inicial y arqueo, Excel de 4 hojas.
       → falta: conteo por denominación en C$ y US$, hojas `Pagos` y
@@ -51,7 +56,7 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
 - [ ] 7. Reportes admin + auditoría — sin empezar, falta `audit_log`
 - [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
 
-**Avance real contra el spec completo: ~45%.** (51 pruebas)
+**Avance real contra el spec completo: ~60%.** (58 pruebas)
 
 ## Decisiones tomadas
 - Stack: Next.js + TypeScript + Tailwind. ✅ ya implementado.
@@ -74,9 +79,12 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
   para seguir al spec. Se cambia en `settings` sin tocar código.
 - Precios de la carta: **confirmado que son base**, el IVA se suma encima.
   La Jamón de C$260 se cobra a C$299. El seed queda como está.
-- iOS sin Web Bluetooth → resuelto por cola de impresión, pero el puente LAN
-  del spec choca con mixed content desde una PWA en HTTPS (GAP.md §1.3).
+- iOS sin Web Bluetooth → **resuelto**: el puente de `bridge/` imprime por
+  el iPhone. Queda el límite conocido de que el puente necesita internet.
 - El codepage de la PT-210 **sigue sin verificarse en hardware real**.
+  Se verifica con `cd bridge && npm run prueba`.
+- El puente necesita internet para imprimir. Si se cae la conexión, no salen
+  comandas. Se resuelve en la Fase 6 (offline) o pasando a certificado local.
 - "Enteros en centavos" vs "redondeo solo en el total final":
   **resuelto** calculando en milésimas de centavo (enteros) y redondeando
   solo al construir los totales visibles.
