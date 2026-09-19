@@ -1,91 +1,110 @@
 # Cómo probar la app y la impresora
 
-Guía para verificar todo desde tu teléfono. Empezá por la parte 1: la
-impresora no necesita base de datos ni configuración.
+Guía para Android, de principio a fin. Los pasos 1 a 3 no necesitan base de
+datos ni computadora.
 
 ---
 
-## Lo primero que hay que entender
+## Antes de empezar: dos cosas que no se negocian
 
-**Web Bluetooth solo funciona sobre HTTPS.** Si abrís la app por
-`http://192.168.1.x:3000`, el botón de conectar no va a hacer nada, y el
-navegador no siempre explica por qué. Por eso hay dos caminos y los dos
-terminan en `https://`.
+**Tiene que ser `https://`.** Web Bluetooth no funciona sobre `http://`. Si
+abrís la app por `http://192.168.1.x:3000`, el botón de conectar no responde
+y el navegador no siempre explica por qué.
 
-**Y en iPhone no funciona nunca.** Safari no implementa Web Bluetooth. En un
-iPhone podés recorrer la app, armar órdenes y ver el recibo en pantalla, pero
-para imprimir necesitás el Android o el puente de la PC.
-
----
-
-## Camino A — Desplegar (recomendado, 5 minutos)
-
-Es el único que da un certificado real, sin advertencias, y te deja abrir la
-app desde cualquier teléfono.
-
-```bash
-npx vercel
-```
-
-Seguí las preguntas (aceptá los valores por defecto). Al terminar te da una
-dirección tipo `https://approck-xxxx.vercel.app`.
-
-Abrí esa dirección en el **Chrome del Android** y andá a **Probar**.
-
-> No hace falta configurar Supabase todavía. Sin base de datos la app arranca
-> en **modo demo**: tenés los 48 productos de la carta, podés armar órdenes y
-> ver el recibo. No guarda nada, pero alcanza para probar la impresora y
-> recorrer la interfaz.
-
-## Camino B — Desde tu PC, sin desplegar
-
-```bash
-npm run dev:https
-```
-
-Te va a mostrar dos direcciones. Usá la de **Network**, la que empieza con la
-IP de tu PC:
-
-```
-- Network:  https://192.168.1.50:3000
-```
-
-El teléfono tiene que estar en el **mismo wifi**. Al abrirla, Chrome va a
-avisar que el certificado no es de confianza: tocá *Configuración avanzada* →
-*Continuar*.
-
-> Este camino a veces falla justo para Bluetooth, porque algunos Chrome
-> bloquean las APIs de hardware en páginas con certificado no confiable. Si el
-> botón de conectar no responde, usá el camino A.
+**Tiene que ser Android.** En iPhone no hay forma: Safari no implementa Web
+Bluetooth y Apple no piensa agregarlo. Un iPhone puede tomar órdenes y ver el
+recibo en pantalla, pero imprime el Android o el puente de la PC.
 
 ---
 
-## Parte 1 — La impresora
+## Paso 1 — Conseguir una dirección `https://`
 
-Abrí **Probar** en el menú de arriba. La pantalla te lleva por tres pasos.
+Sin terminal, todo desde el navegador (sirve incluso desde el mismo Android):
 
-### Paso 0: el diagnóstico de arriba
+1. Entrá a **[vercel.com](https://vercel.com)** y creá la cuenta
+   con **Continue with GitHub**.
+2. **Add New → Project** e importá el repositorio `approck`.
+3. Deploy. Tarda un par de minutos.
+4. Vercel también despliega la rama de trabajo
+   `claude/determined-franklin-kz5981` como *preview*. En **Deployments**
+   buscá la de esa rama y copiá su dirección: es la que tiene lo último.
 
-Antes de tocar nada, mirá los tres checks:
+Te queda algo tipo `https://approck-git-claude-xxxx.vercel.app`.
+
+> **No configures Supabase todavía.** Sin base de datos la app arranca en
+> **modo demo** con los 48 productos de la carta. Alcanza para probar la
+> impresora y recorrer la interfaz.
+
+**Alternativa con computadora:** `npx vercel` desde la carpeta del proyecto
+hace lo mismo.
+
+---
+
+## Paso 2 — Preparar el Android
+
+Tres cosas que si faltan hacen que el botón de conectar no responda, sin
+mensaje de error.
+
+### a) Usá Chrome
+
+Chrome o Edge. **Samsung Internet, Firefox y Opera no sirven**: no
+implementan Web Bluetooth.
+
+### b) Dale permiso de dispositivos cercanos
+
+- **Android 12 o más nuevo:** Ajustes → Aplicaciones → Chrome → Permisos →
+  **Dispositivos cercanos** → Permitir.
+- **Android 11 o más viejo:** además de lo anterior, la **ubicación tiene que
+  estar encendida** (el interruptor del panel de accesos rápidos). No es que
+  la app quiera tu ubicación: Android exige ese permiso para poder escanear
+  BLE, y sin él no aparece ninguna impresora.
+
+### c) NO la emparejes en los ajustes de Bluetooth
+
+Esto es lo que más confunde. La PT-210 habla por dos canales distintos:
+
+| Canal | Quién lo usa | Hace falta emparejar |
+|---|---|---|
+| **BLE** | La app en el teléfono | **No.** Chrome muestra su propio buscador |
+| **Clásico (SPP)** | El puente de la PC | Sí, crea el puerto COM |
+
+Desde el teléfono se usa BLE, así que **no la emparejes en los ajustes**. Si
+ya lo hiciste y no conecta, andá a Ajustes → Bluetooth, tocá la impresora y
+**Desvincular**. Después probá de nuevo desde la app.
+
+---
+
+## Paso 3 — Conectar e imprimir
+
+1. Encendé la PT-210. La luz tiene que quedar **fija**, no parpadeando.
+   Si parpadea, está buscando conexión: está bien.
+2. Abrí la dirección de Vercel en Chrome.
+3. Tocá **Probar** en el menú de arriba.
+4. Mirá los tres checks del diagnóstico antes de seguir:
 
 | Check | Si sale ✕ |
 |---|---|
-| Conexión segura | Estás en `http://`. Volvé a leer los caminos A y B |
-| Soporta Bluetooth | Es un iPhone, o no es Chrome/Edge |
+| Conexión segura | Estás en `http://`. Usá la dirección de Vercel |
+| Soporta Bluetooth | No es Chrome, o es un iPhone |
 | Modo imagen | Raro; el navegador no deja usar canvas |
 
-### Paso 1: conectar
+5. Tocá **Bluetooth**. Se abre el buscador de Chrome.
+6. Elegí la impresora. Puede aparecer como `PT-210`, `MTP-II`, `Printer001`
+   o incluso sin nombre, según el lote.
 
-1. Encendé la PT-210 (botón redondo, la luz queda fija).
-2. En los ajustes de Bluetooth del teléfono, **emparejala**. PIN `0000` o `1234`.
-3. Volvé a la app y tocá **Bluetooth**.
-4. Elegila de la lista. Puede aparecer como `PT-210`, `MTP-II` o `Printer001`
-   según el lote.
+### Si la lista sale vacía
 
-Si no aparece: apagala y prendela, y revisá que no esté conectada a otro
-teléfono. Estas impresoras aceptan una sola conexión a la vez.
+En orden, y probando después de cada uno:
 
-### Paso 2: los acentos
+1. Apagá y prendé la impresora.
+2. Revisá que no esté conectada a otro teléfono. **Estas impresoras aceptan
+   una sola conexión a la vez**, y si quedó tomada por otro aparato no
+   aparece.
+3. Confirmá el permiso de Dispositivos cercanos (paso 2b).
+4. Si es Android 11 o más viejo, encendé la ubicación.
+5. Si la emparejaste antes en los ajustes, desvinculala (paso 2c).
+
+### Resolver los acentos
 
 Tocá **Imprimir hoja de acentos**. Sale una sola hoja con tres bloques que
 dicen lo mismo:
@@ -99,28 +118,33 @@ Española  Champiñón
 ¿Cuántos? ¡Sí! Año Niño
 ```
 
-Mirá el papel y buscá el bloque donde **Toña** y **Jamón** se leen bien.
-Tocá esa opción en la app. Queda guardada en ese teléfono.
+Mirá el papel, buscá el bloque donde **Toña** y **Jamón** se leen bien, y
+tocá esa opción en la app. Queda guardada en ese teléfono.
 
-**Si ninguno se lee bien**, tenés dos salidas:
+**Si ninguno se lee bien:**
 
 - **Quitar acentos** — imprime `Tona`, `Jamon`. Feo pero infalible.
 - **Modo imagen** — dibuja el ticket y lo manda como mapa de bits. La
   impresora no interpreta caracteres, solo pinta puntos, así que funciona en
-  cualquier modelo. El costo es el peso: ~30 kB en vez de ~1 kB, o sea unos
-  40 segundos por Bluetooth. Sirve de respaldo, no para la hora pico.
+  cualquier modelo. Pesa ~30 kB en vez de ~1 kB, o sea unos 40 segundos por
+  Bluetooth. Sirve de respaldo, no para la hora pico.
 
-### Paso 3: el recibo
+### El recibo
 
-Tocá **Imprimir recibo de ejemplo**. Revisá dos cosas:
+Tocá **Imprimir recibo de ejemplo** y revisá dos cosas:
 
-1. **El ancho.** La línea de guiones tiene que llegar justo al borde del
-   papel. Si se corta o sobra margen, cambiá entre 58 y 80 mm.
+1. **El ancho.** La línea de guiones tiene que llegar justo al borde. Si se
+   corta o sobra margen, cambiá entre 58 y 80 mm.
 2. **Que cuadre.** Subtotal + IVA + envío + propina = TOTAL.
+
+### Instalar la app en la pantalla de inicio
+
+Una vez que funcione: menú ⋮ de Chrome → **Agregar a pantalla de inicio**.
+Queda como una app normal, sin barra del navegador.
 
 ---
 
-## Parte 2 — La app completa
+## Paso 4 — La app completa
 
 Para esto sí hace falta la base de datos.
 
@@ -188,7 +212,8 @@ Con la app abierta, **apagá los datos y el wifi** del teléfono.
 | Síntoma | Causa más probable |
 |---|---|
 | El botón de conectar no hace nada | Estás en `http://`, no en `https://` |
-| No aparece ninguna impresora | No está emparejada, o está conectada a otro teléfono |
+| El buscador de Chrome no abre | No es Chrome (Samsung Internet no sirve) |
+| No aparece ninguna impresora | Falta el permiso de Dispositivos cercanos, o está conectada a otro teléfono, o la emparejaste en los ajustes |
 | Imprime símbolos raros | Codepage equivocado: repetí el paso 2 |
 | El ticket sale cortado a la mitad | Batería baja. Dejala enchufada |
 | Se corta a mitad de imprimir | Se alejó demasiado; el BLE tiene poco alcance |
