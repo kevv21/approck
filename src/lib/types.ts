@@ -133,6 +133,8 @@ export interface Totales {
   /** Parte de la base que NO paga IVA (productos exentos) */
   baseExenta: number;
   iva: number;
+  /** Porcentaje de IVA aplicado, para la etiqueta del recibo (15) */
+  ivaPct: number;
   propina: number;
   total: number;
   /** Equivalente del total en centavos de US$. null si no hay tipo de cambio. */

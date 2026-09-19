@@ -63,6 +63,17 @@ export function fmt(centavosMonto: number): string {
 export const fmtC = (centavosMonto: number): string => `C$ ${fmt(centavosMonto)}`;
 
 /**
+ * "1285.50" - sin separador de miles.
+ * En un recibo de 32 columnas cada caracter cuenta, y es el formato que usa
+ * la cocina. El separador se reserva para la pantalla y el Excel.
+ */
+export function fmtPlano(centavosMonto: number): string {
+  const neg = centavosMonto < 0;
+  const abs = Math.abs(centavosMonto);
+  return `${neg ? "-" : ""}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+}
+
+/**
  * Reparte `monto` entre varias lineas en proporcion a `pesos`, garantizando
  * que la suma del resultado sea EXACTAMENTE `monto` (metodo del mayor resto).
  *

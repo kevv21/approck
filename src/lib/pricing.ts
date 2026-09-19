@@ -199,6 +199,7 @@ export function calcularTotales(
     ),
     baseExenta: aCentavosDesdeEscala(baseExentaEsc),
     iva: aCentavosDesdeEscala(ivaProductosEsc + ivaEnvioEsc),
+    ivaPct: ivaBps / 100,
     propina: aCentavosDesdeEscala(propinaEsc),
     total,
     totalUsd:

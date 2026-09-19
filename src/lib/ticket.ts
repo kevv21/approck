@@ -2,7 +2,7 @@ import {
   EscPos, centrar, columnasPara, envolver, parLineado,
   type AnchoPapel,
 } from "./escpos";
-import { fmt } from "./money";
+import { fmtPlano as fmt } from "./money";
 import { TIPOS_ORDEN, type MetodoPago, type TipoOrden, type Totales } from "./types";
 
 export interface DatosNegocio {
@@ -16,10 +16,10 @@ export interface DatosNegocio {
 /** Valores por defecto. En produccion vienen de la tabla `settings`. */
 export const NEGOCIO: DatosNegocio = {
   nombre: "ROCK MUNCHIES",
-  telefono: "",   // PENDIENTE
-  direccion: "",  // PENDIENTE
-  ruc: "",        // PENDIENTE
-  pie: "¡Gracias por su compra!",
+  telefono: "0000-0000",
+  direccion: "",
+  ruc: "",
+  pie: "",
 };
 
 /**
@@ -55,6 +55,10 @@ export interface DatosTicket {
   ancho?: AnchoPapel;
   /** Centavos de C$ por 1 US$, para el equivalente en dolares */
   tipoCambio?: number;
+  /** Porcentaje de propina que se imprime en la etiqueta. */
+  propinaPct?: number;
+  /** false quita "no es factura fiscal". Por defecto se imprime. */
+  mostrarLeyendaFiscal?: boolean;
 }
 
 interface Maqueta {
@@ -66,7 +70,7 @@ interface Maqueta {
 }
 
 function maqueta(columnas: number): Maqueta {
-  const anchoCant = columnas >= 48 ? 3 : 2;
+  const anchoCant = 2;
   const anchoImporte = columnas >= 48 ? 12 : 9;
   return {
     columnas,
@@ -77,6 +81,13 @@ function maqueta(columnas: number): Maqueta {
   };
 }
 
+/**
+ * "2  Diabla                600.00"
+ *
+ * La cantidad va a la izquierda y el importe en la ULTIMA linea del nombre,
+ * no en la primera: cuando el nombre se parte en dos, el monto queda pegado
+ * al final del producto y no flotando sobre su continuacion.
+ */
 function lineasItem(
   m: Maqueta,
   cantidad: number,
@@ -84,16 +95,14 @@ function lineasItem(
   importe: string | null
 ): string[] {
   const partes = envolver(nombre, m.anchoNombre);
-  const out: string[] = [];
-  const cant = String(cantidad).padStart(m.anchoCant).slice(-m.anchoCant);
+  const cant = String(cantidad).padEnd(m.anchoCant).slice(0, m.anchoCant);
 
-  out.push(
-    importe === null
-      ? `${cant} ${partes[0]}`
-      : `${cant} ${partes[0].padEnd(m.anchoNombre)}${importe.padStart(m.anchoImporte)}`
-  );
-  for (const p of partes.slice(1)) out.push(m.sangria + p);
-  return out;
+  return partes.map((parte, i) => {
+    const prefijo = i === 0 ? `${cant} ` : m.sangria;
+    const esUltima = i === partes.length - 1;
+    if (importe === null || !esUltima) return prefijo + parte;
+    return prefijo + parte.padEnd(m.anchoNombre) + importe.padStart(m.anchoImporte);
+  });
 }
 
 const fechaCorta = (d: Date) =>
@@ -138,6 +147,17 @@ function construirCocina(d: DatosTicket, p: EscPos, m: Maqueta): void {
 }
 
 // ------------------------------------------------- cliente y pre-cuenta ---
+
+/**
+ * Alinea una columna de montos: "C$ 1285.00", "C$   50.00".
+ * El ancho sale del monto mas largo de ESTE recibo, asi los decimales quedan
+ * en la misma columna aunque haya cifras de cuatro digitos.
+ */
+function columnaMontos(montos: number[]): (n: number) => string {
+  const ancho = Math.max(...montos.map((m) => fmt(m).length), 6);
+  return (n: number) => `C$ ${fmt(n).padStart(ancho)}`;
+}
+
 function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
   const t = d.totales;
   const neg = d.negocio ?? NEGOCIO;
@@ -145,40 +165,35 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
   const esPrecuenta = d.documento === "precuenta";
 
   // 1. Encabezado
-  p.alinear(1).negrita(true).tamano(1, 1);
+  p.separador("=");
+  p.alinear(1).negrita(true);
   p.linea(neg.nombre);
-  p.tamano(0, 0).negrita(false);
-  if (neg.ruc) p.linea(`RUC: ${neg.ruc}`);
-  if (neg.direccion) for (const l of envolver(neg.direccion, m.columnas)) p.linea(l);
+  p.negrita(false);
   if (neg.telefono) p.linea(`Tel: ${neg.telefono}`);
+  if (neg.direccion) for (const l of envolver(neg.direccion, m.columnas)) p.linea(l);
+  if (neg.ruc) p.linea(`RUC: ${neg.ruc}`);
 
   if (esPrecuenta) p.negrita(true).linea("*** PRE-CUENTA ***").negrita(false);
   else if (d.reimpresion) p.negrita(true).linea("*** COPIA ***").negrita(false);
-
-  p.alinear(0).separador("=");
+  p.alinear(0).separador();
 
   // 2. Datos de la orden
   p.linea(parLineado(
-    esPrecuenta ? `Pre-cuenta #${String(d.numero).padStart(4, "0")}`
-                : `Recibo #${String(d.numero).padStart(4, "0")}`,
-    fechaLarga(d.fecha), m.columnas));
+    `Orden #${String(d.numero).padStart(4, "0")}`,
+    fechaCorta(d.fecha), m.columnas));
   p.linea(`Tipo: ${tipo.corto}${d.tipo === "mesa" && d.mesa ? ` ${d.mesa}` : ""}`);
   if (d.mesero) p.linea(`Mesero: ${d.mesero}`);
   if (d.cajero && !esPrecuenta) p.linea(`Cajero: ${d.cajero}`);
   if (!d.mesero && !d.cajero && d.atendio) p.linea(`Atendió: ${d.atendio}`);
-
-  // 3. Datos del cliente (delivery)
   if (d.cliente) for (const l of envolver(`Cliente: ${d.cliente}`, m.columnas)) p.linea(l);
   if (d.telefonoCliente) p.linea(`Tel: ${d.telefonoCliente}`);
   if (d.direccion) for (const l of envolver(`Dir: ${d.direccion}`, m.columnas)) p.linea(l);
   p.separador();
 
-  // 4. Detalle
+  // 3. Detalle
   p.linea(parLineado("CANT PRODUCTO", "IMPORTE", m.columnas));
   for (const l of t.lineas) {
     for (const s of lineasItem(m, l.cantidad, l.nombre, fmt(l.bruto))) p.linea(s);
-    // Precio unitario, exigido por el spec. Se muestra cuando aporta algo.
-    if (l.cantidad > 1) p.linea(m.sangria + `${l.cantidad} x ${fmt(l.precioUnit)}`);
     for (const mod of l.modificadores ?? []) {
       p.linea(parLineado(
         m.sangria + `+ ${mod.nombre}`,
@@ -187,38 +202,35 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
     if (l.notas)
       for (const s of envolver(`> ${l.notas}`, m.columnas - m.sangria.length))
         p.linea(m.sangria + s);
-    if (l.aplicaIva === false) p.linea(m.sangria + "(exento de IVA)");
     if (l.descTotal > 0)
       p.linea(parLineado(m.sangria + "desc.", `-${fmt(l.descTotal)}`, m.columnas));
   }
   p.separador();
 
-  // 5. Totales
-  p.linea(parLineado("Subtotal", fmt(t.subtotalBruto), m.columnas));
-  if (t.descLineas > 0) p.linea(parLineado("Desc. por línea", `-${fmt(t.descLineas)}`, m.columnas));
-  if (t.descPizzas > 0) p.linea(parLineado("Desc. pizzas", `-${fmt(t.descPizzas)}`, m.columnas));
-  if (t.descBebidas > 0) p.linea(parLineado("Desc. bebidas", `-${fmt(t.descBebidas)}`, m.columnas));
-  if (t.descGeneral > 0) p.linea(parLineado("Desc. general", `-${fmt(t.descGeneral)}`, m.columnas));
-  if (t.baseExenta > 0) p.linea(parLineado("Base exenta", fmt(t.baseExenta), m.columnas));
-  p.linea(parLineado("Base gravable", fmt(t.baseGravable), m.columnas));
-  p.linea(parLineado("IVA 15%", fmt(t.iva), m.columnas));
-  if (t.costoEnvio > 0) p.linea(parLineado("Envío", fmt(t.costoEnvio), m.columnas));
-  if (t.propina > 0) p.linea(parLineado("Propina", fmt(t.propina), m.columnas));
+  // 4. Totales, en una sola columna de montos alineada
+  const filas: [string, number][] = [["Subtotal", t.subtotalBruto]];
+  if (t.descLineas > 0) filas.push(["Desc. por línea", -t.descLineas]);
+  if (t.descPizzas > 0) filas.push(["Desc. pizzas", -t.descPizzas]);
+  if (t.descBebidas > 0) filas.push(["Desc. bebidas", -t.descBebidas]);
+  if (t.descGeneral > 0) filas.push(["Desc. general", -t.descGeneral]);
+  // El IVA se imprime cuando existe: sin esta línea el total no cuadra con
+  // los productos y el cliente pregunta de dónde sale la diferencia.
+  if (t.iva > 0) filas.push([`IVA ${t.ivaPct}%`, t.iva]);
+  if (t.costoEnvio > 0) filas.push(["Envío", t.costoEnvio]);
+  if (t.propina > 0) filas.push([`Propina ${d.propinaPct ?? 10}%`, t.propina]);
+  filas.push(["TOTAL", t.total]);
 
-  p.separador();
-  p.negrita(true).tamano(1, 1);
-  // A doble ancho solo entran la mitad de las columnas.
-  p.linea(parLineado("TOTAL", fmt(t.total), Math.floor(m.columnas / 2)));
-  p.tamano(0, 0).negrita(false);
-
-  // 6. Equivalente en US$
-  if (t.totalUsd != null) {
-    p.linea(parLineado("Equivale a US$", fmt(t.totalUsd), m.columnas));
-    if (d.tipoCambio) p.linea(parLineado("T/C", fmt(d.tipoCambio), m.columnas));
+  const mon = columnaMontos(filas.map(([, v]) => Math.abs(v)));
+  for (const [etiqueta, valor] of filas) {
+    if (etiqueta === "TOTAL") p.negrita(true);
+    p.linea(parLineado(etiqueta, mon(valor), m.columnas));
+    if (etiqueta === "TOTAL") p.negrita(false);
   }
+
+  if (t.totalUsd != null) p.linea(parLineado("Equivale a US$", fmt(t.totalUsd), m.columnas));
   p.separador();
 
-  // 7. Pago (la pre-cuenta no lo lleva: todavia no se cobro)
+  // 5. Pago (la pre-cuenta no lo lleva: todavía no se cobró)
   if (!esPrecuenta && d.metodoPago) {
     const etiquetas: Record<MetodoPago, string> = {
       efectivo: "Efectivo", tarjeta: "Tarjeta",
@@ -226,8 +238,10 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
     };
     p.linea(`Pago: ${etiquetas[d.metodoPago]}`);
     if (d.metodoPago === "efectivo" && d.recibido != null && d.recibido > 0) {
-      p.linea(parLineado("Recibido:", fmt(d.recibido), m.columnas));
-      p.linea(parLineado("Vuelto:", fmt(Math.max(0, d.recibido - t.total)), m.columnas));
+      const cambio = Math.max(0, d.recibido - t.total);
+      const mp = columnaMontos([d.recibido, cambio]);
+      p.linea("Recibido: ".padEnd(10) + mp(d.recibido));
+      p.linea("Cambio:".padEnd(10) + mp(cambio));
     }
   }
 
@@ -240,12 +254,16 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
     for (const l of envolver(`Nota: ${d.notas}`, m.columnas)) p.linea(l);
   }
 
-  // 8. Pie + leyenda fiscal obligatoria
-  p.nl();
-  p.alinear(1);
-  if (neg.pie) p.linea(neg.pie);
-  for (const l of envolver(LEYENDA_FISCAL, m.columnas)) p.linea(centrar(l, m.columnas).trimStart());
-  p.alinear(0);
+  // 6. Pie y leyenda. Se puede apagar desde settings, pero por defecto va:
+  // imprimir algo que parece fiscal sin serlo es un riesgo real.
+  if (neg.pie || d.mostrarLeyendaFiscal !== false) {
+    p.nl();
+    p.alinear(1);
+    if (neg.pie) p.linea(neg.pie);
+    if (d.mostrarLeyendaFiscal !== false)
+      for (const l of envolver(LEYENDA_FISCAL, m.columnas)) p.linea(l);
+    p.alinear(0);
+  }
 }
 
 /** Devuelve los bytes ESC/POS listos para mandar a la impresora. */
@@ -265,21 +283,50 @@ export function construirTicket(
   return p.bytes();
 }
 
-/** Vista previa en pantalla, con el mismo ancho que el papel. */
+/**
+ * Vista previa en pantalla, con el mismo ancho que el papel.
+ *
+ * Interpreta ESC a (alineacion) en vez de descartarlo: si no, el encabezado
+ * se ve pegado a la izquierda en la app y centrado en el papel, y la caja
+ * aprueba un recibo que no es el que sale.
+ */
 export function previsualizarTicket(d: DatosTicket): string {
+  const cols = columnasPara(d.ancho ?? 58);
   const bytes = construirTicket(d, { transliterar: false });
-  let out = "";
+
+  const lineas: string[] = [];
+  let actual = "";
+  let alineacion: 0 | 1 | 2 = 0;
+
+  const volcar = () => {
+    if (alineacion === 1) lineas.push(centrar(actual, cols).trimEnd());
+    else if (alineacion === 2) lineas.push(actual.padStart(cols));
+    else lineas.push(actual);
+    actual = "";
+  };
+
   for (let i = 0; i < bytes.length; i++) {
     const b = bytes[i];
-    if (b === 0x1b || b === 0x1d) {
-      if (b === 0x1b && bytes[i + 1] === 0x40) { i += 1; continue; }
-      if (b === 0x1b && [0x61, 0x45, 0x74, 0x64].includes(bytes[i + 1])) { i += 2; continue; }
-      if (b === 0x1d && bytes[i + 1] === 0x21) { i += 2; continue; }
+    if (b === 0x1b) {
+      const cmd = bytes[i + 1];
+      if (cmd === 0x40) { i += 1; continue; }            // init
+      if (cmd === 0x61) { alineacion = bytes[i + 2] as 0 | 1 | 2; i += 2; continue; }
+      if (cmd === 0x64) {                                 // avanzar n lineas
+        volcar();
+        for (let k = 0; k < bytes[i + 2]; k++) lineas.push("");
+        i += 2;
+        continue;
+      }
+      if (cmd === 0x45 || cmd === 0x74) { i += 2; continue; } // negrita, codepage
       continue;
     }
-    out += b === 0x0a ? "\n" : String.fromCharCode(b);
+    if (b === 0x1d && bytes[i + 1] === 0x21) { i += 2; continue; } // tamano
+    if (b === 0x0a) { volcar(); continue; }
+    actual += String.fromCharCode(b);
   }
-  return out;
+  if (actual) volcar();
+
+  return lineas.join("\n");
 }
 
 /** Ticket de prueba para verificar codepage y alineacion en la impresora. */

@@ -131,9 +131,25 @@ En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
 |---|---|
 | `/` | Caja: menú, pedido, descuentos, propina, cobro |
 | `/estacion` | Android de caja: conexión Bluetooth y cola de impresión |
+| `/inventario` | Conteo de insumos y descarga del Excel con la plantilla |
 | `/cierre` | Turnos, arqueo y descarga del Excel |
 
 ---
+
+## El Excel del inventario
+
+Reproduce `Plantilla_Inventario.xlsx` exactamente: hoja `Inventario`, mismos
+anchos de columna (30/15/20), encabezado Arial 12 blanco sobre `#2A3F54` y
+bordes finos `#DDDDDD`. Los 59 insumos van en el mismo orden.
+
+La fecha y quién contó van en el **encabezado de impresión**, no en una fila:
+así la hoja sale fechada al imprimirla sin que la estructura deje de coincidir
+con la plantilla que ya usa la cocina. Una hoja opcional `Datos` guarda las
+notas y la lista de insumos sin unidad definida.
+
+Una celda de cantidad vacía significa "nadie lo contó", que es muy distinto de
+un cero, que significa "no hay existencias". El exportador nunca convierte lo
+uno en lo otro.
 
 ## El Excel del cierre
 

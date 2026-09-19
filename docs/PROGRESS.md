@@ -9,8 +9,9 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
 - [ ] `claude plugin install appwrite@claude-plugins-official` → /plugins → configurar
 - [ ] `claude mcp add --transport http appwrite https://mcp.appwrite.io/` → /mcp → Authenticate
 - [ ] `claude mcp add --transport http sentry https://mcp.sentry.dev/mcp` → /mcp → Authenticate
-- [ ] Llenar los [CORCHETES] que quedan en docs/SPEC.md: RUC, dirección,
-      teléfono y el tope de descuento del rol Caja
+- [x] Corchetes: el dueño decidió no llenarlos por ahora. El recibo sale con
+      `Tel: 0000-0000` como marcador y sin líneas de RUC ni dirección (se
+      imprimen solo si `settings` las tiene). Cambiar eso es editar un campo.
 - [x] ¿Precios incluyen IVA? → **NO incluyen** (confirmado por el dueño)
 - [x] ¿Propina 10%? → **sí, opcional**, sobre subtotal sin IVA, no gravada
 - [x] ¿Impresora LAN? → **decidido: puente en la PC que consulta la nube.**
@@ -65,7 +66,20 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
 - [ ] 7. Reportes admin + auditoría — sin empezar, falta `audit_log`
 - [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
 
-**Avance real contra el spec completo: ~72%.** (69 pruebas)
+**Avance real contra el spec completo: ~72%.** (86 pruebas)
+
+## Fuera del spec original
+- [x] **Inventario** (`/inventario`): 59 insumos de Plantilla_Inventario.xlsx,
+      conteo con borrador local, y exportación a Excel fiel a la plantilla
+      (mismos anchos, mismo encabezado Arial 12 sobre #2A3F54, mismos bordes).
+      La fecha y quién contó van en el encabezado de impresión, para no
+      alterar la estructura de la hoja.
+- [x] **Formato del recibo** rehecho según el modelo del dueño: abre con la
+      línea de separación, `Orden #` en vez de `Recibo #`, fecha corta,
+      montos con `C$` y sin separador de miles, `Cambio` en vez de `Vuelto`,
+      TOTAL sin doble ancho, y el importe del ítem en la última línea del
+      nombre partido. Se quitó el desglose de base gravable/exenta y el
+      precio unitario por línea, que recargaban el ticket.
 
 ## Decisiones tomadas
 - Stack: Next.js + TypeScript + Tailwind. ✅ ya implementado.
@@ -82,7 +96,13 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
 - Registro de la UI: "tú" al personal, "usted" al cliente en el recibo. ✅
 
 ## Pendientes / riesgos abiertos
-- Validar con contador requisitos DGI (recibo vs factura fiscal).
+- Validar con contador requisitos DGI (recibo vs factura fiscal). La leyenda
+  "no es factura fiscal" se sigue imprimiendo; se apaga con
+  `mostrarLeyendaFiscal: false` si el contador dice que no hace falta.
+- **37 de los 59 insumos del inventario no traen unidad de medida** en la
+  plantilla original. Sin unidad, dos conteos del mismo insumo no se pueden
+  comparar. La app los marca en naranja para que alguien de la cocina los
+  complete una vez.
 - Validar con contador la base de la propina y si el envío paga IVA.
   **Resuelto como ajuste opcional** (`envioGravado`), apagado por defecto
   para seguir al spec. Se cambia en `settings` sin tocar código.

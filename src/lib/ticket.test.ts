@@ -88,29 +88,39 @@ describe("contenido exigido por el spec", () => {
     expect(txt).not.toContain("REIMPRESIÓN");
   });
 
-  it("desglosa base gravable, base exenta, IVA, envío y propina", () => {
+  it("desglosa subtotal, descuentos, IVA, envío, propina y total", () => {
     const txt = previsualizarTicket(datos());
-    for (const e of ["Base gravable", "Base exenta", "IVA 15%", "Envío", "Propina", "Desc. pizzas"]) {
+    for (const e of ["Subtotal", "Desc. pizzas", "IVA 15%", "Envío", "Propina", "TOTAL"]) {
       expect(txt, e).toContain(e);
     }
   });
 
-  it("marca los productos exentos en su línea", () => {
-    expect(previsualizarTicket(datos())).toContain("(exento de IVA)");
+  it("imprime el IVA aunque el total podría cuadrar sin él", () => {
+    // Sin esta línea, el cliente ve un salto entre los productos y el total.
+    const t = previsualizarTicket(datos());
+    expect(t).toMatch(/IVA 15%\s+C\$\s+[\d.]+/);
   });
 
-  it("muestra el precio unitario cuando la cantidad es mayor a uno", () => {
-    expect(previsualizarTicket(datos())).toContain("2 x 300.00");
+  it("los montos van con C$ y sin separador de miles", () => {
+    const txt = previsualizarTicket(datos());
+    expect(txt).toMatch(/TOTAL\s+C\$\s+\d+\.\d{2}/);
+    expect(txt).not.toMatch(/C\$\s+\d,\d{3}/);
+  });
+
+  it("el importe del ítem va en la última línea del nombre partido", () => {
+    const txt = previsualizarTicket(datos());
+    const l = txt.split("\n");
+    const i = l.findIndex((x) => x.includes("Hawaiana Super"));
+    expect(l[i]).not.toMatch(/\d\.\d{2}$/);      // primera línea: sin monto
+    expect(l[i + 1]).toMatch(/Saiyajin\s+\d+\.\d{2}$/); // última: con monto
   });
 
   it("lista los modificadores con su recargo", () => {
     expect(previsualizarTicket(datos())).toContain("Extra queso");
   });
 
-  it("muestra el equivalente en dólares y el tipo de cambio", () => {
-    const txt = previsualizarTicket(datos());
-    expect(txt).toContain("Equivale a US$");
-    expect(txt).toContain("T/C");
+  it("muestra el equivalente en dólares", () => {
+    expect(previsualizarTicket(datos())).toContain("Equivale a US$");
   });
 
   it("identifica al mesero y al cajero", () => {
@@ -119,8 +129,25 @@ describe("contenido exigido por el spec", () => {
     expect(txt).toContain("Cajero: Luis");
   });
 
-  it("dice Vuelto, no Cambio", () => {
-    expect(previsualizarTicket(datos())).toContain("Vuelto:");
+  it("dice Cambio, como lo pidió el dueño", () => {
+    const txt = previsualizarTicket(datos());
+    expect(txt).toContain("Cambio:");
+    expect(txt).not.toContain("Vuelto:");
+  });
+
+  it("abre con la línea de separación sobre el nombre del negocio", () => {
+    const l = previsualizarTicket(datos()).split("\n");
+    expect(l[0]).toBe("=".repeat(32));
+    expect(l[1]).toContain("ROCK MUNCHIES");
+  });
+
+  it("centra el encabezado en la vista previa, igual que en el papel", () => {
+    const l = previsualizarTicket(datos()).split("\n");
+    expect(l[1]).toMatch(/^\s+ROCK MUNCHIES$/); // centrado, no pegado al borde
+  });
+
+  it("dice Orden, no Recibo", () => {
+    expect(previsualizarTicket(datos())).toContain("Orden #0142");
   });
 });
 
@@ -133,7 +160,7 @@ describe("pre-cuenta", () => {
   });
 
   it("no muestra el pago ni el cajero porque todavía no se cobró", () => {
-    expect(txt()).not.toContain("Vuelto:");
+    expect(txt()).not.toContain("Cambio:");
     expect(txt()).not.toContain("Pago:");
     expect(txt()).not.toContain("Cajero:");
   });
