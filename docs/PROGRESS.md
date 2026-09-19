@@ -13,8 +13,10 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       teléfono y el tope de descuento del rol Caja
 - [x] ¿Precios incluyen IVA? → **NO incluyen** (confirmado por el dueño)
 - [x] ¿Propina 10%? → **sí, opcional**, sobre subtotal sin IVA, no gravada
-- [ ] ¿Impresora LAN? → **decisión abierta**, ver GAP.md §1.2 y §1.3.
-      La PT-210 es solo Bluetooth: no tiene IP.
+- [x] ¿Impresora LAN? → **decidido: puente en la PC que consulta la nube.**
+      La PC de caja correrá un servicio Node emparejado con la PT-210 por
+      Bluetooth, haciendo polling de la cola. Mantiene HTTPS y la PWA.
+      Pendiente de implementar (Fase 4).
 
 ## Fases
 - [ ] 1. Setup: proyecto, Appwrite, auth con roles, Sentry
@@ -22,13 +24,20 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       Sin auth ni Sentry todavía. Service worker sin hacer.
 - [~] 2. Productos + órdenes (4 tipos) + función de cálculo con tests
       → hecho: catálogo de 57 productos, 4 tipos de orden, `calcularTotales`
-        pura con 13 pruebas, precio congelado por línea.
-      → falta: `aplica_iva` por producto, modo "precios con IVA incluido",
-        descuento por línea, modificadores, flujo de estados de la orden.
+        pura con 27 pruebas, precio congelado por línea, `aplica_iva` por
+        producto (exentos), modo "precios con IVA incluido" con desglose
+        hacia atrás, descuento manual por línea, modificadores con recargo,
+        multimoneda US$, y cálculo en milésimas de centavo para redondear
+        solo al final.
+      → falta: flujo de estados de la orden (abierta → enviada_cocina →
+        por_cobrar → pagada), pantalla de mesas para el mesero.
 - [~] 3. Cobro + recibo HTML/PDF + pre-cuenta + comanda
-      → hecho: recibo térmico 58mm con desglose, comanda de cocina.
-      → falta: pre-cuenta, leyenda "no es factura fiscal", "COPIA" en
-        reimpresiones, 80mm configurable, fallback PDF/HTML, US$.
+      → hecho: recibo térmico con desglose completo (base exenta, base
+        gravable, IVA, envío, propina), comanda de cocina, **pre-cuenta**,
+        leyenda "no es factura fiscal", **COPIA** en reimpresiones, ancho
+        **58 y 80mm configurable**, precio unitario por línea,
+        modificadores, equivalente en US$, mesero y cajero identificados.
+      → falta: fallback HTML + window.print() + PDF descargable.
 - [~] 4. Capa de impresión (puente LAN ESC/POS + fallbacks)
       → hecho: Web Bluetooth para PT-210, cola con estado y reintentos,
         detección de iOS, prueba de codepage.
@@ -42,12 +51,14 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
 - [ ] 7. Reportes admin + auditoría — sin empezar, falta `audit_log`
 - [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
 
-**Avance real contra el spec completo: ~30%.**
+**Avance real contra el spec completo: ~45%.** (51 pruebas)
 
 ## Decisiones tomadas
 - Stack: Next.js + TypeScript + Tailwind. ✅ ya implementado.
-- Backend: el spec dice Appwrite. **Lo construido usa Supabase.**
-  Decisión pendiente del dueño: migrar a Appwrite o quedarse en Supabase.
+- Backend: **se queda en Supabase**, decidido por el dueño. El spec dice
+  Appwrite, pero Postgres hace GROUP BY y el cierre pide agregaciones (top
+  productos, ticket promedio, totales por tipo y método) que en una base
+  documental obligan a traerse todas las filas y agregar en JS.
 - Sin Clerk ni Heroku. (Nota: el MCP de Clerk sí está disponible en esta
   sesión, pero se respeta la decisión de no usarlo.)
 - Dinero en enteros de centavos, nunca floats. ✅
@@ -58,13 +69,14 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
 
 ## Pendientes / riesgos abiertos
 - Validar con contador requisitos DGI (recibo vs factura fiscal).
-- Validar con contador la base de la propina y **si el envío paga IVA**:
-  el spec lo deja fuera del IVA, el código actual lo grava (GAP.md §2.2).
-- **Confirmar si los precios de la carta son base o finales.** Hoy el sistema
-  cobra C$299 por la Jamón de C$260. Si el cliente hoy paga C$260 en total,
-  hay que recalcular el seed antes de operar.
+- Validar con contador la base de la propina y si el envío paga IVA.
+  **Resuelto como ajuste opcional** (`envioGravado`), apagado por defecto
+  para seguir al spec. Se cambia en `settings` sin tocar código.
+- Precios de la carta: **confirmado que son base**, el IVA se suma encima.
+  La Jamón de C$260 se cobra a C$299. El seed queda como está.
 - iOS sin Web Bluetooth → resuelto por cola de impresión, pero el puente LAN
   del spec choca con mixed content desde una PWA en HTTPS (GAP.md §1.3).
 - El codepage de la PT-210 **sigue sin verificarse en hardware real**.
-- "Enteros en centavos" y "redondeo solo en el total final" se contradicen
-  tal como están escritos en el spec (GAP.md §2.1).
+- "Enteros en centavos" vs "redondeo solo en el total final":
+  **resuelto** calculando en milésimas de centavo (enteros) y redondeando
+  solo al construir los totales visibles.

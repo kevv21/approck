@@ -9,6 +9,39 @@
 /** Porcentajes en basis points: 1500 = 15.00%, 1000 = 10.00% */
 export type Bps = number;
 
+/**
+ * ESCALA INTERNA
+ *
+ * El spec pide dos cosas que, tal como estan escritas, se contradicen:
+ * "dinero en enteros de centavos" y "redondeo al centavo solo en el total
+ * final". Si la unidad minima es el centavo entero, CADA operacion con
+ * porcentajes redondea, no solo la ultima.
+ *
+ * Se resuelve calculando internamente en milesimas de centavo (siguen siendo
+ * enteros, nunca floats) y redondeando a centavos solo al construir los
+ * totales visibles. Asi el IVA sale de la base sin redondear, no de una base
+ * ya redondeada, y los errores no se acumulan linea a linea.
+ */
+export const ESCALA = 1000;
+
+export const aEscala = (centavosMonto: number): number => centavosMonto * ESCALA;
+export const aCentavosDesdeEscala = (escalado: number): number =>
+  Math.round(escalado / ESCALA);
+
+/** Aplica un porcentaje en bps manteniendo la escala interna. */
+export function aplicarBpsEscalado(escalado: number, bps: Bps): number {
+  return Math.round((escalado * bps) / 10000);
+}
+
+/**
+ * Desglose de IVA hacia atras, para menus cuyos precios YA incluyen IVA.
+ * base = conIva / (1 + iva). Devuelve {base, iva} en la escala de entrada.
+ */
+export function desglosarIva(conIva: number, ivaBps: Bps): { base: number; iva: number } {
+  const base = Math.round((conIva * 10000) / (10000 + ivaBps));
+  return { base, iva: conIva - base };
+}
+
 export const centavos = (cordobas: number): number => Math.round(cordobas * 100);
 export const aCordobas = (c: number): number => c / 100;
 

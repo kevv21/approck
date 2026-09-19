@@ -1,145 +1,213 @@
-import { aplicarBps, repartirProporcional } from "./money";
+import {
+  aCentavosDesdeEscala,
+  aEscala,
+  aplicarBpsEscalado,
+  desglosarIva,
+  repartirProporcional,
+} from "./money";
 import type {
   ConfigCobro,
   Descuento,
   LineaCalculada,
   LineaOrden,
+  TipoDescuento,
   Totales,
 } from "./types";
 
 /**
- * MOTOR DE PRECIOS
+ * MOTOR DE PRECIOS — funcion pura, unica fuente de verdad de los montos.
  *
- * Los precios del menu de Rock Munchies NO incluyen IVA.
- * Por lo tanto el IVA del 15% se SUMA sobre la base ya descontada.
+ * Orden de operaciones (docs/SPEC.md, "Calculo del recibo"):
  *
- * Orden de operaciones (importante, define lo que se cobra):
+ *   1. bruto de linea   = (precio unitario + modificadores) * cantidad
+ *   2. descuento de linea (manual, sobre esa linea)
+ *   3. descuento de categoria (pizzas / bebidas) sobre el remanente del grupo
+ *   4. descuento general sobre el remanente de todas las lineas
+ *   5. desglose por linea: base imponible e IVA, saltando productos exentos
+ *   6. envio: sin descuento, sin propina, y con IVA solo si `envioGravado`
+ *   7. propina sobre el subtotal sin IVA (configurable), nunca gravada
+ *   8. total = base + IVA + envio + propina
  *
- *   1. bruto de linea      = precioUnit * cantidad
- *   2. descuento categoria = se aplica solo a las lineas de ese grupo
- *                            (pizza / bebida)
- *   3. descuento general   = se aplica sobre el REMANENTE de todas las lineas
- *   4. base productos      = suma de (bruto - descuentos), nunca negativa
- *   5. envio               = no admite descuento, no genera propina, si paga IVA
- *   6. IVA 15%             = sobre (base productos + envio)
- *   7. propina 10%         = sobre base productos (configurable), opcional
- *   8. total               = base + envio + IVA + propina
+ * Dos consecuencias que conviene tener presentes:
  *
- * Consecuencia a tener presente: 10% a pizzas + 10% general NO es 20%.
- * El general cae sobre lo que ya quedo descontado, asi que el efectivo es 19%.
+ * - Apilar descuentos no suma: el general cae sobre lo que ya quedo
+ *   descontado, asi que 10% a pizzas + 10% general da 19% efectivo, no 20%.
+ * - Todo el calculo interno corre en milesimas de centavo (enteros) y solo se
+ *   redondea al construir los totales visibles, para que el IVA salga de una
+ *   base sin redondear y los errores no se acumulen linea a linea.
  */
 export function calcularTotales(
   lineasEntrada: LineaOrden[],
   descuentos: Descuento[],
   config: ConfigCobro
 ): Totales {
-  const lineas: LineaCalculada[] = lineasEntrada.map((l) => ({
-    ...l,
-    bruto: l.precioUnit * l.cantidad,
-    descCategoria: 0,
-    descGeneral: 0,
-    descTotal: 0,
-    neto: 0,
-  }));
+  const { ivaBps, preciosIncluyenIva } = config;
 
-  const subtotalBruto = lineas.reduce((a, l) => a + l.bruto, 0);
+  // --- Paso 1: bruto por linea, en escala interna ---------------------------
+  const brutos = lineasEntrada.map((l) => {
+    const recargos = (l.modificadores ?? []).reduce((a, m) => a + m.precio, 0);
+    return aEscala((l.precioUnit + recargos) * l.cantidad);
+  });
 
-  // --- Paso 2: descuentos de categoria -------------------------------------
-  let descPizzas = 0;
-  let descBebidas = 0;
+  const descLinea = new Array(lineasEntrada.length).fill(0);
+  const descCat = new Array(lineasEntrada.length).fill(0);
+  const descGen = new Array(lineasEntrada.length).fill(0);
+
+  const montoDescuento = (
+    tipo: TipoDescuento,
+    valor: number,
+    baseEscalada: number
+  ): number =>
+    tipo === "porcentaje"
+      ? aplicarBpsEscalado(baseEscalada, Math.min(valor, 10000))
+      : Math.min(aEscala(valor), baseEscalada);
+
+  // --- Paso 2: descuento manual por linea -----------------------------------
+  lineasEntrada.forEach((l, i) => {
+    if (!l.descuentoLinea || l.descuentoLinea.valor <= 0) return;
+    descLinea[i] = montoDescuento(
+      l.descuentoLinea.tipo,
+      l.descuentoLinea.valor,
+      brutos[i]
+    );
+  });
+
+  // --- Paso 3: descuentos de categoria --------------------------------------
+  let descPizzasEsc = 0;
+  let descBebidasEsc = 0;
 
   for (const grupo of ["pizza", "bebida"] as const) {
     const d = descuentos.find((x) => x.alcance === grupo);
     if (!d || d.valor <= 0) continue;
 
-    const idx = lineas
+    const idx = lineasEntrada
       .map((l, i) => (l.grupo === grupo ? i : -1))
       .filter((i) => i >= 0);
     if (idx.length === 0) continue;
 
-    const brutos = idx.map((i) => lineas[i].bruto);
-    const totalGrupo = brutos.reduce((a, b) => a + b, 0);
+    const remanentes = idx.map((i) => brutos[i] - descLinea[i]);
+    const totalGrupo = remanentes.reduce((a, b) => a + b, 0);
+    const monto = montoDescuento(d.tipo, d.valor, totalGrupo);
 
-    let montoDesc: number;
-    if (d.tipo === "porcentaje") {
-      montoDesc = aplicarBps(totalGrupo, Math.min(d.valor, 10000));
-    } else {
-      montoDesc = Math.min(d.valor, totalGrupo);
-    }
-
-    const reparto = repartirProporcional(montoDesc, brutos);
-    idx.forEach((i, k) => {
-      lineas[i].descCategoria = reparto[k];
-    });
+    const reparto = repartirProporcional(monto, remanentes);
+    idx.forEach((i, k) => { descCat[i] = reparto[k]; });
 
     const aplicado = reparto.reduce((a, b) => a + b, 0);
-    if (grupo === "pizza") descPizzas = aplicado;
-    else descBebidas = aplicado;
+    if (grupo === "pizza") descPizzasEsc = aplicado;
+    else descBebidasEsc = aplicado;
   }
 
-  // --- Paso 3: descuento general sobre el remanente -------------------------
-  let descGeneral = 0;
+  // --- Paso 4: descuento general sobre el remanente -------------------------
+  let descGeneralEsc = 0;
   const dGen = descuentos.find((x) => x.alcance === "general");
   if (dGen && dGen.valor > 0) {
-    const remanentes = lineas.map((l) => l.bruto - l.descCategoria);
+    const remanentes = brutos.map((b, i) => b - descLinea[i] - descCat[i]);
     const totalRemanente = remanentes.reduce((a, b) => a + b, 0);
+    const monto = montoDescuento(dGen.tipo, dGen.valor, totalRemanente);
 
-    let montoDesc: number;
-    if (dGen.tipo === "porcentaje") {
-      montoDesc = aplicarBps(totalRemanente, Math.min(dGen.valor, 10000));
+    const reparto = repartirProporcional(monto, remanentes);
+    reparto.forEach((v, i) => { descGen[i] = v; });
+    descGeneralEsc = reparto.reduce((a, b) => a + b, 0);
+  }
+
+  // --- Paso 5: desglose por linea -------------------------------------------
+  let baseGravadaEsc = 0;
+  let baseExentaEsc = 0;
+  let ivaProductosEsc = 0;
+
+  const lineas: LineaCalculada[] = lineasEntrada.map((l, i) => {
+    const descTotalEsc = Math.min(
+      descLinea[i] + descCat[i] + descGen[i],
+      brutos[i]
+    );
+    const netoEsc = brutos[i] - descTotalEsc;
+    const gravada = l.aplicaIva !== false;
+
+    let baseEsc: number;
+    let ivaEsc: number;
+    if (!gravada) {
+      baseEsc = netoEsc;
+      ivaEsc = 0;
+    } else if (preciosIncluyenIva) {
+      // El precio ya trae el IVA dentro: se desglosa hacia atras.
+      const d = desglosarIva(netoEsc, ivaBps);
+      baseEsc = d.base;
+      ivaEsc = d.iva;
     } else {
-      montoDesc = Math.min(dGen.valor, totalRemanente);
+      baseEsc = netoEsc;
+      ivaEsc = aplicarBpsEscalado(netoEsc, ivaBps);
     }
 
-    const reparto = repartirProporcional(montoDesc, remanentes);
-    lineas.forEach((l, i) => {
-      l.descGeneral = reparto[i];
-    });
-    descGeneral = reparto.reduce((a, b) => a + b, 0);
-  }
+    if (gravada) baseGravadaEsc += baseEsc;
+    else baseExentaEsc += baseEsc;
+    ivaProductosEsc += ivaEsc;
 
-  // --- Paso 4: netos --------------------------------------------------------
-  for (const l of lineas) {
-    l.descTotal = l.descCategoria + l.descGeneral;
-    if (l.descTotal > l.bruto) l.descTotal = l.bruto; // nunca negativo
-    l.neto = l.bruto - l.descTotal;
-  }
+    return {
+      ...l,
+      bruto: aCentavosDesdeEscala(brutos[i]),
+      descLinea: aCentavosDesdeEscala(descLinea[i]),
+      descCategoria: aCentavosDesdeEscala(descCat[i]),
+      descGeneral: aCentavosDesdeEscala(descGen[i]),
+      descTotal: aCentavosDesdeEscala(descTotalEsc),
+      neto: aCentavosDesdeEscala(netoEsc),
+      base: aCentavosDesdeEscala(baseEsc),
+      iva: aCentavosDesdeEscala(ivaEsc),
+    };
+  });
 
-  const baseProductos = lineas.reduce((a, l) => a + l.neto, 0);
-  const descTotal = descPizzas + descBebidas + descGeneral;
+  // --- Paso 6: envio ---------------------------------------------------------
+  const envioEsc = aEscala(Math.max(0, config.costoEnvio));
+  const ivaEnvioEsc = config.envioGravado
+    ? aplicarBpsEscalado(envioEsc, ivaBps)
+    : 0;
 
-  // --- Pasos 5 a 8 ----------------------------------------------------------
-  const costoEnvio = Math.max(0, config.costoEnvio);
-  const baseGravable = baseProductos + costoEnvio;
-  const iva = aplicarBps(baseGravable, config.ivaBps);
-
-  let propina = 0;
+  // --- Paso 7: propina -------------------------------------------------------
+  const baseProductosEsc = baseGravadaEsc + baseExentaEsc;
+  let propinaEsc = 0;
   if (config.cobrarPropina && config.propinaBps > 0) {
     const basePropina =
       config.propinaSobre === "base_con_iva"
-        ? baseProductos + aplicarBps(baseProductos, config.ivaBps)
-        : baseProductos;
-    propina = aplicarBps(basePropina, config.propinaBps);
+        ? baseProductosEsc + ivaProductosEsc
+        : baseProductosEsc;
+    propinaEsc = aplicarBpsEscalado(basePropina, config.propinaBps);
   }
 
-  const total = baseGravable + iva + propina;
+  // --- Paso 8: total ---------------------------------------------------------
+  // Sirve para los dos modos: con precios que incluyen IVA,
+  // base + iva de cada linea vuelve a dar exactamente su neto.
+  const totalEsc =
+    baseProductosEsc + ivaProductosEsc + envioEsc + ivaEnvioEsc + propinaEsc;
+
+  const total = aCentavosDesdeEscala(totalEsc);
+  const subtotalBruto = aCentavosDesdeEscala(brutos.reduce((a, b) => a + b, 0));
+  const descLineasEsc = descLinea.reduce((a, b) => a + b, 0);
 
   return {
     lineas,
     subtotalBruto,
-    descPizzas,
-    descBebidas,
-    descGeneral,
-    descTotal,
-    baseProductos,
-    costoEnvio,
-    baseGravable,
-    iva,
-    propina,
+    descLineas: aCentavosDesdeEscala(descLineasEsc),
+    descPizzas: aCentavosDesdeEscala(descPizzasEsc),
+    descBebidas: aCentavosDesdeEscala(descBebidasEsc),
+    descGeneral: aCentavosDesdeEscala(descGeneralEsc),
+    descTotal: aCentavosDesdeEscala(
+      descLineasEsc + descPizzasEsc + descBebidasEsc + descGeneralEsc
+    ),
+    baseProductos: aCentavosDesdeEscala(baseProductosEsc),
+    costoEnvio: aCentavosDesdeEscala(envioEsc),
+    baseGravable: aCentavosDesdeEscala(
+      baseGravadaEsc + (config.envioGravado ? envioEsc : 0)
+    ),
+    baseExenta: aCentavosDesdeEscala(baseExentaEsc),
+    iva: aCentavosDesdeEscala(ivaProductosEsc + ivaEnvioEsc),
+    propina: aCentavosDesdeEscala(propinaEsc),
     total,
+    totalUsd:
+      config.tipoCambio > 0
+        ? Math.round((total * 100) / config.tipoCambio)
+        : null,
   };
 }
 
-/** Helper para la UI: 12.5% -> 1250 bps */
+/** Helpers para la UI: 12.5% <-> 1250 bps */
 export const pctABps = (pct: number): number => Math.round(pct * 100);
 export const bpsAPct = (bps: number): number => bps / 100;

@@ -109,19 +109,39 @@ describe("guardas", () => {
 });
 
 describe("envio y propina", () => {
-  it("el envio paga IVA pero no recibe descuento ni genera propina", () => {
-    const d: Descuento[] = [{ alcance: "general", tipo: "porcentaje", valor: 1000 }];
-    const t = calcularTotales(pedido, d, {
-      ...CONFIG_DEFAULT,
-      costoEnvio: centavos(50),
-      cobrarPropina: true,
+  const dGen: Descuento[] = [{ alcance: "general", tipo: "porcentaje", valor: 1000 }];
+
+  it("por defecto el envio queda fuera del IVA, como ordena el spec", () => {
+    const t = calcularTotales(pedido, dGen, {
+      ...CONFIG_DEFAULT, costoEnvio: centavos(50), cobrarPropina: true,
     });
     expect(t.baseProductos).toBe(centavos(1044)); // 1160 - 116
     expect(t.costoEnvio).toBe(centavos(50));
+    expect(t.baseGravable).toBe(centavos(1044));  // el envio NO entra
+    expect(t.iva).toBe(centavos(156.6));
+    expect(t.propina).toBe(centavos(104.4));      // 10% de 1044, sin el envio
+    expect(t.total).toBe(centavos(1355));
+  });
+
+  it("con envioGravado el envio entra en la base y paga IVA", () => {
+    const t = calcularTotales(pedido, dGen, {
+      ...CONFIG_DEFAULT, costoEnvio: centavos(50),
+      cobrarPropina: true, envioGravado: true,
+    });
     expect(t.baseGravable).toBe(centavos(1094));
-    expect(t.iva).toBe(centavos(164.1));
-    expect(t.propina).toBe(centavos(104.4)); // 10% de 1044, sin el envio
+    expect(t.iva).toBe(centavos(164.1));          // 156.60 + 7.50 del envio
+    expect(t.propina).toBe(centavos(104.4));      // la propina no lo incluye
     expect(t.total).toBe(centavos(1362.5));
+  });
+
+  it("el envio nunca recibe descuento", () => {
+    const todo: Descuento[] = [{ alcance: "general", tipo: "porcentaje", valor: 10000 }];
+    const t = calcularTotales(pedido, todo, {
+      ...CONFIG_DEFAULT, costoEnvio: centavos(50),
+    });
+    expect(t.baseProductos).toBe(0);
+    expect(t.costoEnvio).toBe(centavos(50));
+    expect(t.total).toBe(centavos(50));
   });
 
   it("propina sobre base+IVA cuando se configura asi", () => {
@@ -158,5 +178,131 @@ describe("repartirProporcional", () => {
     const r = repartirProporcional(5000, [100, 200]);
     expect(r[0]).toBeLessThanOrEqual(100);
     expect(r[1]).toBeLessThanOrEqual(200);
+  });
+});
+
+
+describe("productos exentos de IVA", () => {
+  it("un item exento no aporta IVA pero si suma al total", () => {
+    const mixto: LineaOrden[] = [
+      { ...linea("Diabla", 300, 1, "pizza") },
+      { ...linea("Agua", 100, 1, "bebida"), aplicaIva: false },
+    ];
+    const t = calcularTotales(mixto, [], CONFIG_DEFAULT);
+    expect(t.baseProductos).toBe(centavos(400));
+    expect(t.baseGravable).toBe(centavos(300)); // solo la pizza
+    expect(t.baseExenta).toBe(centavos(100));
+    expect(t.iva).toBe(centavos(45));           // 15% de 300, no de 400
+    expect(t.total).toBe(centavos(445));
+  });
+
+  it("el desglose por linea marca el exento con IVA cero", () => {
+    const mixto: LineaOrden[] = [
+      { ...linea("Diabla", 300, 1, "pizza") },
+      { ...linea("Agua", 100, 1, "bebida"), aplicaIva: false },
+    ];
+    const t = calcularTotales(mixto, [], CONFIG_DEFAULT);
+    expect(t.lineas[0].iva).toBe(centavos(45));
+    expect(t.lineas[1].iva).toBe(0);
+    expect(t.lineas[1].base).toBe(centavos(100));
+  });
+});
+
+describe("modo: precios que YA incluyen IVA", () => {
+  const conIva = { ...CONFIG_DEFAULT, preciosIncluyenIva: true };
+
+  it("desglosa el IVA hacia atras", () => {
+    // C$115 con IVA incluido -> base 100, IVA 15
+    const t = calcularTotales([linea("Pizza", 115, 1, "pizza")], [], conIva);
+    expect(t.baseProductos).toBe(centavos(100));
+    expect(t.iva).toBe(centavos(15));
+    expect(t.total).toBe(centavos(115)); // el cliente paga lo que dice la carta
+  });
+
+  it("base + IVA de cada linea reconstruye su neto", () => {
+    const t = calcularTotales(pedido, [], conIva);
+    for (const l of t.lineas) {
+      expect(l.base + l.iva).toBe(l.neto);
+    }
+    expect(t.total).toBe(t.subtotalBruto);
+  });
+
+  it("el descuento se aplica sobre el precio con IVA que ve el cliente", () => {
+    const d: Descuento[] = [{ alcance: "general", tipo: "porcentaje", valor: 1000 }];
+    const t = calcularTotales([linea("Pizza", 115, 1, "pizza")], d, conIva);
+    expect(t.descGeneral).toBe(centavos(11.5));
+    expect(t.total).toBe(centavos(103.5));
+  });
+});
+
+describe("descuento manual por linea", () => {
+  it("se aplica antes que los de categoria y general", () => {
+    const l: LineaOrden[] = [
+      { ...linea("Diabla", 300, 1, "pizza"),
+        descuentoLinea: { tipo: "monto", valor: centavos(100) } },
+    ];
+    const t = calcularTotales(l, [{ alcance: "pizza", tipo: "porcentaje", valor: 1000 }], CONFIG_DEFAULT);
+    expect(t.descLineas).toBe(centavos(100));
+    expect(t.descPizzas).toBe(centavos(20)); // 10% de 200, no de 300
+    expect(t.baseProductos).toBe(centavos(180));
+  });
+
+  it("no puede dejar la linea en negativo", () => {
+    const l: LineaOrden[] = [
+      { ...linea("Diabla", 300, 1, "pizza"),
+        descuentoLinea: { tipo: "monto", valor: centavos(9999) } },
+    ];
+    const t = calcularTotales(l, [], CONFIG_DEFAULT);
+    expect(t.lineas[0].neto).toBe(0);
+    expect(t.total).toBe(0);
+  });
+});
+
+describe("modificadores", () => {
+  it("el recargo del modificador entra en el bruto y se multiplica por cantidad", () => {
+    const l: LineaOrden[] = [
+      { ...linea("Diabla", 300, 2, "pizza"),
+        modificadores: [{ nombre: "Extra queso", precio: centavos(50) }] },
+    ];
+    const t = calcularTotales(l, [], CONFIG_DEFAULT);
+    expect(t.subtotalBruto).toBe(centavos(700)); // (300 + 50) * 2
+  });
+});
+
+describe("multimoneda", () => {
+  it("convierte el total a dolares con el tipo de cambio configurado", () => {
+    const t = calcularTotales([linea("Pizza", 368, 1, "pizza")], [], {
+      ...CONFIG_DEFAULT, tipoCambio: centavos(36.8),
+    });
+    expect(t.total).toBe(centavos(423.2));   // 368 + 15%
+    expect(t.totalUsd).toBe(1150);           // US$ 11.50
+  });
+
+  it("sin tipo de cambio no calcula equivalente", () => {
+    const t = calcularTotales(pedido, [], CONFIG_DEFAULT);
+    expect(t.totalUsd).toBeNull();
+  });
+});
+
+describe("precision: redondeo solo al final", () => {
+  it("el IVA sale de la base sin redondear, no de una base ya redondeada", () => {
+    // 3 lineas con un descuento que produce fracciones de centavo
+    const l: LineaOrden[] = [
+      linea("A", 33.33, 1, "pizza"),
+      linea("B", 33.33, 1, "pizza"),
+      linea("C", 33.34, 1, "pizza"),
+    ];
+    const d: Descuento[] = [{ alcance: "general", tipo: "porcentaje", valor: 3333 }];
+    const t = calcularTotales(l, d, CONFIG_DEFAULT);
+    // El total tiene que ser consistente con la base y el IVA reportados
+    expect(t.baseProductos + t.iva).toBe(t.total);
+  });
+
+  it("los descuentos repartidos suman exactamente el descuento total", () => {
+    const d: Descuento[] = [{ alcance: "general", tipo: "monto", valor: centavos(777) }];
+    const t = calcularTotales(pedido, d, CONFIG_DEFAULT);
+    const suma = t.lineas.reduce((a, l) => a + l.descTotal, 0);
+    expect(suma).toBe(t.descTotal);
+    expect(t.descTotal).toBe(centavos(777));
   });
 });

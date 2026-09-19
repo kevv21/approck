@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import PanelDescuentos from "@/components/PanelDescuentos";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
-import { cargarMenu, guardarYEncolar, turnoAbierto } from "@/lib/repo";
+import { cargarMenu, encolar, guardarYEncolar, turnoAbierto } from "@/lib/repo";
 import { previsualizarTicket } from "@/lib/ticket";
 import { hayConfig } from "@/lib/supabase";
 import {
@@ -77,6 +77,7 @@ export default function Caja() {
       return [...prev, {
         id: crypto.randomUUID(), productoId: p.id, nombre: p.nombre,
         precioUnit: p.precio, cantidad: 1, grupo: p.grupo_descuento,
+        aplicaIva: p.aplica_iva !== false,
       }];
     });
   };
@@ -126,9 +127,30 @@ export default function Caja() {
     }
   };
 
+  const imprimirPrecuenta = async () => {
+    if (lineas.length === 0) return;
+    setGuardando(true);
+    setAviso(null);
+    try {
+      // La pre-cuenta no cierra ni guarda la orden: es solo para que el
+      // cliente revise antes de pagar.
+      await encolar(null, "precuenta", {
+        numero: 0, tipo, mesa, cliente, telefonoCliente: telefono, direccion,
+        notas, mesero: atendio, fecha: new Date(), totales: t,
+        documento: "precuenta",
+      });
+      setAviso({ txt: "Pre-cuenta enviada a la estación de impresión." });
+    } catch (e) {
+      setAviso({ txt: `Error: ${(e as Error).message}`, mal: true });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const previsualizacion = previsualizarTicket({
     numero: 0, tipo, mesa, cliente, telefonoCliente: telefono, direccion, notas,
-    metodoPago, recibido: recibidoCent, atendio, fecha: new Date(), totales: t,
+    metodoPago, recibido: recibidoCent, mesero: atendio,
+    fecha: new Date(), totales: t,
   });
 
   if (!hayConfig) {
@@ -336,6 +358,8 @@ export default function Caja() {
               <button className="btn btn-acc" disabled={guardando} onClick={cobrar}>
                 {guardando ? "Guardando..." : "Cobrar e imprimir"}
               </button>
+              <button className="btn btn-ghost col-span-2" disabled={guardando}
+                      onClick={imprimirPrecuenta}>Imprimir pre-cuenta</button>
               <button className="btn btn-ghost col-span-2 !min-h-0 !py-2 text-sm"
                       onClick={limpiar}>Cancelar orden</button>
             </div>

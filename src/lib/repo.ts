@@ -87,6 +87,9 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     notas: d.notas || null,
     atendio: d.atendio || null,
     iva_bps: d.config.ivaBps,
+    precios_incluyen_iva: d.config.preciosIncluyenIva,
+    envio_gravado: d.config.envioGravado,
+    tipo_cambio: d.config.tipoCambio,
     propina_bps: d.config.propinaBps,
     propina_sobre: d.config.propinaSobre,
     desc_general_tipo: dg?.tipo ?? null, desc_general_valor: dg?.valor ?? 0,
@@ -96,8 +99,10 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     subtotal_bruto: t.subtotalBruto,
     desc_pizzas: t.descPizzas, desc_bebidas: t.descBebidas,
     desc_general: t.descGeneral, desc_total: t.descTotal,
+    desc_lineas: t.descLineas,
     base_productos: t.baseProductos, costo_envio: t.costoEnvio,
-    base_gravable: t.baseGravable, iva: t.iva, propina: t.propina, total: t.total,
+    base_gravable: t.baseGravable, base_exenta: t.baseExenta,
+    iva: t.iva, propina: t.propina, total: t.total, total_usd: t.totalUsd,
     metodo_pago: d.metodoPago,
     recibido: d.recibido ?? null,
     cambio: d.recibido != null ? Math.max(0, d.recibido - t.total) : null,
@@ -113,13 +118,20 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
       nombre_snapshot: l.nombre,
       precio_snapshot: l.precioUnit,
       grupo_snapshot: l.grupo,
+      aplica_iva_snapshot: l.aplicaIva !== false,
       cantidad: l.cantidad,
       notas: l.notas || null,
+      modificadores: l.modificadores ?? null,
+      desc_linea_tipo: l.descuentoLinea?.tipo ?? null,
+      desc_linea_valor: l.descuentoLinea?.valor ?? 0,
       bruto: l.bruto,
+      desc_linea: l.descLinea,
       desc_categoria: l.descCategoria,
       desc_general: l.descGeneral,
       desc_total: l.descTotal,
       neto: l.neto,
+      base: l.base,
+      iva: l.iva,
     }))
   );
   if (eItems) throw eItems;
@@ -132,14 +144,14 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
   };
 
   await encolar(orden.id, "cliente", base);
-  if (d.imprimirCocina) await encolar(orden.id, "cocina", { ...base, cocina: true });
+  if (d.imprimirCocina) await encolar(orden.id, "cocina", { ...base, documento: "cocina" });
 
   return { orden, totales: t };
 }
 
 export async function encolar(
   ordenId: string | null,
-  tipo: "cliente" | "cocina" | "prueba",
+  tipo: "cliente" | "cocina" | "prueba" | "precuenta",
   datos: DatosTicket
 ) {
   const bytes = construirTicket(datos, { transliterar: false });
@@ -154,7 +166,7 @@ export async function encolar(
 
 export async function encolarBytes(
   ordenId: string | null,
-  tipo: "cliente" | "cocina" | "prueba",
+  tipo: "cliente" | "cocina" | "prueba" | "precuenta",
   bytes: Uint8Array,
   preview = ""
 ) {
@@ -202,6 +214,11 @@ export async function reimprimir(ordenId: string, cocina = false) {
     cantidad: i.cantidad as number,
     grupo: i.grupo_snapshot as LineaOrden["grupo"],
     notas: (i.notas as string) ?? undefined,
+    aplicaIva: (i.aplica_iva_snapshot as boolean) ?? true,
+    modificadores: (i.modificadores as { nombre: string; precio: number }[]) ?? undefined,
+    descuentoLinea: (i.desc_linea_valor as number) > 0
+      ? { tipo: i.desc_linea_tipo as "porcentaje" | "monto", valor: i.desc_linea_valor as number }
+      : undefined,
   }));
 
   const descuentos: Descuento[] = [];
@@ -209,16 +226,27 @@ export async function reimprimir(ordenId: string, cocina = false) {
   if (o.desc_pizza_valor > 0)   descuentos.push({ alcance: "pizza",   tipo: o.desc_pizza_tipo,   valor: o.desc_pizza_valor });
   if (o.desc_bebida_valor > 0)  descuentos.push({ alcance: "bebida",  tipo: o.desc_bebida_tipo,  valor: o.desc_bebida_valor });
 
+  // Se recalcula con el SNAPSHOT de politica de la orden, no con los ajustes
+  // de hoy: una reimpresion tiene que dar exactamente el mismo total.
   const t = calcularTotales(lineas, descuentos, {
-    ivaBps: o.iva_bps, propinaBps: o.propina_bps,
-    propinaSobre: o.propina_sobre, cobrarPropina: o.propina > 0,
+    ivaBps: o.iva_bps,
+    preciosIncluyenIva: o.precios_incluyen_iva ?? false,
+    propinaBps: o.propina_bps,
+    propinaSobre: o.propina_sobre,
+    cobrarPropina: o.propina > 0,
     costoEnvio: o.costo_envio,
+    envioGravado: o.envio_gravado ?? false,
+    tipoCambio: o.tipo_cambio ?? 0,
   });
 
   await encolar(ordenId, cocina ? "cocina" : "cliente", {
     numero: o.numero, tipo: o.tipo, mesa: o.mesa, cliente: o.cliente,
     telefonoCliente: o.telefono_cliente, direccion: o.direccion, notas: o.notas,
     metodoPago: o.metodo_pago, recibido: o.recibido, atendio: o.atendio,
-    fecha: new Date(o.created_at), totales: t, reimpresion: !cocina, cocina,
+    fecha: new Date(o.created_at), totales: t,
+    reimpresion: !cocina,
+    documento: cocina ? "cocina" : "cliente",
+    ancho: (o.ancho_papel as 58 | 80) ?? 58,
+    tipoCambio: o.tipo_cambio ?? 0,
   });
 }

@@ -8,6 +8,20 @@
  *    hay que seleccionar codepage con ESC t n antes de escribir texto
  */
 
+/** Ancho de papel soportado, en mm. El spec pide ambos configurables. */
+export type AnchoPapel = 58 | 80;
+
+/**
+ * Caracteres por linea en Fuente A.
+ *  58mm -> 48mm imprimibles -> 384 puntos -> 32 columnas
+ *  80mm -> 72mm imprimibles -> 576 puntos -> 48 columnas
+ * A doble ancho, la mitad.
+ */
+export function columnasPara(ancho: AnchoPapel): number {
+  return ancho === 80 ? 48 : 32;
+}
+
+/** Ancho por defecto: la PT-210 del local es de 58mm. */
 export const COLUMNAS = 32;
 
 const ESC = 0x1b;
@@ -60,17 +74,23 @@ export interface OpcionesEncoder {
   codepage?: number;
   /** true = quitar acentos antes de imprimir (a prueba de balas) */
   transliterar?: boolean;
+  /** 58 (PT-210) u 80 mm */
+  ancho?: AnchoPapel;
 }
 
 export class EscPos {
   private buf: number[] = [];
   private opts: Required<OpcionesEncoder>;
+  /** Columnas utiles del papel configurado. */
+  readonly columnas: number;
 
   constructor(opts: OpcionesEncoder = {}) {
     this.opts = {
       codepage: opts.codepage ?? 16,
       transliterar: opts.transliterar ?? false,
+      ancho: opts.ancho ?? 58,
     };
+    this.columnas = columnasPara(this.opts.ancho);
   }
 
   /** ESC @ - reset, y seleccion de codepage */
@@ -120,7 +140,7 @@ export class EscPos {
   }
 
   separador(ch = "-"): this {
-    return this.linea(ch.repeat(COLUMNAS));
+    return this.linea(ch.repeat(this.columnas));
   }
 
   bytes(): Uint8Array {
@@ -158,13 +178,19 @@ export function envolver(texto: string, ancho: number): string[] {
   return out.length ? out : [""];
 }
 
-/** "Subtotal             1,160.00" - etiqueta izquierda, valor derecha. */
+/**
+ * "Subtotal             1,160.00" - etiqueta izquierda, valor derecha.
+ *
+ * Cuando etiqueta y valor llenan la linea EXACTA (espacio 0) se pegan sin
+ * separador, en vez de recortar: recortar ahi mutilaba numeros de recibo
+ * como "Pre-cuenta #0142", que cabe justo.
+ */
 export function parLineado(etiqueta: string, valor: string, ancho = COLUMNAS): string {
   const espacio = ancho - etiqueta.length - valor.length;
-  if (espacio < 1) {
-    return (etiqueta.slice(0, Math.max(0, ancho - valor.length - 1)) + " " + valor).slice(0, ancho);
-  }
-  return etiqueta + " ".repeat(espacio) + valor;
+  if (espacio >= 0) return etiqueta + " ".repeat(espacio) + valor;
+  // No cabe de ninguna forma: se recorta la etiqueta, nunca el valor.
+  const max = Math.max(0, ancho - valor.length - 1);
+  return (etiqueta.slice(0, max) + " " + valor).slice(0, ancho);
 }
 
 export function centrar(s: string, ancho = COLUMNAS): string {
