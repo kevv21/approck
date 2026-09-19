@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0d12;
+  --panel: #151922;
+  --panel-2: #1d222e;
+  --borde: #2a3142;
+  --txt: #e8eaf0;
+  --txt-2: #9aa3b8;
+  --acc: #ff6b1a;
+  --acc-2: #ffa04d;
+  --ok: #22c55e;
+  --mal: #ef4444;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--txt);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+/* Botones grandes: se usa con los dedos, a veces grasosos, a veces apurado. */
+.btn {
+  @apply rounded-lg px-4 py-3 font-semibold transition active:scale-[0.97] select-none;
+  min-height: 48px;
+}
+.btn-acc   { background: var(--acc); color: #1a0d04; }
+.btn-ghost { background: var(--panel-2); color: var(--txt); border: 1px solid var(--borde); }
+.btn-ok    { background: var(--ok); color: #05210f; }
+.btn-mal   { background: var(--mal); color: #2a0606; }
+.btn:disabled { opacity: .4; pointer-events: none; }
+
+.panel { background: var(--panel); border: 1px solid var(--borde); @apply rounded-xl; }
+.input {
+  background: var(--panel-2); border: 1px solid var(--borde); color: var(--txt);
+  @apply rounded-lg px-3 py-2 w-full outline-none;
+  min-height: 44px;
+  font-size: 16px; /* evita el zoom automatico de Safari en iPhone */
+}
+.input:focus { border-color: var(--acc); }
+.chip {
+  @apply rounded-full px-3 py-1.5 text-sm font-medium border transition;
+  border-color: var(--borde); background: var(--panel-2); color: var(--txt-2);
+}
+.chip-on { background: var(--acc); color: #1a0d04; border-color: var(--acc); }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
