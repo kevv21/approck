@@ -10,18 +10,21 @@ export const TIPOS_ORDEN: { valor: TipoOrden; etiqueta: string; corto: string }[
   { valor: "retiro", etiqueta: "Retiro en local", corto: "RETIRO" },
 ];
 
-export type MetodoPago = "efectivo" | "banpro" | "bac" | "pedidosya";
-
 /**
- * PedidosYa va aparte a proposito: esa plata no entra a la caja el mismo dia,
- * la plataforma la deposita despues y con comision descontada. Meterla en el
- * arqueo junto al efectivo hace que la caja nunca cuadre.
+ * PedidosYa NO es un metodo de pago aca.
+ *
+ * Esa plata nunca pasa por la caja: la plataforma cobra al cliente, descuenta
+ * su comision y deposita dias despues. Registrarla orden por orden obligaria
+ * a cuadrar contra un dinero que no esta, y el arqueo nunca daria. En su
+ * lugar se anota el total vendido por PedidosYa al cerrar la caja, que es el
+ * numero que la plataforma reporta.
  */
+export type MetodoPago = "efectivo" | "banpro" | "bac";
+
 export const METODOS_PAGO: { valor: MetodoPago; etiqueta: string; enCaja: boolean }[] = [
-  { valor: "efectivo",  etiqueta: "Efectivo",   enCaja: true },
-  { valor: "banpro",    etiqueta: "Banpro",     enCaja: false },
-  { valor: "bac",       etiqueta: "BAC",        enCaja: false },
-  { valor: "pedidosya", etiqueta: "PedidosYa",  enCaja: false },
+  { valor: "efectivo", etiqueta: "Efectivo", enCaja: true },
+  { valor: "banpro",   etiqueta: "Banpro",   enCaja: false },
+  { valor: "bac",      etiqueta: "BAC",      enCaja: false },
 ];
 
 export const etiquetaPago = (m: MetodoPago): string =>
@@ -58,9 +61,46 @@ export interface LineaOrden {
   aplicaIva?: boolean;
   /** Modificadores elegidos, con su recargo en centavos. */
   modificadores?: { nombre: string; precio: number }[];
+  /**
+   * Pizza mitad y mitad. `precioUnit` ya viene resuelto segun
+   * `ConfigCobro.precioMitades`; esto guarda de que son las mitades para el
+   * ticket y, sobre todo, para la comanda de cocina.
+   */
+  mitades?: [MitadPizza, MitadPizza];
   /** Descuento manual sobre esta linea, antes de los de categoria. */
   descuentoLinea?: { tipo: TipoDescuento; valor: number };
 }
+
+export interface MitadPizza {
+  productoId: string;
+  nombre: string;
+  /** Precio de esa pizza entera, para poder recalcular si cambia la regla. */
+  precio: number;
+}
+
+/**
+ * Como se cobra una mitad y mitad.
+ *
+ *   promedio  se suman las dos y se divide entre dos. Es lo que pidio el
+ *             dueno. Contra: mitad barata + mitad cara sale mas barato que
+ *             la cara entera, asi que se puede pedir media de mariscos
+ *             pagando el promedio.
+ *   mayor     el precio de la mas cara. Cierra ese hueco, por si algun dia
+ *             conviene.
+ */
+export type ReglaMitades = "promedio" | "mayor";
+
+export function precioMitadYMitad(
+  a: MitadPizza, b: MitadPizza, regla: ReglaMitades = "promedio"
+): number {
+  return regla === "mayor"
+    ? Math.max(a.precio, b.precio)
+    : Math.round((a.precio + b.precio) / 2);
+}
+
+/** Nombre corto para el ticket: "Criolla / Tocineta". */
+export const nombreMitades = (a: MitadPizza, b: MitadPizza): string =>
+  `${a.nombre} / ${b.nombre}`;
 
 export type AlcanceDescuento = "general" | "pizza" | "bebida";
 export type TipoDescuento = "porcentaje" | "monto";
@@ -96,6 +136,8 @@ export interface ConfigCobro {
   envioGravado: boolean;
   /** Centavos de C$ por 1 US$. 0 = no mostrar equivalente en dolares. */
   tipoCambio: number;
+  /** Como se cobra una pizza mitad y mitad. */
+  precioMitades: ReglaMitades;
 }
 
 export const CONFIG_DEFAULT: ConfigCobro = {
@@ -107,6 +149,7 @@ export const CONFIG_DEFAULT: ConfigCobro = {
   costoEnvio: 0,
   envioGravado: false,
   tipoCambio: 0,
+  precioMitades: "promedio",
 };
 
 export interface LineaCalculada extends LineaOrden {

@@ -15,7 +15,7 @@ create type tipo_job        as enum ('cliente', 'cocina', 'prueba');
 -- --------------------------------------------------------------- catalogo --
 create table producto (
   id              uuid primary key default gen_random_uuid(),
-  nombre          text not null,
+  nombre          text not null unique,
   descripcion     text,
   categoria       text not null,
   grupo_descuento grupo_descuento not null default 'otro',
@@ -138,4 +138,12 @@ create table print_job (
 create index on print_job (estado, created_at);
 
 -- Que la estacion reciba los trabajos por realtime en vez de solo polling.
-alter publication supabase_realtime add table print_job;
+-- Envuelto porque la publicacion solo existe en Supabase: en un Postgres
+-- comun este ALTER aborta el script entero y deja media base instalada.
+-- Ademas el realtime es un lujo: la estacion consulta la cola igual.
+do $$ begin
+  alter publication supabase_realtime add table print_job;
+exception
+  when undefined_object then raise notice 'sin supabase_realtime: la estación usará polling';
+  when duplicate_object then null;
+end $$;

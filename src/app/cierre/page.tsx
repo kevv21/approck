@@ -14,6 +14,7 @@ const hoyISO = () => new Date().toISOString().slice(0, 10);
 interface Turno {
   id: string; numero: number | null; abierto_por: string; abierto_at: string;
   fondo_inicial: number; efectivo_contado: number | null;
+  ventas_pedidosya?: number | null;
 }
 
 export default function Cierre() {
@@ -29,6 +30,7 @@ export default function Cierre() {
   const [verBitacora, setVerBitacora] = useState(false);
   const [fondo, setFondo] = useState("");
   const [contado, setContado] = useState("");
+  const [pedidosYa, setPedidosYa] = useState("");
 
   const rango = useCallback(() => {
     const d = new Date(`${desde}T00:00:00`);
@@ -71,7 +73,10 @@ export default function Cierre() {
 
   const exportar = async () => {
     const { d, h } = rango();
-    const blob = await generarCierreExcel({ desde: d, hasta: h, turno, ordenes });
+    const blob = await generarCierreExcel({
+      desde: d, hasta: h, ordenes,
+      turno: turno ? { ...turno, ventas_pedidosya: centavos(parseFloat(pedidosYa || "0") || 0) } : null,
+    });
     descargarBlob(blob, nombreArchivoCierre(new Date(), turno?.numero));
   };
 
@@ -91,6 +96,11 @@ export default function Cierre() {
               <input className="input !w-auto flex-1" inputMode="decimal"
                      placeholder="Efectivo contado C$" value={contado}
                      onChange={(e) => setContado(e.target.value)} />
+              {/* PedidosYa no pasa por la caja: se anota el total que
+                  reporta la plataforma, no se cuadra contra el efectivo. */}
+              <input className="input !w-auto flex-1" inputMode="decimal"
+                     placeholder="Vendido por PedidosYa C$" value={pedidosYa}
+                     onChange={(e) => setPedidosYa(e.target.value)} />
               <button className="btn btn-mal" onClick={async () => {
                 // El spec exige conexión para cerrar caja: un arqueo calculado
                 // contra datos que quizá no subieron no sirve para nada.
@@ -98,8 +108,14 @@ export default function Cierre() {
                   setAviso("Sin conexión no se puede cerrar la caja. El arqueo tiene que calcularse contra las órdenes ya subidas.");
                   return;
                 }
-                await cerrarTurno(turno.id, centavos(parseFloat(contado || "0") || 0));
-                setTurno(null); setContado(""); setAviso("Turno cerrado.");
+                await cerrarTurno(
+                  turno.id,
+                  centavos(parseFloat(contado || "0") || 0),
+                  undefined,
+                  centavos(parseFloat(pedidosYa || "0") || 0),
+                );
+                setTurno(null); setContado(""); setPedidosYa("");
+                setAviso("Turno cerrado.");
                 buscar();
               }}>Cerrar turno</button>
             </div>
@@ -153,12 +169,13 @@ export default function Cierre() {
         {METODOS_PAGO.map((m) => {
           const del = pagadas.filter((o) => o.metodo_pago === m.valor);
           return (
-            <Kpi key={m.valor}
-                 k={`${m.etiqueta}${m.valor === "pedidosya" ? " (aparte)" : ""} (${del.length})`}
+            <Kpi key={m.valor} k={`${m.etiqueta} (${del.length})`}
                  v={fmtC(del.reduce((a, o) => a + o.total, 0))}
                  acc={m.valor === "efectivo"} />
           );
         })}
+        <Kpi k="PedidosYa (aparte)"
+             v={fmtC(centavos(parseFloat(pedidosYa || "0") || 0))} />
       </div>
 
       <div className="panel grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">

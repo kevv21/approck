@@ -26,7 +26,6 @@ const ordenes: FilaOrden[] = [
   orden(2, "efectivo", 300),
   orden(3, "banpro", 440),
   orden(4, "bac", 400),
-  orden(5, "pedidosya", 370),
 ];
 
 async function abrir(blob: Blob) {
@@ -89,21 +88,22 @@ describe("forma de pago", () => {
     for (const m of ["Efectivo", "Banpro", "BAC"]) expect(txt, m).toContain(m);
   });
 
-  it("PedidosYa va en su propio bloque, fuera del total cobrado", async () => {
-    const ws = await abrir(await generarCierreExcel(base));
+  it("PedidosYa es un monto anotado al cerrar, no un método de pago", async () => {
+    // Esa plata nunca pasa por la caja: la plataforma deposita días después
+    // y con comisión. Cuadrarla contra el efectivo era imposible.
+    const ws = await abrir(await generarCierreExcel({
+      ...base,
+      turno: { numero: 1, abierto_por: "Ana", fondo_inicial: 0,
+               efectivo_contado: 0, ventas_pedidosya: centavos(1250) },
+    }));
     const txt = textoDe(ws);
     expect(txt).toContain("PEDIDOS YA (aparte)");
-    expect(txt).toContain("No entra a la caja");
-
-    // El total cobrado suma solo las filas de efectivo/banpro/bac.
-    const filaTotal = txt.split("\n").find((l) => l.includes("TOTAL COBRADO"))!;
-    const m = filaTotal.match(/=SUM\(D(\d+):D(\d+)\)/)!;
-    expect(Number(m[2]) - Number(m[1]) + 1).toBe(3); // tres métodos, no cuatro
+    expect(txt).toContain("Vendido por la plataforma");
+    expect(txt).toContain("Anotado al cerrar caja");
   });
 
-  it("los métodos de pago son los que usa el local", () => {
-    expect(METODOS_PAGO.map((m) => m.valor))
-      .toEqual(["efectivo", "banpro", "bac", "pedidosya"]);
+  it("el total cobrado suma exactamente los tres métodos de caja", () => {
+    expect(METODOS_PAGO.map((m) => m.valor)).toEqual(["efectivo", "banpro", "bac"]);
     expect(METODOS_PAGO.filter((m) => m.enCaja).map((m) => m.valor)).toEqual(["efectivo"]);
   });
 });

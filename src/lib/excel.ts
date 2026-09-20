@@ -37,6 +37,8 @@ export interface DatosCierre {
     abierto_por: string;
     fondo_inicial: number;
     efectivo_contado: number | null;
+    /** Total vendido por PedidosYa, anotado a mano al cerrar la caja. */
+    ventas_pedidosya?: number | null;
   } | null;
   ordenes: FilaOrden[];
 }
@@ -179,7 +181,7 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
     if (i === 4) c.numFmt = MONEDA;
   });
   const avisoCons = ws.addRow([
-    "", "Incluye PedidosYa. Precios sin IVA, envío ni propina.",
+    "", "Solo lo cobrado en caja. Precios sin IVA, envío ni propina.",
   ]);
   ws.mergeCells(`B${avisoCons.number}:D${avisoCons.number}`);
   avisoCons.getCell(2).font = { name: "Calibri", italic: true, size: 10 };
@@ -194,9 +196,8 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
     return { n: del.length, monto: aCordobas(del.reduce((a, o) => a + o.total, 0)) };
   };
 
-  const enCaja = METODOS_PAGO.filter((m) => m.valor !== "pedidosya");
   const primeraPago = encPago + 1;
-  for (const m of enCaja) {
+  for (const m of METODOS_PAGO) {
     const { n, monto } = porMetodo(m.valor);
     const r = ws.addRow(["", m.etiqueta, n, monto]);
     r.eachCell((c, i) => {
@@ -231,17 +232,19 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   ws.addRow([]);
 
   // --- 4. PedidosYa, aparte -------------------------------------------------
+  // No es un metodo de pago: esa plata nunca pasa por la caja. Se anota el
+  // total que reporta la plataforma al cerrar, y queda en su propio bloque
+  // para que nadie intente cuadrarlo contra el efectivo.
   tituloBloque("PEDIDOS YA (aparte)");
-  const py = porMetodo("pedidosya");
-  const rPy = ws.addRow(["", "Pedidos entregados", py.n, py.monto]);
-  rPy.eachCell((c, i) => {
+  const py = aCordobas(d.turno?.ventas_pedidosya ?? 0);
+  const rPy = ws.addRow(["", "Vendido por la plataforma", "", py]);
+  rPy.eachCell({ includeEmpty: true }, (c, i) => {
     c.border = bordeFino();
     c.font = { name: "Calibri", size: 11 };
-    if (i === 3) c.alignment = { horizontal: "center" };
     if (i === 4) c.numFmt = MONEDA;
   });
   const nota = ws.addRow([
-    "", "No entra a la caja: la plataforma deposita después y con comisión.",
+    "", "Anotado al cerrar caja. La plataforma deposita después y con comisión.",
   ]);
   ws.mergeCells(`B${nota.number}:D${nota.number}`);
   nota.getCell(2).font = { name: "Calibri", italic: true, size: 10 };

@@ -112,11 +112,38 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
         `engines.node`**, asi que ese campo mal puesto lo mandaba a un
         runtime donde el cliente no se puede construir. Corregido a `>=22`,
         con `.nvmrc` para que local, CI y Vercel usen lo mismo.
+      → El SQL se probó contra un Postgres 16 real, no solo a ojo. Salieron
+        tres problemas que habrían roto la instalación:
+        **(1)** el enum `metodo_pago` seguía con los valores viejos, así que
+        el primer cobro con Banpro habría fallado con
+        `invalid input value for enum`;
+        **(2)** `alter publication supabase_realtime` abortaba el script
+        entero si la publicación no existía, dejando media base instalada;
+        **(3)** el seed del menú se duplicaba al repetir el archivo —
+        tres corridas daban 171 productos en vez de 57.
+        Corregidos los tres. Ahora hay **un solo archivo**,
+        `supabase/00_INSTALAR.sql`, idempotente y verificado con tres
+        ejecuciones seguidas sobre la misma base.
       → falta: la prueba en hardware real (impresora).
 
-**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~94%.** (142 pruebas)
+**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~95%.** (155 pruebas)
 
 ## Fuera del spec original
+- [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
+      dueño. Queda como ajuste `precioMitades` por si conviene cambiar a
+      "la más cara": con el promedio, mitad Criolla (C$250) + mitad La
+      Fabulosa (C$450) sale C$350, o sea media pizza de mariscos por debajo
+      del precio de la entera.
+      Selector visual: una pizza partida que muestra qué lleva cada lado
+      mientras se elige, y el precio con su cuenta a la vista. En el recibo
+      encabeza `MITAD Y MITAD` con las dos mitades debajo; en la comanda van
+      a doble altura y separadas, que es donde una mala lectura cuesta una
+      pizza rehecha.
+- [x] **PedidosYa deja de ser método de pago.** Esa plata nunca pasa por la
+      caja: la plataforma cobra, descuenta comisión y deposita días después.
+      Ahora se anota el total que reporta la plataforma al cerrar el turno, y
+      sale en su propio bloque del Excel para que nadie intente cuadrarlo
+      contra el efectivo.
 - [x] **Inventario** (`/inventario`): 59 insumos de Plantilla_Inventario.xlsx,
       conteo con borrador local, y exportación a Excel fiel a la plantilla
       (mismos anchos, mismo encabezado Arial 12 sobre #2A3F54, mismos bordes).

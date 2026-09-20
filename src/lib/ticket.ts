@@ -127,7 +127,21 @@ function construirCocina(d: DatosTicket, p: EscPos, m: Maqueta): void {
 
   for (const l of d.totales.lineas) {
     p.tamano(0, 1).negrita(true);
-    for (const t of lineasItem(m, l.cantidad, l.nombre, null)) p.linea(t);
+    for (const t of lineasItem(m, l.cantidad, l.mitades ? "MITAD Y MITAD" : l.nombre, null))
+      p.linea(t);
+
+    // Una mitad y mitad mal leida cuesta una pizza rehecha, asi que en la
+    // comanda va a doble altura y separada, no como una nota mas.
+    if (l.mitades) {
+      p.separador("-");
+      for (const [i, mitad] of l.mitades.entries()) {
+        p.tamano(0, 1).negrita(true);
+        for (const t of envolver(`${i === 0 ? "1a" : "2a"} MITAD: ${mitad.nombre}`, m.columnas))
+          p.linea(t);
+        p.tamano(0, 0).negrita(false);
+      }
+      p.separador("-");
+    }
     p.tamano(0, 0).negrita(false);
     for (const mod of l.modificadores ?? []) {
       for (const t of envolver(`+ ${mod.nombre}`, m.columnas - m.sangria.length))
@@ -193,7 +207,14 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
   // 3. Detalle
   p.linea(parLineado("CANT PRODUCTO", "IMPORTE", m.columnas));
   for (const l of t.lineas) {
-    for (const s of lineasItem(m, l.cantidad, l.nombre, fmt(l.bruto))) p.linea(s);
+    // En una mitad y mitad el nombre combinado se parte feo en 32 columnas.
+    // Encabeza "MITAD Y MITAD" y las dos mitades van debajo, sangradas.
+    const encabezado = l.mitades ? "MITAD Y MITAD" : l.nombre;
+    for (const s of lineasItem(m, l.cantidad, encabezado, fmt(l.bruto))) p.linea(s);
+    for (const mitad of l.mitades ?? []) {
+      for (const s of envolver(`1/2 ${mitad.nombre}`, m.columnas - m.sangria.length))
+        p.linea(m.sangria + s);
+    }
     for (const mod of l.modificadores ?? []) {
       p.linea(parLineado(
         m.sangria + `+ ${mod.nombre}`,

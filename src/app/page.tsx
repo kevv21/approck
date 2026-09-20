@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PanelDescuentos from "@/components/PanelDescuentos";
+import MitadYMitad from "@/components/MitadYMitad";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import { cargarMenu, encolar, turnoAbierto } from "@/lib/repo";
@@ -15,7 +16,8 @@ import menuDemo from "@/lib/menu-demo.json";
 import {
   CONFIG_DEFAULT, METODOS_PAGO, TIPOS_ORDEN,
   type ConfigCobro, type Descuento, type LineaOrden,
-  type MetodoPago, type Producto, type TipoOrden,
+  nombreMitades,
+  type MetodoPago, type MitadPizza, type Producto, type TipoOrden,
 } from "@/lib/types";
 
 export default function Caja() {
@@ -46,6 +48,7 @@ export default function Caja() {
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
 
   const [menuDesdeCache, setMenuDesdeCache] = useState(false);
+  const [abrirMitades, setAbrirMitades] = useState(false);
 
   useEffect(() => {
     if (!hayConfig) {
@@ -75,6 +78,27 @@ export default function Caja() {
     () => [...new Set(menu.map((p) => p.categoria))],
     [menu]
   );
+
+  // Solo las pizzas pueden partirse: una mitad de cerveza no existe.
+  const pizzas = useMemo(
+    () => menu.filter((p) => p.grupo_descuento === "pizza"),
+    [menu]
+  );
+
+  const agregarMitades = (a: MitadPizza, b: MitadPizza, precio: number) => {
+    setLineas((prev) => [...prev, {
+      id: crypto.randomUUID(),
+      // Sin producto del catálogo: es una combinación, no un ítem del menú.
+      productoId: "",
+      nombre: nombreMitades(a, b),
+      precioUnit: precio,
+      cantidad: 1,
+      grupo: "pizza",
+      aplicaIva: true,
+      mitades: [a, b],
+    }]);
+    setAbrirMitades(false);
+  };
 
   const config: ConfigCobro = {
     ...CONFIG_DEFAULT,
@@ -240,6 +264,26 @@ export default function Caja() {
       )}
       {/* ---------------------------------------------------------- menú -- */}
       <section className="panel p-3">
+        {pizzas.length > 0 && (
+          <button onClick={() => setAbrirMitades(true)}
+                  className="mb-3 flex w-full items-center gap-3 rounded-lg p-3 text-left
+                             transition active:scale-[0.99]"
+                  style={{ background: "var(--panel-2)", border: "1px dashed var(--acc)" }}>
+            <svg viewBox="0 0 100 100" className="h-9 w-9 shrink-0" aria-hidden="true">
+              <circle cx="50" cy="50" r="46" fill="none"
+                      stroke="var(--borde)" strokeWidth="6" />
+              <path d="M50 4 A46 46 0 0 0 50 96 Z" fill="var(--acc)" />
+              <path d="M50 4 A46 46 0 0 1 50 96 Z" fill="var(--acc-2)" opacity=".5" />
+            </svg>
+            <span>
+              <b style={{ color: "var(--acc)" }}>Pizza mitad y mitad</b>
+              <span className="block text-xs" style={{ color: "var(--txt-2)" }}>
+                Se suman las dos y se divide entre 2
+              </span>
+            </span>
+          </button>
+        )}
+
         <div className="mb-3 flex flex-wrap gap-1.5">
           {categorias.map((c) => (
             <button key={c} onClick={() => setCat(c)}
@@ -320,6 +364,17 @@ export default function Caja() {
                     <span className="flex-1 text-sm font-medium leading-tight">{l.nombre}</span>
                     <span className="mono text-sm font-bold">{fmtC(l.bruto)}</span>
                   </div>
+                  {l.mitades && (
+                    <div className="mt-1 flex flex-col gap-0.5 pl-24 text-xs"
+                         style={{ color: "var(--txt-2)" }}>
+                      {l.mitades.map((mit, k) => (
+                        <span key={k}>
+                          <b style={{ color: k === 0 ? "var(--acc)" : "var(--acc-2)" }}>½</b>{" "}
+                          {mit.nombre}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {l.descTotal > 0 && (
                     <div className="mono mt-1 pl-24 text-right text-xs" style={{ color: "var(--acc-2)" }}>
                       desc. -{fmtC(l.descTotal)} → {fmtC(l.neto)}

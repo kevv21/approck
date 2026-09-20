@@ -39,7 +39,13 @@ export async function abrirTurno(porQuien: string, fondoInicial: number) {
   return data;
 }
 
-export async function cerrarTurno(id: string, efectivoContado: number, notas?: string) {
+export async function cerrarTurno(
+  id: string,
+  efectivoContado: number,
+  notas?: string,
+  /** Total que reporto PedidosYa. No entra al arqueo de efectivo. */
+  ventasPedidosya = 0,
+) {
   const quien = sesionActual()?.nombre ?? "(sin sesión)";
   const { data, error } = await supabase
     .from("turno")
@@ -47,6 +53,7 @@ export async function cerrarTurno(id: string, efectivoContado: number, notas?: s
       cerrado_at: new Date().toISOString(),
       efectivo_contado: efectivoContado,
       cerrado_por: quien,
+      ventas_pedidosya: ventasPedidosya,
       notas,
     })
     .eq("id", id).select("numero, fondo_inicial").single();
@@ -55,7 +62,10 @@ export async function cerrarTurno(id: string, efectivoContado: number, notas?: s
   await registrar({
     accion: "cierre_caja",
     turnoId: id,
-    detalle: { turno: data.numero, contado: efectivoContado, notas: notas ?? null },
+    detalle: {
+      turno: data.numero, contado: efectivoContado,
+      pedidosya: ventasPedidosya, notas: notas ?? null,
+    },
   });
   return data;
 }
@@ -138,6 +148,7 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     cajero: sesionActual()?.nombre || null,
     iva_bps: d.config.ivaBps,
     precios_incluyen_iva: d.config.preciosIncluyenIva,
+    precio_mitades: d.config.precioMitades,
     envio_gravado: d.config.envioGravado,
     tipo_cambio: d.config.tipoCambio,
     propina_bps: d.config.propinaBps,
@@ -172,6 +183,7 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
       cantidad: l.cantidad,
       notas: l.notas || null,
       modificadores: l.modificadores ?? null,
+      mitades: l.mitades ?? null,
       desc_linea_tipo: l.descuentoLinea?.tipo ?? null,
       desc_linea_valor: l.descuentoLinea?.valor ?? 0,
       bruto: l.bruto,
@@ -311,6 +323,7 @@ export async function reimprimir(ordenId: string, cocina = false) {
     notas: (i.notas as string) ?? undefined,
     aplicaIva: (i.aplica_iva_snapshot as boolean) ?? true,
     modificadores: (i.modificadores as { nombre: string; precio: number }[]) ?? undefined,
+    mitades: (i.mitades as LineaOrden["mitades"]) ?? undefined,
     descuentoLinea: (i.desc_linea_valor as number) > 0
       ? { tipo: i.desc_linea_tipo as "porcentaje" | "monto", valor: i.desc_linea_valor as number }
       : undefined,
@@ -332,6 +345,7 @@ export async function reimprimir(ordenId: string, cocina = false) {
     costoEnvio: o.costo_envio,
     envioGravado: o.envio_gravado ?? false,
     tipoCambio: o.tipo_cambio ?? 0,
+    precioMitades: o.precio_mitades ?? "promedio",
   });
 
   await registrar({

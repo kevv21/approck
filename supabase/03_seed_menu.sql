@@ -86,4 +86,5 @@ insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, a
 ('Fusión',                   null,                                                        'RTD y Seltzer',    'bebida', 7400, true,  50),
 ('Spark Hard Seltzer',       null,                                                        'RTD y Seltzer',    'bebida', 6000, true,  60),
 ('Mix de Michelada',         null,                                                        'Bar',              'bebida', 6000, true,  10),
-('Copa de Sangría',          null,                                                        'Bar',              'bebida',10000, true,  20);
+('Copa de Sangría',          null,                                                        'Bar',              'bebida',10000, true,  20)
+on conflict (nombre) do nothing;
