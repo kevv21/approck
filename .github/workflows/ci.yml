@@ -1,0 +1,55 @@
+name: CI
+
+# Corre lo mismo que Vercel, pero antes: un fallo de build tiene que salir
+# acá, no en el despliegue.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Pruebas
+        run: npm test
+
+      # El despliegue se rompió porque una variable declarada pero VACÍA
+      # llegaba a createClient. Se compila en los tres estados posibles para
+      # que no vuelva a pasar en silencio.
+      - name: Build sin variables de entorno
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ""
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+
+      - name: Build con variables vacías
+        run: rm -rf .next && npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ""
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+
+      - name: Build con variables reales simuladas
+        run: rm -rf .next && npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ejemplo.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo.demo
+
+      # Falla si aparece una vulnerabilidad alta o crítica. Las moderadas
+      # avisan pero no bloquean: no vale parar un despliegue por una que solo
+      # afecta a dependencias de desarrollo.
+      - name: Auditoría de dependencias
+        run: npm audit --audit-level=high

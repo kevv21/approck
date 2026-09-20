@@ -85,9 +85,23 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
         prerenderizado nunca lo instancie. 7 pruebas nuevas fijan que importar
         el módulo no lance con variables vacías, ausentes, con el marcador de
         `.env.example` sin reemplazar, o con basura.
+      → Segunda tanda de despliegue: se subió **Next 15.1.6 → 15.5.25**, que
+        arrastraba vulnerabilidades críticas (RCE en el protocolo flight de
+        React, SSRF en middleware, bypass de autorización y varios DoS), y
+        **vitest 3 → 5**. Para `postcss` y `uuid` se usaron `overrides` en vez
+        de lo que proponía `npm audit fix --force`, que era saltar a Next 16
+        (mayor, riesgo real sobre una app que anda) y bajar exceljs a 3.4.0
+        (rompe la API del cierre). Auditoría: **0 vulnerabilidades**.
+      → Guarda nueva: `importacion.test.ts` importa los 28 módulos de `lib/`
+        en un entorno de servidor con las variables vacías. El bug del
+        despliegue era de una clase —trabajo real al cargar el módulo— y esto
+        la cubre entera en vez de tapar solo el caso que salió.
+      → CI en `.github/workflows/ci.yml`: tipos, pruebas, los tres estados de
+        variables de entorno y auditoría. Un fallo de build sale ahí y no en
+        el despliegue.
       → falta: la prueba en hardware real (impresora).
 
-**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~93%.** (113 pruebas)
+**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~94%.** (142 pruebas)
 
 ## Fuera del spec original
 - [x] **Inventario** (`/inventario`): 59 insumos de Plantilla_Inventario.xlsx,
