@@ -14,6 +14,8 @@ const cargar = async () => {
 };
 
 afterEach(() => {
+  vi.doUnmock("@supabase/supabase-js");
+  vi.restoreAllMocks();
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
@@ -55,15 +57,22 @@ describe("importar el módulo nunca rompe el build", () => {
 
 describe("construcción perezosa", () => {
   it("el cliente no se crea al importar, sino al primer uso", async () => {
+    const createClient = vi.fn(() => ({ from: vi.fn() }));
+    vi.doMock("@supabase/supabase-js", () => ({ createClient }));
     process.env.NEXT_PUBLIC_SUPABASE_URL = "";
     const m = await cargar();
-    // Importar no tocó createClient; usarlo sí lo construye, sin lanzar.
+    expect(createClient).not.toHaveBeenCalled();
+    // Importar no tocó createClient; usarlo sí lo construye.
     expect(typeof m.supabase.from).toBe("function");
+    expect(createClient).toHaveBeenCalledTimes(1);
   });
 
   it("devuelve siempre la misma instancia", async () => {
+    const createClient = vi.fn(() => ({ from: vi.fn() }));
+    vi.doMock("@supabase/supabase-js", () => ({ createClient }));
     const m = await cargar();
     expect(m.supabase.from).toBeDefined();
     expect(m.supabase.from).toBeDefined();
+    expect(createClient).toHaveBeenCalledTimes(1);
   });
 });
