@@ -14,9 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 22, no 20: supabase-js declara engines >=22 porque su cliente de
+      # realtime necesita WebSocket nativo, que no existe en Node 20. Con 20
+      # el cliente no se puede construir ni en las pruebas ni en el servidor.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci

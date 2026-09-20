@@ -99,6 +99,19 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       → CI en `.github/workflows/ci.yml`: tipos, pruebas, los tres estados de
         variables de entorno y auditoría. Un fallo de build sale ahí y no en
         el despliegue.
+      → El despliegue seguia fallando con el mismo error despues del arreglo:
+        los arreglos se habian empujado solo a `main`, y Vercel estaba
+        compilando la rama de trabajo, que conservaba el `supabase.ts` viejo.
+        Ambas ramas quedan en el mismo commit. **Revisar en Vercel que la
+        rama de produccion sea `main`.**
+      → El CI atrapo un segundo problema antes de que llegara al despliegue:
+        `supabase-js` declara `engines: node >=22` porque su cliente de
+        realtime necesita WebSocket nativo, que no existe en Node 20. El
+        workflow pedia Node 20 y `engines` decia `>=20`, los dos mal. Importa
+        mas de lo que parece: **Vercel elige la version de Node leyendo
+        `engines.node`**, asi que ese campo mal puesto lo mandaba a un
+        runtime donde el cliente no se puede construir. Corregido a `>=22`,
+        con `.nvmrc` para que local, CI y Vercel usen lo mismo.
       → falta: la prueba en hardware real (impresora).
 
 **Avance contra el spec, ya ajustado a lo que pidió el dueño: ~94%.** (142 pruebas)
