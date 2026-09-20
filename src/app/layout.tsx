@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/next";
 import IndicadorConexion from "@/components/IndicadorConexion";
 import RegistrarSW from "@/components/RegistrarSW";
 import Acceso from "@/components/Acceso";
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="pb-24">{children}</main>
         </Acceso>
         <RegistrarSW />
+        <Analytics />
       </body>
     </html>
   );
