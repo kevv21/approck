@@ -33,6 +33,13 @@ export function crearAdaptador(tipo: TipoAdaptador): PrinterAdapter {
  * el unico que funciona en todos lados y no depende de dejar una pantalla
  * abierta; los demas quedan como respaldo manual.
  */
+/**
+ * Metodos ofrecidos, de mas a menos probable en este dispositivo.
+ *
+ * Se listan aunque hoy no funcionen: el motivo se muestra con
+ * `motivoNoDisponible()`. Esconder una opcion deja al usuario sin forma de
+ * reintentarla, que es lo que pasaba con RawBT despues de un rebote.
+ */
 export function adaptadoresSugeridos(): TipoAdaptador[] {
   const out: TipoAdaptador[] = [];
   if (typeof navigator !== "undefined") {

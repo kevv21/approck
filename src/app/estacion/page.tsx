@@ -215,7 +215,11 @@ export default function Estacion() {
             </a>
             . Después emparejá la impresora dentro de RawBT con el PIN 0000.{" "}
             <button className="underline"
-                    onClick={() => { olvidarRawbt(); setFaltaRawbt(false); }}>
+                    onClick={() => {
+                      olvidarRawbt();
+                      setFaltaRawbt(false);
+                      cambiarModo("rawbt"); // vuelve a ofrecerlo sin recargar
+                    }}>
               Ya la instalé
             </button>
           </div>

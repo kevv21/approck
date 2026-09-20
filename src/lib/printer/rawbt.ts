@@ -67,16 +67,22 @@ export class AdaptadorRawBT implements PrinterAdapter {
   readonly tipo = "rawbt" as const;
   readonly etiqueta = "RawBT (Bluetooth Clásico)";
 
+  /**
+   * Que se sepa que la app no esta instalada NO lo vuelve indisponible: hay
+   * que poder reintentar despues de instalarla. Antes se quitaba de la lista
+   * de metodos, y como la lista se calcula una sola vez, el boton de "ya la
+   * instale" no la traia de vuelta: callejon sin salida.
+   */
   disponible(): boolean {
-    if (typeof navigator === "undefined") return false;
-    if (!/Android/i.test(navigator.userAgent)) return false;
-    return !rawbtDescartada();
+    return typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
   }
 
   motivoNoDisponible(): string | null {
-    return this.disponible()
-      ? null
-      : "RawBT es una app de Android. En iPhone o PC usá el puente de la PC de caja.";
+    if (!this.disponible())
+      return "RawBT es una app de Android. En iPhone o PC usá el puente de la PC de caja.";
+    if (rawbtDescartada())
+      return "Parece que RawBT no está instalada. Instalala y volvé a intentar.";
+    return null;
   }
 
   estado(): EstadoImpresora {

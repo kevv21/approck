@@ -52,4 +52,16 @@ describe("adaptador RawBT", () => {
     expect(a.disponible()).toBe(false);
     expect(a.motivoNoDisponible()).toContain("app de Android");
   });
+
+  it("saber que falta la app no lo vuelve indisponible: hay que poder reintentar", () => {
+    // Antes esto lo sacaba de la lista de métodos, y como la lista se calcula
+    // una sola vez, "ya la instalé" no lo traía de vuelta.
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => (k === "approck:rawbt" ? "no" : null),
+      setItem: () => {}, removeItem: () => {},
+    });
+    const a = new AdaptadorRawBT();
+    expect(a.disponible()).toBe(true);
+    expect(a.motivoNoDisponible()).toContain("no está instalada");
+  });
 });
