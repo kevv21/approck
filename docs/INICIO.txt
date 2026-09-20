@@ -1,0 +1,13 @@
+1. Descomprime esta carpeta donde vayas a crear el proyecto.
+2. Completa la Fase 0 de docs/PROGRESS.md (MCP + llenar [CORCHETES] en docs/SPEC.md).
+3. Abre la terminal en la carpeta y ejecuta:  claude
+4. Shift+Tab hasta "plan mode" y pega:
+
+Lee CLAUDE.md, docs/SPEC.md y docs/PROGRESS.md. Antes de escribir código:
+1. Señala contradicciones, riesgos o decisiones que falten en el spec.
+2. Dame el plan de la Fase 1 con archivos a crear.
+No implementes nada todavía.
+
+5. Para cada fase siguiente (después de /clear):
+
+Fase N. Plan primero, luego implementa al aprobar. Al terminar: corre tests y actualiza PROGRESS.md.
