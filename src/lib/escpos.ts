@@ -1,7 +1,23 @@
 /**
- * Encoder ESC/POS para GOOJPRT PT-210 (58mm / 48mm imprimibles / 384 puntos).
+ * Encoder ESC/POS para GOOJPRT PT-210.
  *
- * Datos de la impresora que importan:
+ * Datos CONFIRMADOS por el selftest de la impresora del local
+ * (firmware Y1.01.13, 2025-05-23):
+ *
+ *   Code page: CP437     -> por eso es el predeterminado de abajo
+ *   FontType:  12x24     -> 12 puntos de ancho por caracter
+ *   MAX DOTS:  192       -> limite de puntos calentados A LA VEZ, no el ancho
+ *                           del cabezal: es control termico, no geometria
+ *   Interface: USB & BT
+ *   Bluetooth: PIN 0000  -> emparejamiento CLASICO. BLE nunca pide PIN, asi
+ *                           que Web Bluetooth no puede ver esta impresora
+ *
+ * Geometria: 58mm de rollo -> 48mm imprimibles -> 384 puntos -> 32 columnas
+ * con la fuente de 12 puntos. El "48mm" de la etiqueta y el "58mm" del rollo
+ * son el mismo dato: los 10mm de diferencia son margenes que el cabezal no
+ * alcanza.
+ *
+ * Otros datos que importan:
  *  - 32 caracteres por linea en Fuente A (16 en doble ancho)
  *  - NO tiene cortador automatico -> no enviar GS V, solo feed y cortan a mano
  *  - El set de caracteres por defecto imprime basura con acentos y enie;

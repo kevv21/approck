@@ -75,7 +75,7 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
       → Visible desde la pantalla de cierres, filtrada por período.
 - [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
 
-**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~90%.** (99 pruebas)
+**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~92%.** (105 pruebas)
 
 ## Fuera del spec original
 - [x] **Inventario** (`/inventario`): 59 insumos de Plantilla_Inventario.xlsx,
@@ -123,8 +123,20 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
   La Jamón de C$260 se cobra a C$299. El seed queda como está.
 - iOS sin Web Bluetooth → **resuelto**: el puente de `bridge/` imprime por
   el iPhone. Queda el límite conocido de que el puente necesita internet.
-- El codepage de la PT-210 **sigue sin verificarse en hardware real**.
-  Se verifica con `cd bridge && npm run prueba`.
+- Codepage de la PT-210: **verificado en hardware**. El selftest reporta
+  `Code page: CP437`, que es justo el predeterminado. Resuelto.
+- **La PT-210 del local solo habla Bluetooth CLÁSICO (SPP), no BLE.** Lo
+  confirman el `PIN: 0000` del selftest y que Android pida PIN al vincularla:
+  BLE nunca pide PIN de cuatro dígitos. Web Bluetooth habla exclusivamente
+  BLE, así que **nunca va a poder imprimir en esta impresora**, y no es algo
+  que se arregle en código: el canal no existe.
+  Salidas implementadas, en orden de preferencia en Android:
+  **RawBT** (app puente que sí habla SPP, se le entrega el ticket por intent),
+  **WebUSB** (el selftest reporta `Interface: USB&BT`, así que con cable OTG
+  Chrome le habla directo), y el **puente de la PC**.
+- Emparejar con PIN desde la página es **imposible**: ningún navegador tiene
+  API para Bluetooth Clásico. El emparejamiento vive en los ajustes de
+  Android o dentro de RawBT, y ninguna web puede abrir ese diálogo.
 - **El puente sigue necesitando internet para imprimir.** El offline resuelve
   tomar órdenes sin señal, pero las comandas de cocina no salen hasta que
   vuelva la conexión, porque el puente consulta la cola en la nube. Cerrarlo

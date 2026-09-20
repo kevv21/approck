@@ -1,16 +1,25 @@
 export * from "./adapter";
 export { AdaptadorBluetooth, esIOS } from "./bluetooth";
 export { AdaptadorSerial } from "./serial";
+export {
+  AdaptadorRawBT, PAQUETE_RAWBT, PLAY_RAWBT,
+  detectarReboteRawbt, marcarRawbtFalta, olvidarRawbt, rawbtDescartada,
+} from "./rawbt";
+export { AdaptadorUsb } from "./usb";
 export { AdaptadorPuente } from "./puente";
 export { ticketHtml, imprimirHtml, descargarHtml } from "./html";
 
 import type { PrinterAdapter, TipoAdaptador } from "./adapter";
 import { AdaptadorBluetooth } from "./bluetooth";
 import { AdaptadorSerial } from "./serial";
+import { AdaptadorRawBT } from "./rawbt";
+import { AdaptadorUsb } from "./usb";
 import { AdaptadorPuente } from "./puente";
 
 export function crearAdaptador(tipo: TipoAdaptador): PrinterAdapter {
   switch (tipo) {
+    case "rawbt":     return new AdaptadorRawBT();
+    case "usb":       return new AdaptadorUsb();
     case "bluetooth": return new AdaptadorBluetooth();
     case "serial":    return new AdaptadorSerial();
     case "puente":    return new AdaptadorPuente();
@@ -25,8 +34,15 @@ export function crearAdaptador(tipo: TipoAdaptador): PrinterAdapter {
  * abierta; los demas quedan como respaldo manual.
  */
 export function adaptadoresSugeridos(): TipoAdaptador[] {
-  const out: TipoAdaptador[] = ["puente"];
+  const out: TipoAdaptador[] = [];
   if (typeof navigator !== "undefined") {
+    // RawBT primero en Android: es lo unico que habla Bluetooth Clasico, y
+    // la impresora del local no expone BLE.
+    if (/Android/i.test(navigator.userAgent)) out.push("rawbt");
+  }
+  out.push("puente");
+  if (typeof navigator !== "undefined") {
+    if ("usb" in navigator) out.push("usb");
     if ("bluetooth" in navigator) out.push("bluetooth");
     if ("serial" in navigator) out.push("serial");
   }

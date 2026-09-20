@@ -13,7 +13,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "types": ["web-bluetooth", "w3c-web-serial"],
+    "types": ["web-bluetooth", "w3c-web-serial", "w3c-web-usb"],
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },

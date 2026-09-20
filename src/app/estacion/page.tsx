@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AdaptadorPuente, adaptadoresSugeridos, crearAdaptador,
+  AdaptadorPuente, PLAY_RAWBT, adaptadoresSugeridos, crearAdaptador,
+  detectarReboteRawbt, olvidarRawbt,
   type PrinterAdapter, type TipoAdaptador,
 } from "@/lib/printer";
 import { desdeB64, encolarBytes, jobsPendientes, marcarJob } from "@/lib/repo";
@@ -18,10 +19,19 @@ interface Job {
 const INTERVALO_POLL = 4000;
 
 const ETIQUETA: Record<TipoAdaptador, string> = {
+  rawbt: "RawBT (Bluetooth Clásico)",
   puente: "Puente en la PC",
-  bluetooth: "Bluetooth directo",
+  usb: "Cable USB (OTG)",
+  bluetooth: "Web Bluetooth (BLE)",
   serial: "Puerto COM",
   html: "Imprimir desde el navegador",
+};
+
+/** Lo que conviene saber de cada método antes de elegirlo. */
+const NOTA: Partial<Record<TipoAdaptador, string>> = {
+  rawbt: "La PT-210 del local pide PIN al vincularla, y eso significa Bluetooth Clásico. Web Bluetooth solo habla BLE, así que nunca la va a ver. RawBT es una app de Android que sí habla Clásico: instalala, emparejá la impresora ahí dentro con el PIN 0000, y esta pantalla le pasa cada ticket.",
+  usb: "El selftest reporta «Interface: USB&BT». Con un cable OTG, Chrome le habla directo sin Bluetooth de por medio. Es lo más estable, a cambio de tener el teléfono atado por cable.",
+  bluetooth: "Solo funciona si la impresora expone BLE. Si al vincularla te pide PIN, no lo expone.",
 };
 
 export default function Estacion() {
@@ -38,6 +48,10 @@ export default function Estacion() {
   const [codepage, setCodepage] = useState(16);
   const [ancho, setAncho] = useState<AnchoPapel>(58);
   const [error, setError] = useState<string | null>(null);
+  const [faltaRawbt, setFaltaRawbt] = useState(false);
+
+  // Chrome vuelve con ?sinrawbt=1 cuando el intent no encontró la app.
+  useEffect(() => { if (detectarReboteRawbt()) setFaltaRawbt(true); }, []);
 
   const sugeridos = useRef<TipoAdaptador[]>([]);
   if (sugeridos.current.length === 0 && typeof window !== "undefined") {
@@ -67,6 +81,9 @@ export default function Estacion() {
     const a = adaptador.current;
     // En modo puente imprime el servicio de la PC, no esta pantalla.
     if (modo === "puente" || !a || !a.estado().conectada || procesando.current) return;
+    // RawBT abre la app por cada trabajo: imprimir la cola entera de golpe
+    // encadenaria intents y Android los descarta. Va de a uno, a mano.
+    if (modo === "rawbt" && procesando.current) return;
     procesando.current = true;
     try {
       const jobs = await jobsPendientes() as Job[];
@@ -186,6 +203,30 @@ export default function Estacion() {
             </button>
           ))}
         </div>
+
+        {faltaRawbt && (
+          <div className="rounded-lg p-3 text-sm"
+               style={{ background: "#3a2a0a", color: "var(--acc-2)" }}>
+            <b>RawBT no está instalada.</b> Es lo que permite hablarle a una
+            impresora de Bluetooth Clásico, que es la que pide PIN al vincularla.{" "}
+            <a href={PLAY_RAWBT} target="_blank" rel="noopener"
+               className="underline" style={{ color: "var(--acc)" }}>
+              Instalarla desde Play Store
+            </a>
+            . Después emparejá la impresora dentro de RawBT con el PIN 0000.{" "}
+            <button className="underline"
+                    onClick={() => { olvidarRawbt(); setFaltaRawbt(false); }}>
+              Ya la instalé
+            </button>
+          </div>
+        )}
+
+        {NOTA[modo] && (
+          <p className="mt-3 rounded-lg p-2 text-sm"
+             style={{ background: "var(--panel-2)", color: "var(--txt-2)" }}>
+            {NOTA[modo]}
+          </p>
+        )}
 
         {modo === "html" && (
           <p className="mt-3 rounded-lg p-2 text-sm"

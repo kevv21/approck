@@ -6,6 +6,14 @@ import type { AnchoPapel } from "../escpos";
  * Existen tres implementaciones porque ningun metodo funciona en todas
  * partes:
  *
+ *   rawbt    App puente de Android que habla Bluetooth CLASICO (SPP). Es la
+ *            unica via desde el telefono cuando la impresora no expone BLE,
+ *            que es el caso de la PT-210 del local: pide PIN al vincularla,
+ *            y BLE nunca pide PIN.
+ *
+ *   usb      WebUSB con cable OTG. El selftest de la PT-210 reporta USB&BT,
+ *            asi que este camino existe y no depende de Bluetooth.
+ *
  *   puente   Un servicio Node en la PC de caja, emparejado con la impresora
  *            por Bluetooth SPP, que consulta la cola y imprime. Es el unico
  *            camino que sirve para iPhone, porque el telefono solo escribe
@@ -20,7 +28,7 @@ import type { AnchoPapel } from "../escpos";
  *   html       Ultimo recurso: recibo en HTML con window.print() y descarga.
  *              Funciona en cualquier navegador, incluido iPhone.
  */
-export type TipoAdaptador = "puente" | "bluetooth" | "serial" | "html";
+export type TipoAdaptador = "rawbt" | "puente" | "bluetooth" | "serial" | "usb" | "html";
 
 export interface EstadoImpresora {
   conectada: boolean;
