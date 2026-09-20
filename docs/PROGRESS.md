@@ -73,9 +73,21 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
         pero **no modificar ni borrar**: una bitácora que el cajero puede
         editar no sirve de nada.
       → Visible desde la pantalla de cierres, filtrada por período.
-- [ ] 8. Pruebas en dispositivos reales + despliegue — sin empezar
+- [~] 8. Pruebas en dispositivos reales + despliegue
+      → El despliegue en Vercel fallaba con `supabaseUrl is required` durante
+        el prerenderizado. Causa: una variable de entorno declarada pero
+        VACÍA. `??` solo cae al respaldo con null o undefined, así que `""`
+        llegaba a `createClient` y lo tumbaba. Y como el cliente se construía
+        al cargar el módulo, el error rompía el build en vez de fallar en el
+        navegador, donde se puede explicar.
+      → Arreglado: respaldo con `||`, validación de que la URL sea una URL, y
+        **construcción perezosa** del cliente tras un Proxy, para que el
+        prerenderizado nunca lo instancie. 7 pruebas nuevas fijan que importar
+        el módulo no lance con variables vacías, ausentes, con el marcador de
+        `.env.example` sin reemplazar, o con basura.
+      → falta: la prueba en hardware real (impresora).
 
-**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~92%.** (105 pruebas)
+**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~93%.** (113 pruebas)
 
 ## Fuera del spec original
 - [x] **Inventario** (`/inventario`): 59 insumos de Plantilla_Inventario.xlsx,
