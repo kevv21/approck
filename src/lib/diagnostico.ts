@@ -64,6 +64,42 @@ const CORRE_EL_DELTA =
   "que son cuatro `alter table`. Se puede correr sobre la base que ya tienes y " +
   "repetir sin romper nada.";
 
+/**
+ * Que clase de clave es la que se puso.
+ *
+ * Existe por el unico error de esta lista que NO da sintomas: pegar la clave
+ * secreta en vez de la publica. La app funciona igual —mejor, incluso, porque
+ * salta las politicas—, asi que nadie se entera. Y como estas variables se
+ * incrustan en el codigo que descarga el navegador, cualquiera que abra la
+ * pagina se lleva acceso total a la base.
+ *
+ * Se reconocen los dos formatos que convivien hoy:
+ *   sb_publishable_… / sb_secret_…   el nuevo, opaco
+ *   eyJ…                             el JWT heredado, con el rol dentro
+ */
+export type ClaseClave = "publica" | "SECRETA" | "desconocida";
+
+export function claseDeClave(key: string): ClaseClave {
+  if (key.startsWith("sb_publishable_")) return "publica";
+  if (key.startsWith("sb_secret_")) return "SECRETA";
+
+  // JWT heredado: el rol viaja en el segundo segmento, sin cifrar. No se
+  // verifica la firma, solo se lee: no es autenticacion, es un aviso.
+  const partes = key.split(".");
+  if (partes.length === 3) {
+    try {
+      const normal = partes[1].replace(/-/g, "+").replace(/_/g, "/");
+      const relleno = normal + "=".repeat((4 - (normal.length % 4)) % 4);
+      const rol = JSON.parse(atob(relleno))?.role;
+      if (rol === "service_role") return "SECRETA";
+      if (rol === "anon" || rol === "authenticated") return "publica";
+    } catch {
+      // Clave ilegible: no se afirma nada.
+    }
+  }
+  return "desconocida";
+}
+
 /** Una consulta que no trae filas: solo sirve para ver si el nombre existe. */
 async function sonda(tabla: string, columna = "*") {
   return supabase.from(tabla).select(columna).limit(1);
@@ -89,6 +125,7 @@ export async function diagnosticar(): Promise<Prueba[]> {
   const urlCruda = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const keyCruda = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const url = urlCruda || "";
+  const key = keyCruda || "";
 
   const comoLlego = (v: string | undefined, nombre: string) =>
     v === undefined
@@ -135,6 +172,40 @@ export async function diagnosticar(): Promise<Prueba[]> {
     titulo: "Variables de entorno",
     estado: "ok",
     detalle: `Apuntando a ${url.replace(/^https?:\/\//, "")}`,
+  });
+
+  // --- 1b. que clase de clave es -------------------------------------------
+  const clase = claseDeClave(key);
+  if (clase === "SECRETA") {
+    pruebas.push({
+      clave: "clave",
+      titulo: "⚠ La clave es SECRETA, no pública",
+      estado: "mal",
+      detalle:
+        "Pusiste una clave que salta todas las políticas de seguridad " +
+        "(service_role o Secret). La app funciona, y ese es el problema: " +
+        "esta variable se incrusta en el código que descarga el navegador, " +
+        "así que cualquiera que abra la página puede leer, cambiar o borrar " +
+        "toda la base.",
+      arreglo:
+        "Cámbiala YA por la Publishable key (sb_publishable_…) en Supabase → " +
+        "Project Settings → API, y vuelve a desplegar. Después, en la misma " +
+        "pantalla, revoca la clave secreta que quedó expuesta: hasta que la " +
+        "revoques, sigue sirviendo para entrar aunque ya no esté en la app.",
+    });
+    return pruebas; // no se sigue: esto se arregla antes que nada
+  }
+  pruebas.push({
+    clave: "clave",
+    titulo: "Tipo de clave",
+    estado: clase === "publica" ? "ok" : "aviso",
+    detalle: clase === "publica"
+      ? "Es una clave pública. Correcto: solo puede hacer lo que permitan las políticas."
+      : "No se reconoce el formato de la clave. Debería empezar con «sb_publishable_».",
+    arreglo: clase === "publica" ? undefined
+      : "Si la copiaste de la pestaña «Legacy anon, service_role», usa la anon " +
+        "public. Mejor aún: la Publishable key de la otra pestaña, porque las " +
+        "legacy quedan deprecadas a finales de 2026.",
   });
 
   // --- 2. el proyecto responde --------------------------------------------

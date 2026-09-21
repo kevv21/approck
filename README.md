@@ -114,7 +114,29 @@ Pon `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
 > Una variable creada pero **en blanco** es peor que no crearla: `""` no es
 > `undefined`, así que no cae al respaldo y llega vacía hasta el cliente.
 
-### 2b. Comprobar que quedó bien
+### 2b. Blindar la base
+
+Pega **`supabase/BLINDAR.sql`**. Acota lo que la clave pública puede hacer:
+nadie puede borrar nada, una orden cobrada solo admite que se la anule, sus
+líneas son inmutables, un turno cerrado no se reabre y el menú es de solo
+lectura desde la app.
+
+Hace falta porque esa clave viaja dentro del código que descarga el navegador.
+Es normal y Supabase lo diseña así, pero solo es seguro si las políticas
+acotan lo que puede hacer — y el instalador las dejaba permitiéndolo todo.
+
+Para comprobarlo, pega **`supabase/VERIFICAR_BLINDAJE.sql`**: intenta 27
+operaciones haciéndose pasar por la clave pública y dice cuáles pasan y cuáles
+rebotan. Todas tienen que salir con ✓. No ensucia nada: corre dentro de una
+transacción que termina en `rollback`, así que se puede correr en producción
+y con una caja abierta.
+
+> Lo que **no** cierra: cualquiera con la clave puede leer las ventas e
+> insertar órdenes falsas. Cerrar eso exige cuentas de usuario de Supabase,
+> que es un cambio de otro tamaño. Lo que se cierra aquí es la destrucción y
+> la adulteración, que es lo que no tiene vuelta atrás.
+
+### 2c. Comprobar que quedó bien
 
 Abre **`/configuracion`** (pestaña *Estado*). Revisa una por una las variables
 de entorno, la conexión, las tablas, las columnas, el menú y si hay caja
