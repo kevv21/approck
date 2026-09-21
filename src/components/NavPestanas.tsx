@@ -24,10 +24,11 @@ export default function NavPestanas({
         return (
           <Link key={n.href} href={n.href}
                 aria-current={activa ? "page" : undefined}
-                className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition"
+                className="flex shrink-0 items-center rounded-lg px-3 text-sm font-medium transition"
                 style={{
                   color: activa ? "#1a0d04" : "var(--txt-2)",
                   background: activa ? "var(--acc)" : "transparent",
+                  minHeight: "40px",
                 }}>
             {n.label}
           </Link>

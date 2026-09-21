@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { diagnosticar, estaListo, type Prueba } from "@/lib/diagnostico";
+import { correoVinculado, desvincular } from "@/lib/auth/dispositivo";
 
 const ICONO = { ok: "✓", mal: "✕", aviso: "!" } as const;
 const COLOR = { ok: "var(--ok)", mal: "var(--mal)", aviso: "var(--acc-2)" } as const;
@@ -15,6 +16,8 @@ const COLOR = { ok: "var(--ok)", mal: "var(--mal)", aviso: "var(--acc-2)" } as c
 export default function Configuracion() {
   const [pruebas, setPruebas] = useState<Prueba[] | null>(null);
   const [corriendo, setCorriendo] = useState(false);
+  const [correo, setCorreo] = useState<string | null>(null);
+  const [confirmaDesvincular, setConfirmaDesvincular] = useState(false);
 
   const correr = useCallback(() => {
     setCorriendo(true);
@@ -27,7 +30,7 @@ export default function Configuracion() {
       .finally(() => setCorriendo(false));
   }, []);
 
-  useEffect(() => { correr(); }, [correr]);
+  useEffect(() => { correr(); correoVinculado().then(setCorreo); }, [correr]);
 
   const listo = pruebas ? estaListo(pruebas) : false;
 
@@ -90,6 +93,43 @@ export default function Configuracion() {
       <button className="btn btn-ghost w-full" disabled={corriendo} onClick={correr}>
         {corriendo ? "Revisando…" : "Volver a revisar"}
       </button>
+
+      {/*
+        Desvincular vive acá y no junto a "Salir": en un teléfono, tocar el
+        botón de al lado dejaría el aparato fuera de la base en plena
+        atención, y volver exige la contraseña del dueño.
+      */}
+      {correo && (
+        <div className="panel p-3">
+          <div className="text-sm">
+            Aparato vinculado como{" "}
+            <b style={{ color: "var(--acc)" }}>{correo}</b>
+          </div>
+          {confirmaDesvincular ? (
+            <div className="mt-2">
+              <p className="text-sm" style={{ color: "var(--txt-2)" }}>
+                Para volver a usarlo habrá que escribir otra vez el correo y la
+                contraseña del local. No lo hagas en medio de la atención.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
+                        onClick={() => setConfirmaDesvincular(false)}>
+                  Dejarlo como está
+                </button>
+                <button className="btn btn-mal !min-h-0 !py-2 text-sm"
+                        onClick={async () => { await desvincular(); location.reload(); }}>
+                  Sí, desvincular
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn btn-ghost mt-2 !min-h-0 !py-2 text-sm"
+                    onClick={() => setConfirmaDesvincular(true)}>
+              Desvincular este aparato
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

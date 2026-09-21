@@ -55,8 +55,11 @@ export default function IndicadorConexion() {
   return (
     <button
       onClick={e.enLinea && pendientes > 0 ? sincronizar : refrescar}
-      className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
-      style={{ background: "var(--panel-2)", border: "1px solid var(--borde)" }}
+      // 40px: se toca para forzar la subida cuando hay pedidos pendientes, y
+      // es justo el momento en que alguien lo busca con prisa.
+      className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-medium"
+      style={{ background: "var(--panel-2)", border: "1px solid var(--borde)",
+               minHeight: "40px" }}
       title={e.conError > 0 ? `${e.conError} con error al subir` : undefined}
     >
       <span className="inline-block h-2 w-2 rounded-full"

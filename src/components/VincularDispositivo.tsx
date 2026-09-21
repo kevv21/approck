@@ -15,6 +15,9 @@ export default function VincularDispositivo({ alVincular }: { alVincular: () => 
   const [clave, setClave] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [yendo, setYendo] = useState(false);
+  // En un teclado de teléfono, una contraseña larga a ciegas se escribe
+  // mal más veces de las que se escribe bien.
+  const [verClave, setVerClave] = useState(false);
 
   const enviar = async () => {
     if (!correo.trim() || !clave) return;
@@ -41,10 +44,20 @@ export default function VincularDispositivo({ alVincular }: { alVincular: () => 
                type="email" inputMode="email" autoComplete="username"
                value={correo} onChange={(e) => setCorreo(e.target.value)} />
 
-        <input className="input" placeholder="Contraseña" type="password"
-               autoComplete="current-password" value={clave}
-               onChange={(e) => setClave(e.target.value)}
-               onKeyDown={(e) => { if (e.key === "Enter") enviar(); }} />
+        <div className="relative">
+          <input className="input !pr-16" placeholder="Contraseña"
+                 type={verClave ? "text" : "password"}
+                 autoComplete="current-password" value={clave}
+                 onChange={(e) => setClave(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === "Enter") enviar(); }} />
+          <button type="button"
+                  className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center
+                             rounded-md px-3 text-xs font-semibold"
+                  style={{ color: "var(--acc)", minHeight: "40px" }}
+                  onClick={() => setVerClave((v) => !v)}>
+            {verClave ? "Ocultar" : "Ver"}
+          </button>
+        </div>
 
         <button className="btn btn-acc w-full"
                 disabled={!correo.trim() || !clave || yendo} onClick={enviar}>

@@ -44,8 +44,12 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-se
   font-size: 16px; /* evita el zoom automatico de Safari en iPhone */
 }
 .input:focus { border-color: var(--acc); }
+/* 40px de alto: Android pide 48dp y WCAG 44px. Estaban en 34, y el tipo de
+   orden se toca en CADA pedido, con las manos grasosas y de pie. */
 .chip {
-  @apply rounded-full px-3 py-1.5 text-sm font-medium border transition;
+  @apply inline-flex items-center justify-center rounded-full px-3.5 text-sm
+         font-medium border transition;
+  min-height: 40px;
   border-color: var(--borde); background: var(--panel-2); color: var(--txt-2);
 }
 .chip-on { background: var(--acc); color: #1a0d04; border-color: var(--acc); }

@@ -188,6 +188,49 @@ UX:
 - La barra de arriba **marca en qué pestaña estás** y el indicador de conexión
   dejó de comerse la última.
 
+## Android — 2026-09-21
+
+El recordatorio de que la app es sobre todo para Android destapo que lo
+agregado esos dias estaba probado a anchos de escritorio. Emulando un Android
+de 360px salio "Application error: a client-side exception", 3 de cada 6
+cargas. **Era el service worker, o sea produccion, no la prueba.**
+
+Dos fallos, los dos de los que dejan un telefono inservible:
+
+1. **Se cacheaban las respuestas FALLIDAS.** Con estrategia "cache primero",
+   un chunk que fallo una vez quedaba guardado como error PARA SIEMPRE.
+   Reinstalar la PWA no arregla nada, porque la cache sobrevive a la
+   desinstalacion: habria que entrar a los ajustes de Android a borrar los
+   datos del sitio. En el wifi de un local, esto pasa solo.
+   Ahora solo se guarda lo que responde 200, y si la red falla se busca en
+   cache antes de rendirse en vez de dejar la promesa rechazada —que es lo
+   que el navegador convertia en ChunkLoadError.
+
+2. **`skipWaiting()` + `clients.claim()`** hacian que un service worker NUEVO
+   tomara el control de una pagina cargada con el HTML VIEJO. Esa pagina pide
+   trozos de JavaScript que ya no existen: pantalla en blanco a media
+   atencion. Ahora la version nueva espera, y la app avisa con un boton para
+   recargar cuando convenga.
+
+Red de seguridad: si aun asi un chunk no carga, se limpia la cache, se
+desregistra el worker y se recarga UNA vez. Los telefonos que ya tengan la
+cache envenenada por la version vieja se curan solos.
+
+Verificado: 0 de 8 cargas rotas (antes 3 de 6), en 360, 412 y 480px.
+
+**Objetivos tactiles.** Android pide 48dp y WCAG 44px; habia botones de 24,
+30, 34 y 36. Los que se tocan todo el dia —tipo de orden, pestañas, el
+indicador de conexion (que fuerza la subida de pendientes), Salir— pasan a
+40px minimo. Cero desbordamiento horizontal en los tres anchos.
+
+**"Desvincular" estaba pegado a "Salir".** En un telefono, con los dedos y a
+media atencion, tocar el de al lado dejaba el aparato fuera de la base y
+volver exigia la contrasena del dueno, en plena atencion. Se muda a Estado,
+que es donde se busca a proposito, y con confirmacion.
+
+**Ver la contrasena al vincular.** Una contrasena larga a ciegas en un teclado
+de telefono se escribe mal mas veces de las que se escribe bien.
+
 ## Seguridad — 2026-09-21
 
 La clave publishable viaja dentro del codigo que descarga el navegador.

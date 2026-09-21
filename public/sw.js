@@ -5,28 +5,47 @@
  * muestra la pagina de error del navegador y el almacen local nunca se llega
  * a usar.
  *
+ * DOS COSAS QUE ROMPIAN ANDROID, arregladas aqui:
+ *
+ * 1. Se cacheaban las respuestas FALLIDAS. Con estrategia "cache primero",
+ *    un 404 o un 500 guardado se servia para siempre: el telefono quedaba
+ *    con "Application error" y reinstalar la PWA no lo arreglaba, porque la
+ *    cache sobrevive. En el wifi de un local eso pasa solo.
+ *
+ * 2. skipWaiting() + clients.claim() hacian que un service worker NUEVO
+ *    tomara el control de una pagina cargada con el HTML VIEJO. Esa pagina
+ *    pide trozos de JavaScript que ya no existen -> ChunkLoadError, o sea
+ *    pantalla en blanco a media atencion. Ahora la version nueva espera a
+ *    que se cierre la app, que en un POS es cada noche.
+ *
  * Estrategia:
  *   - Estaticos de Next (/_next/static/): cache primero. Llevan hash en el
- *     nombre, asi que nunca quedan viejos.
- *   - Navegaciones: red primero con respaldo en cache. Se prefiere la version
- *     fresca cuando hay senal, pero la app abre igual sin ella.
- *   - Peticiones a Supabase: NUNCA se cachean. Servir datos viejos de ordenes
- *     o de la cola de impresion desde cache seria peor que fallar.
+ *     nombre, asi que nunca quedan viejos. Solo se guarda lo que responde
+ *     200, y si la red falla se busca en cache antes de rendirse.
+ *   - Navegaciones: red primero con respaldo en cache.
+ *   - Peticiones a Supabase: NUNCA se cachean. Servir datos viejos de
+ *     ordenes o de la cola de impresion seria peor que fallar.
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE_SHELL = `approck-shell-${VERSION}`;
 const CACHE_ESTATICOS = `approck-static-${VERSION}`;
 
-const SHELL = ["/", "/estacion", "/cierre", "/manifest.json", "/icon.svg"];
+const SHELL = [
+  "/", "/estacion", "/cierre", "/inventario", "/configuracion",
+  "/manifest.json", "/icon.svg",
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(CACHE_SHELL)
       // addAll falla entera si un recurso falla; se agregan de a uno.
       .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
-      .then(() => self.skipWaiting())
   );
+  // NO se llama a skipWaiting(): ver el punto 2 de arriba. La version nueva
+  // queda esperando y toma el control cuando se cierran todas las pestañas.
+  // La app avisa de que hay una lista, para que se recargue cuando convenga
+  // y no en medio de un pedido.
 });
 
 self.addEventListener("activate", (e) => {
@@ -38,6 +57,11 @@ self.addEventListener("activate", (e) => {
       .then(() => self.clients.claim())
   );
 });
+
+/** Solo se guarda lo que de verdad sirve. Un error cacheado es permanente. */
+function guardable(res) {
+  return res && res.ok && res.status === 200 && res.type !== "opaque";
+}
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
@@ -52,36 +76,52 @@ self.addEventListener("fetch", (e) => {
 
   // Estáticos con hash: cache primero.
   if (url.pathname.startsWith("/_next/static/")) {
-    e.respondWith(
-      caches.match(req).then((hit) =>
-        hit ?? fetch(req).then((res) => {
+    e.respondWith((async () => {
+      const hit = await caches.match(req);
+      if (hit) return hit;
+      try {
+        const res = await fetch(req);
+        if (guardable(res)) {
           const copia = res.clone();
           caches.open(CACHE_ESTATICOS).then((c) => c.put(req, copia));
-          return res;
-        })
-      )
-    );
+        }
+        return res;
+      } catch {
+        // La red falló. Antes esto dejaba la promesa rechazada y el navegador
+        // lo convertia en ChunkLoadError. Se reintenta en cache —puede estar
+        // bajo otra URL— y si no, se devuelve un error honesto.
+        const respaldo = await caches.match(req, { ignoreSearch: true });
+        if (respaldo) return respaldo;
+        return new Response("", { status: 504, statusText: "Sin conexión" });
+      }
+    })());
     return;
   }
 
   // Navegaciones: red primero, cache de respaldo.
   if (req.mode === "navigate") {
-    e.respondWith(
-      fetch(req)
-        .then((res) => {
+    e.respondWith((async () => {
+      try {
+        const res = await fetch(req);
+        if (guardable(res)) {
           const copia = res.clone();
           caches.open(CACHE_SHELL).then((c) => c.put(req, copia));
-          return res;
-        })
-        .catch(async () =>
-          (await caches.match(req)) ??
+        }
+        return res;
+      } catch {
+        return (await caches.match(req)) ??
           (await caches.match("/")) ??
           new Response(
             "<!doctype html><meta charset=utf-8><body style='font-family:system-ui;padding:2rem'>" +
-            "<h1>Sin conexión</h1><p>Abrí la app una vez con internet para poder usarla sin señal.</p>",
+            "<h1>Sin conexión</h1><p>Abre la app una vez con internet para poder usarla sin señal.</p>",
             { headers: { "Content-Type": "text/html; charset=utf-8" } }
-          )
-        )
-    );
+          );
+      }
+    })());
   }
+});
+
+/** La app puede pedir que la version nueva entre ya, cuando sea buen momento. */
+self.addEventListener("message", (e) => {
+  if (e.data === "activar-ya") self.skipWaiting();
 });

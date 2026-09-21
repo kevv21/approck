@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 import {
   entrar, nombresRecordados, salir, sesionActual, type Sesion,
 } from "@/lib/auth/sesion";
-import {
-  alCambiarVinculo, desvincular, sesionGuardada,
-} from "@/lib/auth/dispositivo";
+import { alCambiarVinculo, sesionGuardada } from "@/lib/auth/dispositivo";
 import VincularDispositivo from "@/components/VincularDispositivo";
 import { registrar } from "@/lib/auth/auditoria";
 import { hayConfig } from "@/lib/supabase";
@@ -62,16 +60,21 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   if (sesion) {
     return (
       <>
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs"
-             style={{ background: "var(--panel-2)", color: "var(--txt-2)" }}>
+        <div className="flex items-center gap-2 px-3 text-xs"
+             style={{ background: "var(--panel-2)", color: "var(--txt-2)",
+                      minHeight: "40px" }}>
           <span>Trabajando: <b style={{ color: "var(--txt)" }}>{sesion.nombre}</b></span>
-          <button className="ml-auto underline"
+          {/*
+            "Desvincular" NO va al lado de "Salir". En un teléfono, con los
+            dedos y a media atención, tocar el de al lado deja el aparato
+            fuera de la base y hace falta la contraseña del dueño para
+            volver — en plena atención. Salir es de todos los días;
+            desvincular es de una vez en la vida del aparato, así que vive
+            en Estado, que es donde se va a buscar a propósito.
+          */}
+          <button className="ml-auto flex items-center px-2 underline"
+                  style={{ minHeight: "40px" }}
                   onClick={() => { salir(); setSesion(null); }}>Salir</button>
-          <button className="underline" title="Desvincular este aparato"
-                  onClick={async () => {
-                    salir(); setSesion(null);
-                    await desvincular(); setVinculado(false);
-                  }}>Desvincular</button>
         </div>
         {children}
       </>
