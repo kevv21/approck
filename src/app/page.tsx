@@ -46,6 +46,9 @@ export default function Caja() {
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("efectivo");
   const [recibido, setRecibido] = useState("");
   const [imprimirCocina, setImprimirCocina] = useState(true);
+  // Se puede quitar en el momento: a veces el cliente trae su propia caja, o
+  // se lleva una sola porción.
+  const [cobrarEmpaque, setCobrarEmpaque] = useState(true);
 
   const [turno, setTurno] = useState<{ id: string } | null>(null);
   const [verPreview, setVerPreview] = useState(false);
@@ -129,12 +132,14 @@ export default function Caja() {
     cobrarPropina,
     propinaBps: Math.round(propinaPct * 100),
     costoEnvio: centavos(parseFloat(envio || "0") || 0),
+    // Solo si la pizza sale del local. En mesa no hay caja que pagar.
+    cobrarEmpaque: cobrarEmpaque && tipo !== "mesa",
   };
 
   const t = useMemo(
     () => calcularTotales(lineas, descuentos, config),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lineas, descuentos, cobrarPropina, propinaPct, envio]
+    [lineas, descuentos, cobrarPropina, propinaPct, envio, cobrarEmpaque, tipo]
   );
 
   const agregar = (p: Producto) => {
@@ -406,6 +411,9 @@ export default function Caja() {
                 {t.descBebidas > 0 && <Fila k="Desc. bebidas" v={`-${fmtC(t.descBebidas)}`} acc />}
                 {t.descGeneral > 0 && <Fila k="Desc. general" v={`-${fmtC(t.descGeneral)}`} acc />}
                 {t.costoEnvio > 0 && <Fila k="Envío" v={fmtC(t.costoEnvio)} />}
+              {t.empaque > 0 && (
+                <Fila k={`Empaque ×${t.pizzasEmpacadas}`} v={fmtC(t.empaque)} />
+              )}
                 <Fila k="IVA 15%" v={fmtC(t.iva)} />
                 {t.propina > 0 && <Fila k={`Propina ${propinaPct}%`} v={fmtC(t.propina)} />}
                 <div className="my-2 border-t" style={{ borderColor: "var(--borde)" }} />
@@ -441,6 +449,16 @@ export default function Caja() {
                        onChange={(e) => setImprimirCocina(e.target.checked)} />
                 También imprimir ticket de cocina
               </label>
+
+              {/* Solo aparece cuando hay algo que empacar. A veces el cliente
+                  trae su propia caja. */}
+              {tipo !== "mesa" && lineas.some((l) => l.grupo === "pizza") && (
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={cobrarEmpaque}
+                         onChange={(e) => setCobrarEmpaque(e.target.checked)} />
+                  Cobrar empaque ({fmtC(CONFIG_DEFAULT.empaquePorPizza)} por pizza)
+                </label>
+              )}
 
               {/*
                 Jerarquía: antes eran siete botones del mismo tamaño y el de

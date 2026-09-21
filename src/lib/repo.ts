@@ -34,6 +34,23 @@ export async function turnoAbierto() {
   return data;
 }
 
+/**
+ * El turno que corresponde a un rango de fechas, para re-descargar el Excel de
+ * un dia ya cerrado. Sin esto, `turnoAbierto()` devuelve null pasado el cierre
+ * y el Excel salia sin bloque de turno y sin la cifra de PedidosYa.
+ */
+export async function turnoDeRango(desdeISO: string, hastaISO: string) {
+  const { data } = await supabase
+    .from("turno")
+    .select("*")
+    .gte("abierto_at", desdeISO)
+    .lte("abierto_at", hastaISO)
+    .order("abierto_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
 export async function abrirTurno(porQuien: string, fondoInicial: number) {
   const { data, error } = await supabase
     .from("turno")
@@ -159,6 +176,10 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     iva_bps: d.config.ivaBps,
     precios_incluyen_iva: d.config.preciosIncluyenIva,
     precio_mitades: d.config.precioMitades,
+    // Tarifa usada, no la vigente: congela el calculo para las reimpresiones.
+    empaque_por_pizza: d.config.cobrarEmpaque ? d.config.empaquePorPizza : 0,
+    empaque_gravado: d.config.empaqueGravado,
+    empaque: t.empaque,
     envio_gravado: d.config.envioGravado,
     tipo_cambio: d.config.tipoCambio,
     propina_bps: d.config.propinaBps,
@@ -356,6 +377,11 @@ export async function reimprimir(ordenId: string, cocina = false) {
     envioGravado: o.envio_gravado ?? false,
     tipoCambio: o.tipo_cambio ?? 0,
     precioMitades: o.precio_mitades ?? "promedio",
+    // La tarifa que se USO ese dia, no la de hoy. Si mañana el empaque sube a
+    // C$40, la reimpresion de ayer tiene que seguir dando C$30.
+    empaquePorPizza: o.empaque_por_pizza ?? 0,
+    cobrarEmpaque: (o.empaque_por_pizza ?? 0) > 0,
+    empaqueGravado: o.empaque_gravado ?? true,
   });
 
   await registrar({

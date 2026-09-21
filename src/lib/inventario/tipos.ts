@@ -27,6 +27,13 @@ export interface ConteoItem {
    * float). null = todavia no se conto ese insumo.
    */
   cantidad: number | null;
+  /**
+   * Cuanto hay que PEDIR de este insumo. Se decide mirando lo que se acaba de
+   * contar, asi que vive en la misma fila y en la misma hoja: bajar a otra
+   * pestaña a escribir el pedido es como no tenerlo.
+   * null = no hace falta pedir nada.
+   */
+  pedido?: number | null;
 }
 
 /**

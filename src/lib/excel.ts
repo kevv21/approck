@@ -26,6 +26,8 @@ export interface FilaOrden {
     cantidad: number;
     precio_snapshot: number;
     neto: number;
+    /** IVA que aporta esta línea. 0 en productos exentos. */
+    iva?: number | null;
   }[];
 }
 
@@ -80,7 +82,13 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Cierre");
-  ws.columns = [{ width: 10 }, { width: 34 }, { width: 16 }, { width: 16 }];
+  // Seis columnas desde que el IVA va desglosado en los consumibles. Los
+  // bloques de abajo (pagos, arqueo) siguen usando cuatro y se fusionan hasta
+  // la F para que la hoja se vea de una pieza al imprimirla.
+  ws.columns = [
+    { width: 10 }, { width: 34 }, { width: 15 },
+    { width: 15 }, { width: 13 }, { width: 15 },
+  ];
 
   const pagadas = d.ordenes.filter((o) => o.estado === "pagada");
   const anuladas = d.ordenes.filter((o) => o.estado === "anulada");
@@ -88,7 +96,7 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   // --- helpers de maquetado ------------------------------------------------
   const tituloBloque = (texto: string) => {
     const r = ws.addRow([texto]);
-    ws.mergeCells(`A${r.number}:D${r.number}`);
+    ws.mergeCells(`A${r.number}:F${r.number}`);
     r.getCell(1).font = { name: "Arial", bold: true, size: 12, color: { argb: "FFFFFFFF" } };
     r.getCell(1).fill = {
       type: "pattern", pattern: "solid",
@@ -112,20 +120,20 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
 
   // --- 1. Encabezado --------------------------------------------------------
   const t1 = ws.addRow(["ROCK MUNCHIES"]);
-  ws.mergeCells(`A${t1.number}:D${t1.number}`);
+  ws.mergeCells(`A${t1.number}:F${t1.number}`);
   t1.getCell(1).font = { name: "Arial", bold: true, size: 16 };
   t1.getCell(1).alignment = { horizontal: "center" };
   t1.height = 24;
 
   const t2 = ws.addRow(["CIERRE DE CAJA"]);
-  ws.mergeCells(`A${t2.number}:D${t2.number}`);
+  ws.mergeCells(`A${t2.number}:F${t2.number}`);
   t2.getCell(1).font = { name: "Arial", bold: true, size: 12 };
   t2.getCell(1).alignment = { horizontal: "center" };
 
   const fin = d.hasta > new Date() ? new Date() : d.hasta;
   const t3 = ws.addRow([`Día: ${dia(d.desde)}`, "", `Hora: ${hora(fin)}`, ""]);
   ws.mergeCells(`A${t3.number}:B${t3.number}`);
-  ws.mergeCells(`C${t3.number}:D${t3.number}`);
+  ws.mergeCells(`C${t3.number}:F${t3.number}`);
   t3.eachCell((c) => { c.font = { name: "Arial", size: 11 }; });
 
   if (d.turno) {
@@ -133,29 +141,48 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
       `Turno: ${d.turno.numero ?? "—"}`, "", `Abrió: ${d.turno.abierto_por}`, "",
     ]);
     ws.mergeCells(`A${t4.number}:B${t4.number}`);
-    ws.mergeCells(`C${t4.number}:D${t4.number}`);
+    ws.mergeCells(`C${t4.number}:F${t4.number}`);
   }
   ws.addRow([]);
 
   // --- 2. Consumibles -------------------------------------------------------
   tituloBloque("CONSUMIBLES");
-  const encCons = encabezadoTabla(["Cant.", "Producto", "P. unitario", "Total"]);
+  // El IVA va en su propia columna y SUMADO en el total.
+  //
+  // Antes esta tabla sumaba el neto SIN IVA mientras que "total cobrado" más
+  // abajo sí lo llevaba, así que los dos bloques nunca cuadraban y parecía
+  // que faltaba plata. Se muestran los dos números —subtotal e IVA— porque
+  // quien cuadra la caja necesita ver de dónde sale la diferencia, no solo
+  // un total distinto.
+  const encCons = encabezadoTabla(
+    ["Cant.", "Producto", "P. unitario", "Subtotal", "IVA", "Total"]
+  );
 
-  const agg = new Map<string, { cant: number; precio: number; total: number }>();
+  const agg = new Map<string, {
+    cant: number; precio: number; neto: number; iva: number;
+  }>();
   for (const o of pagadas) {
     for (const it of o.items) {
       const a = agg.get(it.nombre_snapshot) ??
-        { cant: 0, precio: aCordobas(it.precio_snapshot), total: 0 };
+        { cant: 0, precio: aCordobas(it.precio_snapshot), neto: 0, iva: 0 };
       a.cant += it.cantidad;
-      a.total += aCordobas(it.neto);
+      a.neto += aCordobas(it.neto);
+      a.iva  += aCordobas(it.iva ?? 0);
       agg.set(it.nombre_snapshot, a);
     }
   }
-  const consumibles = [...agg.entries()].sort((a, b) => b[1].total - a[1].total);
+  const consumibles = [...agg.entries()]
+    .sort((a, b) => (b[1].neto + b[1].iva) - (a[1].neto + a[1].iva));
 
   const primeraCons = encCons + 1;
   for (const [nombre, a] of consumibles) {
-    const r = ws.addRow([a.cant, nombre, a.precio, a.total]);
+    const fila = ws.rowCount + 1;
+    // El total como FÓRMULA, no como número: si alguien corrige una cantidad
+    // a mano en la hoja, el total se corrige con ella.
+    const r = ws.addRow([
+      a.cant, nombre, a.precio, a.neto, a.iva,
+      { formula: `D${fila}+E${fila}` },
+    ]);
     r.eachCell((c, i) => {
       c.border = bordeFino();
       c.font = { name: "Calibri", size: 11 };
@@ -169,21 +196,21 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   // PedidosYa incluido, mientras que "total cobrado" mas abajo cuenta solo
   // lo que entro a la caja. Sin esta linea, quien revise la hoja intenta
   // cuadrar los dos bloques y cree que falta plata.
+  const suma = (col: string) =>
+    ({ formula: consumibles.length ? `SUM(${col}${primeraCons}:${col}${ultimaCons})` : "0" });
   const totCons = ws.addRow([
-    { formula: consumibles.length ? `SUM(A${primeraCons}:A${ultimaCons})` : "0" },
-    "TOTAL CONSUMIBLES", "",
-    { formula: consumibles.length ? `SUM(D${primeraCons}:D${ultimaCons})` : "0" },
+    suma("A"), "TOTAL CONSUMIBLES", "", suma("D"), suma("E"), suma("F"),
   ]);
   totCons.eachCell((c, i) => {
     c.font = { name: "Arial", bold: true, size: 11 };
     c.border = bordeFino();
     if (i === 1) c.alignment = { horizontal: "center" };
-    if (i === 4) c.numFmt = MONEDA;
+    if (i >= 3) c.numFmt = MONEDA;
   });
   const avisoCons = ws.addRow([
-    "", "Solo lo cobrado en caja. Precios sin IVA, envío ni propina.",
+    "", "Solo lo cobrado en caja. Total = subtotal + IVA; no incluye envío, empaque ni propina.",
   ]);
-  ws.mergeCells(`B${avisoCons.number}:D${avisoCons.number}`);
+  ws.mergeCells(`B${avisoCons.number}:F${avisoCons.number}`);
   avisoCons.getCell(2).font = { name: "Calibri", italic: true, size: 10 };
   ws.addRow([]);
 
@@ -246,7 +273,7 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   const nota = ws.addRow([
     "", "Anotado al cerrar caja. La plataforma deposita después y con comisión.",
   ]);
-  ws.mergeCells(`B${nota.number}:D${nota.number}`);
+  ws.mergeCells(`B${nota.number}:F${nota.number}`);
   nota.getCell(2).font = { name: "Calibri", italic: true, size: 10 };
   ws.addRow([]);
 

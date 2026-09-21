@@ -306,3 +306,84 @@ describe("precision: redondeo solo al final", () => {
     expect(t.descTotal).toBe(centavos(777));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Empaque: C$ por PIZZA cuando la orden sale del local.
+// ---------------------------------------------------------------------------
+describe("empaque por pizza", () => {
+  const pizza = (nombre: string, precio: number, cantidad = 1): LineaOrden => ({
+    id: nombre, productoId: nombre, nombre, precioUnit: centavos(precio),
+    cantidad, grupo: "pizza",
+  });
+  const bebida: LineaOrden = {
+    id: "b", productoId: "b", nombre: "Toña", precioUnit: centavos(60),
+    cantidad: 4, grupo: "bebida",
+  };
+  const conEmpaque = { ...CONFIG_DEFAULT, cobrarEmpaque: true };
+
+  it("en mesa no se cobra: no hay caja que pagar", () => {
+    const t = calcularTotales([pizza("Criolla", 250)], [], CONFIG_DEFAULT);
+    expect(t.empaque).toBe(0);
+    expect(t.pizzasEmpacadas).toBe(0);
+  });
+
+  it("cuenta UNIDADES, no líneas: tres en una línea son tres cajas", () => {
+    const t = calcularTotales([pizza("Criolla", 250, 3)], [], conEmpaque);
+    expect(t.pizzasEmpacadas).toBe(3);
+    expect(t.empaque).toBe(centavos(90));
+  });
+
+  it("solo las pizzas pagan empaque; las bebidas no", () => {
+    const t = calcularTotales([pizza("Criolla", 250), bebida], [], conEmpaque);
+    expect(t.pizzasEmpacadas).toBe(1);
+    expect(t.empaque).toBe(centavos(30));
+  });
+
+  it("paga IVA, porque se vende junto con la comida", () => {
+    const sinEmpaque = calcularTotales([pizza("Criolla", 250)], [], CONFIG_DEFAULT);
+    const conE = calcularTotales([pizza("Criolla", 250)], [], conEmpaque);
+    // C$30 de empaque + su 15% = C$34.50 más caro.
+    expect(conE.total - sinEmpaque.total).toBe(centavos(34.5));
+    expect(conE.iva - sinEmpaque.iva).toBe(centavos(4.5));
+  });
+
+  it("se puede dejar exento sin tocar código", () => {
+    const t = calcularTotales([pizza("Criolla", 250)], [],
+      { ...conEmpaque, empaqueGravado: false });
+    expect(t.empaque).toBe(centavos(30));
+    // El IVA es solo el de la pizza: 250 × 15%
+    expect(t.iva).toBe(centavos(37.5));
+  });
+
+  it("no recibe descuento ni genera propina, igual que el envío", () => {
+    const base = { ...conEmpaque, cobrarPropina: true, propinaBps: 1000 };
+    const t = calcularTotales([pizza("Criolla", 200)], [], base);
+    // La propina sale del producto (C$200), no del empaque.
+    expect(t.propina).toBe(centavos(20));
+
+    const conDesc = calcularTotales([pizza("Criolla", 200)],
+      [{ alcance: "general", tipo: "porcentaje", valor: 5000 }], conEmpaque);
+    // El 50% se lo lleva la pizza; el empaque sigue costando C$30.
+    expect(conDesc.empaque).toBe(centavos(30));
+  });
+
+  it("una mitad y mitad es UNA caja, no dos", () => {
+    const mitades: LineaOrden = {
+      id: "m", productoId: "", nombre: "Criolla / La Fabulosa",
+      precioUnit: centavos(350), cantidad: 1, grupo: "pizza",
+      mitades: [
+        { productoId: "a", nombre: "Criolla", precio: centavos(250) },
+        { productoId: "b", nombre: "La Fabulosa", precio: centavos(450) },
+      ],
+    };
+    const t = calcularTotales([mitades], [], conEmpaque);
+    expect(t.pizzasEmpacadas).toBe(1);
+    expect(t.empaque).toBe(centavos(30));
+  });
+
+  it("con tarifa en cero no cobra nada aunque esté encendido", () => {
+    const t = calcularTotales([pizza("Criolla", 250)], [],
+      { ...conEmpaque, empaquePorPizza: 0 });
+    expect(t.empaque).toBe(0);
+  });
+});

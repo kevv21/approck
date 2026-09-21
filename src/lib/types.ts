@@ -159,6 +159,23 @@ export interface ConfigCobro {
   tipoCambio: number;
   /** Como se cobra una pizza mitad y mitad. */
   precioMitades: ReglaMitades;
+
+  /**
+   * Empaque, en centavos POR PIZZA. Se cobra solo cuando la pizza sale del
+   * local: para llevar, delivery y retiro. En mesa no hay caja que pagar.
+   *
+   * Se calcula, no se agrega como linea: una linea hay que mantenerla
+   * sincronizada a mano cada vez que cambia una cantidad, y se desincroniza.
+   */
+  empaquePorPizza: number;
+  /** Lo pone la pantalla segun el tipo de orden. */
+  cobrarEmpaque: boolean;
+  /**
+   * Si el empaque paga IVA. Encendido por defecto: se vende junto con la
+   * comida y forma parte del precio. Pendiente de confirmar con el contador,
+   * igual que `envioGravado`; se cambia en `settings` sin tocar codigo.
+   */
+  empaqueGravado: boolean;
 }
 
 export const CONFIG_DEFAULT: ConfigCobro = {
@@ -171,6 +188,9 @@ export const CONFIG_DEFAULT: ConfigCobro = {
   envioGravado: false,
   tipoCambio: 0,
   precioMitades: "promedio",
+  empaquePorPizza: 3000,   // C$30
+  cobrarEmpaque: false,
+  empaqueGravado: true,
 };
 
 export interface LineaCalculada extends LineaOrden {
@@ -200,6 +220,10 @@ export interface Totales {
   /** subtotal despues de descuentos, sin envio */
   baseProductos: number;
   costoEnvio: number;
+  /** Empaque cobrado: `empaquePorPizza` x pizzas, 0 si es para mesa. */
+  empaque: number;
+  /** Cuantas pizzas se empacaron. Para que el recibo pueda decir "x3". */
+  pizzasEmpacadas: number;
   /** baseProductos + costoEnvio -> sobre esto se calcula el IVA */
   baseGravable: number;
   /** Parte de la base que NO paga IVA (productos exentos) */

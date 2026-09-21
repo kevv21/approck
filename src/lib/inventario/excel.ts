@@ -24,14 +24,7 @@ const bordeFino = (): ExcelJSTypes.Borders =>
 export interface DatosConteo {
   fecha: string;
   realizadoPor?: string | null;
-  notas?: string | null;
   items: ConteoItem[];
-  /**
-   * Hoja extra con fecha, quien conto y los insumos sin unidad.
-   * La hoja "Inventario" nunca se altera: se mantiene identica a la
-   * plantilla para que impresa se vea igual.
-   */
-  incluirHojaDatos?: boolean;
 }
 
 export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
@@ -47,10 +40,11 @@ export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
     { key: "insumo", width: 30 },
     { key: "cantidad", width: 15 },
     { key: "unidad", width: 20 },
+    { key: "pedido", width: 15 },
   ];
 
   // Fila 1: encabezado, Arial 12 blanco sobre azul oscuro, centrado.
-  const enc = ws.addRow(["Insumo", "Cantidad", "Unid. de medida"]);
+  const enc = ws.addRow(["Insumo", "Cantidad", "Unid. de medida", "Pedido"]);
   enc.eachCell((cell) => {
     cell.font = { name: "Arial", bold: true, size: 12, color: { argb: "FFFFFFFF" } };
     cell.fill = {
@@ -67,11 +61,12 @@ export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
       it.nombre_snapshot,
       it.cantidad ?? null,
       it.unidad_snapshot ?? null,
+      it.pedido ?? null,
     ]);
     fila.eachCell({ includeEmpty: true }, (cell, col) => {
       cell.font = { name: "Calibri", size: 11 };
       cell.border = bordeFino();
-      if (col === 2) {
+      if (col === 2 || col === 4) {
         cell.alignment = { horizontal: "right" };
         cell.numFmt = "#,##0.###"; // 2.5 Lb se ve como 2.5, no como 2.500
       }
@@ -85,6 +80,46 @@ export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
   }`;
   ws.headerFooter.oddFooter = "&LPágina &P de &N&R&D";
 
+  // --- Lo que hay que pedir, abajo de la misma hoja ------------------------
+  //
+  // En la misma hoja a propósito: quien va al mercado imprime UN papel. Un
+  // listado en otra pestaña es un listado que nadie lleva encima.
+  const porPedir = d.items.filter((i) => (i.pedido ?? 0) > 0);
+  if (porPedir.length > 0) {
+    ws.addRow([]);
+    const tit = ws.addRow([`PEDIDO (${porPedir.length})`]);
+    tit.getCell(1).font = { name: "Arial", bold: true, size: 12,
+                            color: { argb: "FFFFFFFF" } };
+    tit.getCell(1).fill = {
+      type: "pattern", pattern: "solid",
+      fgColor: { argb: ENCABEZADO_FONDO }, bgColor: { argb: ENCABEZADO_FONDO },
+    };
+    ws.mergeCells(`A${tit.number}:D${tit.number}`);
+    tit.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+    tit.getCell(1).border = bordeFino();
+
+    const encP = ws.addRow(["Insumo", "Pedir", "Unid. de medida", "Hay"]);
+    encP.eachCell((cell) => {
+      cell.font = { name: "Arial", bold: true, size: 11 };
+      cell.border = bordeFino();
+      cell.alignment = { horizontal: "center" };
+    });
+
+    for (const it of porPedir) {
+      const f = ws.addRow([
+        it.nombre_snapshot, it.pedido, it.unidad_snapshot ?? null, it.cantidad ?? null,
+      ]);
+      f.eachCell({ includeEmpty: true }, (cell, col) => {
+        cell.font = { name: "Calibri", size: 11 };
+        cell.border = bordeFino();
+        if (col === 2 || col === 4) {
+          cell.alignment = { horizontal: "right" };
+          cell.numFmt = "#,##0.###";
+        }
+      });
+    }
+  }
+
   ws.views = [{ state: "frozen", ySplit: 1 }];
   ws.pageSetup = {
     paperSize: 9, // A4
@@ -97,25 +132,6 @@ export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
   // Que el encabezado se repita en cada página impresa.
   ws.pageSetup.printTitlesRow = "1:1";
 
-  if (d.incluirHojaDatos) {
-    const wd = wb.addWorksheet("Datos");
-    wd.columns = [{ width: 26 }, { width: 40 }];
-    wd.addRow(["Fecha del conteo", d.fecha]);
-    wd.addRow(["Realizado por", d.realizadoPor ?? "(sin registrar)"]);
-    wd.addRow(["Notas", d.notas ?? ""]);
-    wd.addRow([]);
-    wd.addRow(["Insumos contados", d.items.filter((i) => i.cantidad != null).length]);
-    wd.addRow(["Insumos sin contar", d.items.filter((i) => i.cantidad == null).length]);
-
-    const sinUnidad = d.items.filter((i) => !i.unidad_snapshot);
-    if (sinUnidad.length > 0) {
-      wd.addRow([]);
-      const t = wd.addRow([`Sin unidad definida (${sinUnidad.length})`]);
-      t.font = { bold: true };
-      for (const i of sinUnidad) wd.addRow(["", i.nombre_snapshot]);
-    }
-    wd.getRow(1).font = { bold: true };
-  }
 
   const buf = await wb.xlsx.writeBuffer();
   return new Blob([buf], {

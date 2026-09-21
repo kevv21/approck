@@ -18,7 +18,9 @@ export default function Inventario() {
   const [conteo, setConteo] = useState<Conteo | null>(null);
   const [historial, setHistorial] = useState<Conteo[]>([]);
   const [quien, setQuien] = useState("");
-  const [notas, setNotas] = useState("");
+  // Cuánto hay que PEDIR de cada insumo. Sustituye a la nota libre: una nota
+  // no se puede llevar al mercado, un listado sí.
+  const [pedidos, setPedidos] = useState<Record<string, number | null>>({});
   const [filtro, setFiltro] = useState("");
   const [soloSinContar, setSoloSinContar] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -81,7 +83,7 @@ export default function Inventario() {
     if (!conteo) return;
     setGuardando(true);
     try {
-      const n = await guardarCantidades(conteo.id, insumos, cantidades);
+      const n = await guardarCantidades(conteo.id, insumos, cantidades, pedidos);
       setAviso({ txt: `${n} insumos guardados.` });
     } catch (e) {
       setAviso({ txt: `Error al guardar: ${(e as Error).message}`, mal: true });
@@ -93,9 +95,7 @@ export default function Inventario() {
     const blob = await generarInventarioExcel({
       fecha,
       realizadoPor: conteo?.realizado_por ?? quien,
-      notas,
-      items: filasParaExcel(insumos, cantidades),
-      incluirHojaDatos: true,
+      items: filasParaExcel(insumos, cantidades, pedidos),
     });
     descargarBlob(blob, nombreArchivoInventario(fecha));
   };
@@ -172,9 +172,21 @@ export default function Inventario() {
         {visibles.map((i) => (
           <div key={i.id} className="flex items-center gap-2 p-2">
             <span className="flex-1 text-sm">{i.nombre}</span>
-            <input className="input !w-24 text-right" inputMode="decimal" placeholder="—"
+            <input className="input !w-20 text-right" inputMode="decimal" placeholder="hay"
+                   aria-label={`Cantidad contada de ${i.nombre}`}
                    value={cantidades[i.id] ?? ""}
                    onChange={(e) => setCantidad(i.id, e.target.value)} />
+            {/* Lo que hay que pedir, al lado de lo que hay: la decisión se
+                toma mirando las dos cosas a la vez. */}
+            <input className="input !w-20 text-right" inputMode="decimal" placeholder="pedir"
+                   aria-label={`Cuánto pedir de ${i.nombre}`}
+                   value={pedidos[i.id] ?? ""}
+                   onChange={(e) => {
+                     const v = e.target.value.trim();
+                     const n = v === "" ? null : parseFloat(v.replace(",", "."));
+                     setPedidos((p) => ({ ...p, [i.id]: Number.isFinite(n as number) ? n : null }));
+                   }}
+                   style={(pedidos[i.id] ?? 0) > 0 ? { borderColor: "var(--acc)" } : undefined} />
             <select className="input !w-24 !text-xs" value={i.unidad ?? ""}
                     onChange={async (e) => {
                       const u = e.target.value || null;
@@ -195,8 +207,6 @@ export default function Inventario() {
       </div>
 
       <div className="panel space-y-2 p-3">
-        <input className="input" placeholder="Notas del conteo (opcional)"
-               value={notas} onChange={(e) => setNotas(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
           <button className="btn btn-ghost" disabled={!conteo || guardando}
                   onClick={guardar}>
@@ -206,10 +216,10 @@ export default function Inventario() {
           {conteo && (
             <button className="btn btn-mal col-span-2 !min-h-0 !py-2 text-sm"
                     onClick={async () => {
-                      await guardarCantidades(conteo.id, insumos, cantidades);
-                      await cerrarConteo(conteo.id, notas);
+                      await guardarCantidades(conteo.id, insumos, cantidades, pedidos);
+                      await cerrarConteo(conteo.id);
                       try { localStorage.removeItem(CLAVE_BORRADOR); } catch { /* noop */ }
-                      setCantidades({}); setNotas("");
+                      setCantidades({}); setPedidos({});
                       setAviso({ txt: "Conteo cerrado." });
                       recargar();
                     }}>Cerrar conteo</button>
@@ -234,8 +244,7 @@ export default function Inventario() {
                 <button className="chip" onClick={async () => {
                   const items = await cargarItems(c.id);
                   const blob = await generarInventarioExcel({
-                    fecha: c.fecha, realizadoPor: c.realizado_por, notas: c.notas,
-                    items, incluirHojaDatos: true,
+                    fecha: c.fecha, realizadoPor: c.realizado_por, items,
                   });
                   descargarBlob(blob, nombreArchivoInventario(c.fecha));
                 }}>Excel</button>

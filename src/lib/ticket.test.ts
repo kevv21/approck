@@ -229,3 +229,28 @@ describe("codificación de caracteres", () => {
     expect(ticketPrueba(16, 80).length).toBeGreaterThan(0);
   });
 });
+
+// Empaque: si se cobra, tiene que verse en el recibo. Un total C$90 más alto
+// sin línea que lo explique es la clase de cosa que el cliente reclama en la
+// puerta y el repartidor no sabe contestar.
+describe("empaque", () => {
+  const conEmpaque = datos({
+    totales: calcularTotales(lineas, [], {
+      ...CONFIG_DEFAULT, cobrarEmpaque: true, tipoCambio: centavos(36.8),
+    }),
+  });
+
+  it("imprime la línea con el conteo de pizzas", () => {
+    const txt = previsualizarTicket(conEmpaque);
+    // 1 Hawaiana + 2 Diablas = 3 cajas.
+    expect(txt).toContain(transliterar("Empaque x3"));
+    expect(txt).toContain("90.00");
+  });
+
+  it("no aparece cuando la orden es de mesa", () => {
+    const txt = previsualizarTicket(datos({
+      totales: calcularTotales(lineas, [], CONFIG_DEFAULT),
+    }));
+    expect(txt).not.toContain("Empaque");
+  });
+});

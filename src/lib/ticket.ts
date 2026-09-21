@@ -234,6 +234,8 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
   // los productos y el cliente pregunta de dónde sale la diferencia.
   if (t.iva > 0) filas.push([`IVA ${t.ivaPct}%`, t.iva]);
   if (t.costoEnvio > 0) filas.push(["Envío", t.costoEnvio]);
+  // Con el conteo: el cliente tiene que poder ver por qué son C$90 y no C$30.
+  if (t.empaque > 0) filas.push([`Empaque x${t.pizzasEmpacadas}`, t.empaque]);
   if (t.propina > 0) filas.push([`Propina ${d.propinaPct ?? 10}%`, t.propina]);
   filas.push(["TOTAL", t.total]);
 

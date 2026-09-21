@@ -25,6 +25,8 @@ import type {
  *   4. descuento general sobre el remanente de todas las lineas
  *   5. desglose por linea: base imponible e IVA, saltando productos exentos
  *   6. envio: sin descuento, sin propina, y con IVA solo si `envioGravado`
+ *   6b. empaque: C$ por PIZZA cuando la orden sale del local (para llevar,
+ *       delivery, retiro). Como el envio: sin descuento y sin propina encima.
  *   7. propina sobre el subtotal sin IVA (configurable), nunca gravada
  *   8. total = base + IVA + envio + propina
  *
@@ -161,6 +163,22 @@ export function calcularTotales(
     ? aplicarBpsEscalado(envioEsc, ivaBps)
     : 0;
 
+  // --- Paso 6b: empaque ------------------------------------------------------
+  // Por pizza y solo si sale del local. Como el envio: sin descuento y sin
+  // propina encima. Se cuenta por UNIDADES, no por lineas: tres Criollas en
+  // una sola linea son tres cajas.
+  const pizzasEmpacadas = config.cobrarEmpaque
+    ? lineasEntrada
+        .filter((l) => l.grupo === "pizza")
+        .reduce((n, l) => n + Math.max(0, l.cantidad), 0)
+    : 0;
+  const empaqueEsc = aEscala(
+    Math.max(0, config.empaquePorPizza) * pizzasEmpacadas
+  );
+  const ivaEmpaqueEsc = config.empaqueGravado
+    ? aplicarBpsEscalado(empaqueEsc, ivaBps)
+    : 0;
+
   // --- Paso 7: propina -------------------------------------------------------
   const baseProductosEsc = baseGravadaEsc + baseExentaEsc;
   let propinaEsc = 0;
@@ -176,7 +194,10 @@ export function calcularTotales(
   // Sirve para los dos modos: con precios que incluyen IVA,
   // base + iva de cada linea vuelve a dar exactamente su neto.
   const totalEsc =
-    baseProductosEsc + ivaProductosEsc + envioEsc + ivaEnvioEsc + propinaEsc;
+    baseProductosEsc + ivaProductosEsc +
+    envioEsc + ivaEnvioEsc +
+    empaqueEsc + ivaEmpaqueEsc +
+    propinaEsc;
 
   const total = aCentavosDesdeEscala(totalEsc);
   const subtotalBruto = aCentavosDesdeEscala(brutos.reduce((a, b) => a + b, 0));
@@ -194,11 +215,15 @@ export function calcularTotales(
     ),
     baseProductos: aCentavosDesdeEscala(baseProductosEsc),
     costoEnvio: aCentavosDesdeEscala(envioEsc),
+    empaque: aCentavosDesdeEscala(empaqueEsc),
+    pizzasEmpacadas,
     baseGravable: aCentavosDesdeEscala(
-      baseGravadaEsc + (config.envioGravado ? envioEsc : 0)
+      baseGravadaEsc +
+      (config.envioGravado ? envioEsc : 0) +
+      (config.empaqueGravado ? empaqueEsc : 0)
     ),
     baseExenta: aCentavosDesdeEscala(baseExentaEsc),
-    iva: aCentavosDesdeEscala(ivaProductosEsc + ivaEnvioEsc),
+    iva: aCentavosDesdeEscala(ivaProductosEsc + ivaEnvioEsc + ivaEmpaqueEsc),
     ivaPct: ivaBps / 100,
     propina: aCentavosDesdeEscala(propinaEsc),
     total,

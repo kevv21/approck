@@ -17,7 +17,10 @@ const orden = (
   subtotal_bruto: centavos(total), desc_total: 0, desc_motivo: null,
   costo_envio: 0, iva: centavos(total * 0.15), propina: 0,
   total: centavos(total),
-  items: [{ nombre_snapshot: "Diabla", cantidad: 1, precio_snapshot: centavos(300), neto: centavos(total) }],
+  items: [{
+    nombre_snapshot: "Diabla", cantidad: 1, precio_snapshot: centavos(300),
+    neto: centavos(total), iva: centavos(total * 0.15),
+  }],
   ...extra,
 });
 
@@ -71,6 +74,28 @@ describe("consumibles", () => {
     const ws = await abrir(await generarCierreExcel(base));
     const txt = textoDe(ws);
     expect(txt).toMatch(/=SUM\(D\d+:D\d+\)/);
+  });
+
+  // Lo que pidió el dueño: el IVA integrado en el total de consumibles.
+  // Antes esta tabla sumaba el neto pelado y nunca cuadraba contra lo cobrado.
+  it("lleva columna de IVA y el total de la línea la suma", async () => {
+    const ws = await abrir(await generarCierreExcel(base));
+    const txt = textoDe(ws);
+    expect(txt).toContain("Cant. | Producto | P. unitario | Subtotal | IVA | Total");
+    // El total por línea es fórmula: corregir una cantidad a mano lo arrastra.
+    expect(txt).toMatch(/=D\d+\+E\d+/);
+    expect(txt).toMatch(/=SUM\(E\d+:E\d+\)/);
+    expect(txt).toMatch(/=SUM\(F\d+:F\d+\)/);
+  });
+
+  it("el IVA de la tabla es el de las líneas vendidas", async () => {
+    const ws = await abrir(await generarCierreExcel(base));
+    let ivaDiabla: unknown = null;
+    ws.eachRow((r) => {
+      if (r.getCell(2).value === "Diabla") ivaDiabla = r.getCell(5).value;
+    });
+    // 300 + 300 + 440 + 400 = 1440 de neto, al 15% = 216.
+    expect(ivaDiabla).toBeCloseTo(216, 2);
   });
 
   it("agrupa cantidades del mismo producto en una sola fila", async () => {

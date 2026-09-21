@@ -324,6 +324,43 @@ quitarla de la app no basta.
 cualquier POS — un aparato robado sigue vinculado hasta que se cambie la
 contrasena de la cuenta del local.
 
+## Cinco cambios pedidos por el dueno — 2026-09-21
+
+1. **Empaque por pizza.** C$30 por PIZZA (no por linea: tres Criollas en una
+   sola linea son tres cajas) cuando la orden sale del local — para llevar,
+   delivery o retiro. En mesa no aparece la opcion. Se calcula como el envio:
+   sin descuento y sin propina encima, con su IVA aparte. La **tarifa usada**
+   se guarda en cada orden, no solo el monto: si manana sube a C$40, reimprimir
+   una orden de ayer tiene que seguir dando C$30. Sale en el recibo como
+   `Empaque x3`, con el conteo, porque un total C$90 mas alto sin linea que lo
+   explique es lo que el cliente reclama en la puerta.
+2. **El Excel del cierre integra el IVA en consumibles.** La tabla sumaba el
+   neto pelado mientras que "total cobrado" mas abajo si lo llevaba: los dos
+   bloques nunca cuadraban y parecia que faltaba plata. Ahora van las seis
+   columnas (Cant., Producto, P. unitario, Subtotal, IVA, Total), el total de
+   linea es la formula `D+E` y los totales son `SUM`, no valores fijos.
+3. **PedidosYa editable desde el resumen del cierre**, junto a las formas de
+   pago, no solo dentro del bloque de cerrar caja. Es **un solo campo**: dos
+   casillas con el mismo numero en la misma pantalla se contradicen sola.
+   Ademas, cuando no hay turno abierto se carga **el ultimo turno del rango
+   consultado**: antes `turnoAbierto()` devolvia null pasado el cierre y
+   re-descargar el Excel de un dia cerrado salia sin bloque de arqueo y sin
+   PedidosYa. Limite honesto: `BLINDAR.sql` bloquea escribir sobre un turno ya
+   cerrado (`turno_upd ... using (cerrado_at is null)`), asi que editar la
+   cifra despues del cierre sale en el Excel que se descargue en ese momento
+   pero **no se guarda en la base**. La pantalla lo dice.
+4. **Inventario: fuera la "zona de datos".** La hoja aparte no la abria nadie.
+5. **La nota del inventario es ahora un "pedido"**: una cantidad por insumo,
+   y abajo, **en la misma hoja**, un bloque `PEDIDO (n)` con solo lo que tiene
+   cantidad — Insumo, Pedir, Unid. de medida, Hay. Se decide mirando lo que se
+   acaba de contar, asi que es el mismo papel y el mismo momento.
+
+**SQL nuevo:** `supabase/10_empaque.sql` (o volver a correr `00_INSTALAR.sql`,
+que ya lo trae). Idempotente. Sin el, la app no puede guardar ordenes: escribe
+`empaque` en cada insercion.
+
+**201 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

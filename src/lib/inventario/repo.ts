@@ -47,16 +47,20 @@ export async function abrirConteo(realizadoPor: string, fecha?: string) {
 export async function guardarCantidades(
   conteoId: string,
   insumos: Insumo[],
-  cantidades: Record<string, number | null>
+  cantidades: Record<string, number | null>,
+  pedidos: Record<string, number | null> = {}
 ) {
+  // Se guarda la fila si hay CUALQUIERA de las dos cosas: se puede pedir algo
+  // que no se conto porque se vio la caja vacia de un vistazo.
   const filas = insumos
-    .filter((i) => cantidades[i.id] != null)
+    .filter((i) => cantidades[i.id] != null || pedidos[i.id] != null)
     .map((i) => ({
       conteo_id: conteoId,
       insumo_id: i.id,
       nombre_snapshot: i.nombre,
       unidad_snapshot: i.unidad,
-      cantidad: cantidades[i.id],
+      cantidad: cantidades[i.id] ?? null,
+      pedido: pedidos[i.id] ?? null,
     }));
   if (filas.length === 0) return 0;
 
@@ -67,11 +71,10 @@ export async function guardarCantidades(
   return filas.length;
 }
 
-export async function cerrarConteo(id: string, notas?: string) {
+export async function cerrarConteo(id: string) {
   const { error } = await supabase.from("conteo").update({
     estado: "cerrado",
     cerrado_at: new Date().toISOString(),
-    notas: notas || null,
   }).eq("id", id);
   if (error) throw error;
 }
@@ -91,12 +94,14 @@ export async function cargarItems(conteoId: string): Promise<ConteoItem[]> {
  */
 export function filasParaExcel(
   insumos: Insumo[],
-  cantidades: Record<string, number | null>
+  cantidades: Record<string, number | null>,
+  pedidos: Record<string, number | null> = {}
 ): ConteoItem[] {
   return insumos.map((i) => ({
     insumo_id: i.id,
     nombre_snapshot: i.nombre,
     unidad_snapshot: i.unidad,
     cantidad: cantidades[i.id] ?? null,
+    pedido: pedidos[i.id] ?? null,
   }));
 }

@@ -96,18 +96,31 @@ describe("metadatos sin alterar la plantilla", () => {
     expect(ws.getRow(1).getCell(1).value).toBe("Insumo");
   });
 
-  it("la hoja Datos es opcional y lista los insumos sin unidad", async () => {
-    const sin = await abrir(await generarInventarioExcel({ fecha: "2026-09-19", items }));
-    expect(sin.getWorksheet("Datos")).toBeUndefined();
-
-    const con = await abrir(await generarInventarioExcel({
-      fecha: "2026-09-19", items, incluirHojaDatos: true, realizadoPor: "Ana",
+  it("ya no hay hoja Datos: todo cabe en la del inventario", async () => {
+    // Estaba en una pestaña aparte y nadie la miraba. Quien va al mercado
+    // imprime UN papel.
+    const wb = await abrir(await generarInventarioExcel({
+      fecha: "2026-09-19", items, realizadoPor: "Ana",
     }));
-    const wd = con.getWorksheet("Datos")!;
-    expect(wd).toBeDefined();
-    const texto = JSON.stringify(wd.getSheetValues());
-    expect(texto).toContain("Chile");       // el que no tiene unidad
-    expect(texto).toContain("Sin unidad");
+    expect(wb.getWorksheet("Datos")).toBeUndefined();
+    expect(wb.worksheets).toHaveLength(1);
+  });
+
+  it("el pedido sale en su propia columna y como listado abajo", async () => {
+    const conPedido = items.map((i, n) => (n === 0 ? { ...i, pedido: 5 } : i));
+    const ws = (await abrir(await generarInventarioExcel({
+      fecha: "2026-09-19", items: conPedido,
+    }))).getWorksheet("Inventario")!;
+    expect(ws.getRow(1).getCell(4).value).toBe("Pedido");
+    const texto = JSON.stringify(ws.getSheetValues());
+    expect(texto).toContain("PEDIDO (1)");
+  });
+
+  it("sin nada que pedir, no se imprime el listado", async () => {
+    const ws = (await abrir(await generarInventarioExcel({
+      fecha: "2026-09-19", items,
+    }))).getWorksheet("Inventario")!;
+    expect(JSON.stringify(ws.getSheetValues())).not.toContain("PEDIDO (");
   });
 
   it("el nombre del archivo lleva la fecha", () => {

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { descargarBlob, generarCierreExcel, nombreArchivoCierre, type FilaOrden } from "@/lib/excel";
-import { fmtC, centavos } from "@/lib/money";
-import { abrirTurno, anularOrden, cerrarTurno, reimprimir, turnoAbierto } from "@/lib/repo";
+import { fmtC, centavos, aCordobas } from "@/lib/money";
+import { abrirTurno, anularOrden, cerrarTurno, reimprimir, turnoAbierto, turnoDeRango } from "@/lib/repo";
 import { listarAuditoria, type FilaAuditoria } from "@/lib/auth/auditoria";
 import { hayConfig, supabase } from "@/lib/supabase";
 import { hayInternet } from "@/lib/offline/conexion";
@@ -14,6 +14,7 @@ const hoyISO = () => new Date().toISOString().slice(0, 10);
 interface Turno {
   id: string; numero: number | null; abierto_por: string; abierto_at: string;
   fondo_inicial: number; efectivo_contado: number | null;
+  cerrado_at?: string | null;
   ventas_pedidosya?: number | null;
 }
 
@@ -63,10 +64,24 @@ export default function Cierre() {
     }
   }, [rango]);
 
+  // El turno abierto si lo hay; si no, el ultimo del rango consultado, para
+  // que re-descargar el Excel de un dia cerrado no pierda ni el bloque de
+  // turno ni la cifra de PedidosYa que se anoto ese dia.
   useEffect(() => {
     buscar();
-    turnoAbierto().then((t) => setTurno(t as Turno | null)).catch(() => {});
-  }, [buscar]);
+    const { d, h } = rango();
+    (async () => {
+      const t = (await turnoAbierto())
+        ?? (await turnoDeRango(d.toISOString(), h.toISOString()));
+      setTurno(t as Turno | null);
+      const py = (t as Turno | null)?.ventas_pedidosya ?? 0;
+      setPedidosYa(py > 0 ? String(aCordobas(py)) : "");
+    })().catch(() => {});
+  }, [buscar, rango]);
+
+  // `turno` puede ser uno ya cerrado (el del rango consultado): solo el
+  // abierto admite contar efectivo y cerrar.
+  const turnoAbiertoAhora = turno != null && !turno.cerrado_at;
 
   const pagadas = ordenes.filter((o) => o.estado === "pagada");
   const sumar = (f: (o: FilaOrden) => number) => pagadas.reduce((a, o) => a + f(o), 0);
@@ -85,22 +100,17 @@ export default function Cierre() {
       {/* turno */}
       <div className="panel p-4">
         <h2 className="mb-2 font-bold">Turno de caja</h2>
-        {turno ? (
+        {turnoAbiertoAhora ? (
           <div className="space-y-2">
             <p className="text-sm" style={{ color: "var(--txt-2)" }}>
-              Abierto por <b>{turno.abierto_por}</b> el{" "}
-              {new Date(turno.abierto_at).toLocaleString("es-NI", { hour12: false })} ·
-              fondo {fmtC(turno.fondo_inicial)}
+              Abierto por <b>{turno!.abierto_por}</b> el{" "}
+              {new Date(turno!.abierto_at).toLocaleString("es-NI", { hour12: false })} ·
+              fondo {fmtC(turno!.fondo_inicial)}
             </p>
             <div className="flex flex-wrap gap-2">
               <input className="input !w-auto flex-1" inputMode="decimal"
                      placeholder="Efectivo contado C$" value={contado}
                      onChange={(e) => setContado(e.target.value)} />
-              {/* PedidosYa no pasa por la caja: se anota el total que
-                  reporta la plataforma, no se cuadra contra el efectivo. */}
-              <input className="input !w-auto flex-1" inputMode="decimal"
-                     placeholder="Vendido por PedidosYa C$" value={pedidosYa}
-                     onChange={(e) => setPedidosYa(e.target.value)} />
               <button className="btn btn-mal" onClick={async () => {
                 // El spec exige conexión para cerrar caja: un arqueo calculado
                 // contra datos que quizá no subieron no sirve para nada.
@@ -108,19 +118,38 @@ export default function Cierre() {
                   setAviso("Sin conexión no se puede cerrar la caja. El arqueo tiene que calcularse contra las órdenes ya subidas.");
                   return;
                 }
+                const py = centavos(parseFloat(pedidosYa || "0") || 0);
                 await cerrarTurno(
-                  turno.id,
+                  turno!.id,
                   centavos(parseFloat(contado || "0") || 0),
                   undefined,
-                  centavos(parseFloat(pedidosYa || "0") || 0),
+                  py,
                 );
-                setTurno(null); setContado(""); setPedidosYa("");
+                // No se borra el turno: el Excel del dia lo sigue necesitando
+                // para el bloque de arqueo y para PedidosYa.
+                setTurno((t) => t && {
+                  ...t,
+                  cerrado_at: new Date().toISOString(),
+                  ventas_pedidosya: py,
+                });
+                setContado("");
                 setAviso("Turno cerrado.");
                 buscar();
               }}>Cerrar turno</button>
             </div>
+            <p className="text-xs" style={{ color: "var(--txt-2)" }}>
+              La venta de PedidosYa se anota abajo, junto a las formas de pago:
+              se guarda con el cierre.
+            </p>
           </div>
         ) : (
+          <div className="space-y-2">
+            {turno && (
+              <p className="text-sm" style={{ color: "var(--txt-2)" }}>
+                Turno <b>{turno.numero ?? "—"}</b> cerrado. El Excel de este
+                rango sale con su arqueo.
+              </p>
+            )}
           <div className="flex flex-wrap gap-2">
             <input className="input !w-auto flex-1" placeholder="Quién abre"
                    value={quien} onChange={(e) => setQuien(e.target.value)} />
@@ -129,8 +158,9 @@ export default function Cierre() {
                    onChange={(e) => setFondo(e.target.value)} />
             <button className="btn btn-ok" disabled={!quien} onClick={async () => {
               const t = await abrirTurno(quien, centavos(parseFloat(fondo || "0") || 0));
-              setTurno(t as Turno); setAviso("Turno abierto.");
+              setTurno(t as Turno); setPedidosYa(""); setAviso("Turno abierto.");
             }}>Abrir turno</button>
+          </div>
           </div>
         )}
       </div>
@@ -174,8 +204,28 @@ export default function Cierre() {
                  acc={m.valor === "efectivo"} />
           );
         })}
-        <Kpi k="PedidosYa (aparte)"
-             v={fmtC(centavos(parseFloat(pedidosYa || "0") || 0))} />
+        {/*
+          Editable aquí y no solo al cerrar el turno: esta cifra la reporta la
+          plataforma, llega cuando llega, y hay que poder anotarla mientras se
+          revisa el día o al re-descargar un Excel de una fecha pasada. Antes
+          solo se podía escribir dentro del bloque de cerrar caja, así que un
+          cierre ya hecho se quedaba sin ella para siempre.
+        */}
+        <div>
+          <label className="text-xs" htmlFor="pedidosya"
+                 style={{ color: "var(--txt-2)" }}>
+            PedidosYa (aparte) C$
+          </label>
+          <input id="pedidosya" className="input mono !min-h-10 !px-2 !text-lg font-bold"
+                 inputMode="decimal" placeholder="0.00"
+                 value={pedidosYa} onChange={(e) => setPedidosYa(e.target.value)} />
+          {turno && !turnoAbiertoAhora && (
+            <p className="mt-1 text-[11px]" style={{ color: "var(--txt-2)" }}>
+              Turno cerrado: el cambio sale en el Excel que descargues ahora,
+              pero ya no se guarda en la base.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="panel grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
