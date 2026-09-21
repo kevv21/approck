@@ -163,6 +163,10 @@ export async function diagnosticar(): Promise<Prueba[]> {
         "Y mira el resultado en la URL de producción, no en una de " +
         "despliegue con código aleatorio (approck-a1b2c3-…): esas quedan " +
         "congeladas con el build viejo para siempre. " +
+        "OJO con el Type en Vercel: tiene que ser «Config», NO «Secret». Una " +
+        "guardada como Secret es de solo escritura —no la puedes volver a " +
+        "leer para comprobarla ni convertirla a Config—, así que hay que " +
+        "borrarla y crearla de nuevo. " +
         "Una variable creada pero EN BLANCO es peor que no crearla.",
     });
     return pruebas; // sin credenciales, el resto no se puede probar

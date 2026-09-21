@@ -129,6 +129,13 @@ Pon `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
 > Una variable creada pero **en blanco** es peor que no crearla: `""` no es
 > `undefined`, así que no cae al respaldo y llega vacía hasta el cliente.
 
+> **El `Type` en Vercel tiene que ser `Config`, no `Secret`.** Una guardada
+> como Secret es de solo escritura: no se puede volver a leer para
+> comprobarla, y Vercel no deja convertirla («Saved secrets are write-only»).
+> Hay que borrarla y crearla de nuevo. Y no tiene sentido esconder una
+> variable `NEXT_PUBLIC_`: por definición acaba dentro del código que
+> descarga el navegador.
+
 ### 2b. Crear la cuenta del local
 
 **Este paso va ANTES del siguiente. Si blindas sin la cuenta, la app no entra.**

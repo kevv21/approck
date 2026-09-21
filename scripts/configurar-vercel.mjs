@@ -97,7 +97,13 @@ if (!correr(["whoami"], { silencioso: true }).ok) {
   }
 }
 
-console.log(c.tit("\n2/5  Enlazar esta carpeta con el proyecto"));
+console.log(c.ojo(
+  "  OJO: si ya creaste las variables a mano en el panel con Type = «Secret»,\n" +
+  "  bórralas antes. Una Secret es de solo escritura: no se puede leer para\n" +
+  "  comprobarla ni convertir a Config. Estas tienen que ser Config, porque\n" +
+  "  llevan el prefijo NEXT_PUBLIC_ y por definición acaban en el navegador.\n"));
+
+console.log(c.tit("2/5  Enlazar esta carpeta con el proyecto"));
 if (!correr(["link", "--yes"]).ok) {
   console.log(c.ojo("\n  Elige el proyecto a mano:"));
   if (!correr(["link"]).ok) process.exit(1);
