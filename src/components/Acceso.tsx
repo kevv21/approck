@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import {
   entrar, nombresRecordados, salir, sesionActual, type Sesion,
 } from "@/lib/auth/sesion";
+import {
+  alCambiarVinculo, desvincular, sesionGuardada,
+} from "@/lib/auth/dispositivo";
+import VincularDispositivo from "@/components/VincularDispositivo";
 import { registrar } from "@/lib/auth/auditoria";
 import { hayConfig } from "@/lib/supabase";
 import { usePathname } from "next/navigation";
@@ -17,6 +21,9 @@ import { usePathname } from "next/navigation";
  */
 export default function Acceso({ children }: { children: React.ReactNode }) {
   const [sesion, setSesion] = useState<Sesion | null | undefined>(undefined);
+  // undefined = todavía no se sabe. La vinculación es la puerta de afuera; el
+  // PIN, la de adentro.
+  const [vinculado, setVinculado] = useState<boolean | undefined>(undefined);
   const [nombre, setNombre] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +34,16 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSesion(sesionActual());
     setPrevios(nombresRecordados());
+    if (!hayConfig) { setVinculado(false); return; }
+    sesionGuardada().then((s) => setVinculado(Boolean(s)));
+    // Si el token caduca sin poder renovarse, la pantalla vuelve sola a pedir
+    // la vinculación en vez de dejar a la caja dando errores sin explicación.
+    return alCambiarVinculo(setVinculado);
   }, []);
 
   // Mientras se lee sessionStorage no se dibuja nada, para no mostrar la
   // pantalla de acceso un instante a quien ya entró.
-  if (sesion === undefined) return null;
+  if (sesion === undefined || vinculado === undefined) return null;
   // Dos rutas quedan libres, las dos por la misma razón: se usan JUSTO
   // cuando el PIN no se puede verificar.
   //   /prueba        diagnóstico de impresora, antes de tener nada montado.
@@ -41,6 +53,12 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   const LIBRES = ["/prueba", "/configuracion"];
   if (!hayConfig || LIBRES.includes(ruta)) return <>{children}</>;
 
+  // Puerta de afuera: sin dispositivo vinculado no hay nada que ver, porque
+  // la base tampoco responde. Las políticas exigen una sesión.
+  if (!vinculado) {
+    return <VincularDispositivo alVincular={() => setVinculado(true)} />;
+  }
+
   if (sesion) {
     return (
       <>
@@ -49,6 +67,11 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
           <span>Trabajando: <b style={{ color: "var(--txt)" }}>{sesion.nombre}</b></span>
           <button className="ml-auto underline"
                   onClick={() => { salir(); setSesion(null); }}>Salir</button>
+          <button className="underline" title="Desvincular este aparato"
+                  onClick={async () => {
+                    salir(); setSesion(null);
+                    await desvincular(); setVinculado(false);
+                  }}>Desvincular</button>
         </div>
         {children}
       </>
@@ -83,7 +106,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
             ROCK MUNCHIES
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
-            Poné tu nombre y el PIN del local
+            Pon tu nombre y el PIN del local
           </p>
         </div>
 

@@ -208,6 +208,38 @@ export async function diagnosticar(): Promise<Prueba[]> {
         "legacy quedan deprecadas a finales de 2026.",
   });
 
+  // --- 1c. el aparato esta vinculado ---------------------------------------
+  //
+  // Desde el blindaje, las politicas exigen `authenticated`. Sin esta prueba,
+  // un aparato sin vincular veia "faltan las tablas" en todas las filas de
+  // abajo —porque PostgREST responde igual a "no existe" que a "no puedes
+  // verla"— y mandaba a repetir el instalador para nada.
+  const { data: authData } = await supabase.auth.getSession();
+  const sesion = authData.session;
+  pruebas.push(
+    sesion
+      ? {
+          clave: "vinculo",
+          titulo: "Aparato vinculado",
+          estado: "ok",
+          detalle: `Con la cuenta ${sesion.user.email ?? "del local"}.`,
+        }
+      : {
+          clave: "vinculo",
+          titulo: "Aparato sin vincular",
+          estado: "mal",
+          detalle:
+            "La base no responde a la clave sola: las políticas exigen una " +
+            "sesión. Todo lo de abajo va a fallar por esto, no por otra cosa.",
+          arreglo:
+            "Abre Caja y escribe el correo y la contraseña de la cuenta del " +
+            "local. Se hace una vez por aparato. Si todavía no existe esa " +
+            "cuenta: Supabase → Authentication → Users → Add user, con " +
+            "«Auto Confirm User» marcado.",
+        }
+  );
+  if (!sesion) return pruebas; // sin sesión, el resto solo daría ruido
+
   // --- 2. el proyecto responde --------------------------------------------
   const { error: eConexion } = await sonda("settings", "id");
   if (eConexion && eConexion.code !== RELACION_NO_EXISTE) {

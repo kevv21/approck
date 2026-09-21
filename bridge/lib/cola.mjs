@@ -2,14 +2,62 @@ import { createClient } from "@supabase/supabase-js";
 
 /** Acceso a la cola de impresion en Supabase. */
 export class Cola {
-  constructor({ url, key, log }) {
+  constructor({ url, key, correo, clave, log }) {
     if (!url || !key) {
       throw new Error(
         "Faltan SUPABASE_URL o SUPABASE_ANON_KEY. Copia .env.example a .env y llénalos."
       );
     }
+    if (!correo || !clave) {
+      throw new Error(
+        "Faltan SUPABASE_EMAIL o SUPABASE_PASSWORD. Desde el blindaje, la " +
+        "clave sola no abre nada: el puente tiene que entrar con la cuenta " +
+        "del local, la misma que se escribe en los telefonos."
+      );
+    }
+    this.correo = correo;
+    this.clave = clave;
+    // persistSession false a proposito: este proceso arranca y para con la
+    // PC de caja, y entrar de nuevo cuesta una peticion. Guardar el token en
+    // disco seria un archivo mas que cuidar.
     this.db = createClient(url, key, { auth: { persistSession: false } });
     this.log = log ?? (() => {});
+  }
+
+  /**
+   * Entra con la cuenta del local. Hay que llamarlo antes de todo lo demas:
+   * sin sesion, las politicas rechazan hasta el SELECT de la cola.
+   */
+  async entrar() {
+    const { error } = await this.db.auth.signInWithPassword({
+      email: this.correo,
+      password: this.clave,
+    });
+    if (error) {
+      throw new Error(
+        `No se pudo entrar con ${this.correo}: ${error.message}. ` +
+        "Revisa SUPABASE_EMAIL y SUPABASE_PASSWORD en bridge/.env, y que el " +
+        "usuario este confirmado en Supabase (Authentication -> Users)."
+      );
+    }
+    this.log(`Sesion iniciada como ${this.correo}.`);
+  }
+
+  /**
+   * El token de Supabase dura una hora. Este proceso corre dias seguidos, asi
+   * que hay que renovarlo o a la hora deja de imprimir sin decir por que.
+   */
+  async renovarSiHaceFalta() {
+    const { data } = await this.db.auth.getSession();
+    const expira = data.session?.expires_at ?? 0;
+    // Con cinco minutos de margen: renovar justo al filo deja peticiones en
+    // vuelo con un token ya vencido.
+    if (expira * 1000 - Date.now() > 5 * 60_000) return;
+    const { error } = await this.db.auth.refreshSession();
+    if (error) {
+      this.log(`No se pudo renovar la sesion (${error.message}); entrando de nuevo.`);
+      await this.entrar();
+    }
   }
 
   /**

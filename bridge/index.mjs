@@ -116,8 +116,14 @@ async function main() {
   const cola = new Cola({
     url: process.env.SUPABASE_URL,
     key: process.env.SUPABASE_ANON_KEY,
+    correo: process.env.SUPABASE_EMAIL,
+    clave: process.env.SUPABASE_PASSWORD,
     log,
   });
+
+  // Sin esto, desde el blindaje, la primera consulta a la cola devuelve
+  // "permission denied" y el puente se queda mirando una cola vacia.
+  await cola.entrar();
 
   const intervalo = Number(process.env.INTERVALO ?? 3000);
   log(`Puente iniciado. Consultando la cola cada ${intervalo}ms.`);
@@ -160,6 +166,10 @@ async function main() {
     if (!corriendo || procesando) return;
     procesando = true;
     try {
+      // El token dura una hora y este proceso corre dias. Sin renovarlo, a la
+      // hora la cola empieza a responder "permission denied" y los tickets se
+      // quedan pendientes sin que nadie se entere hasta que falta la comanda.
+      await cola.renovarSiHaceFalta();
       const jobs = await cola.pendientes();
       for (const j of jobs) {
         if (!corriendo) break;

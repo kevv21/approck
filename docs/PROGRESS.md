@@ -188,6 +188,61 @@ UX:
 - La barra de arriba **marca en qué pestaña estás** y el indicador de conexión
   dejó de comerse la última.
 
+## Seguridad — 2026-09-21
+
+La clave publishable viaja dentro del codigo que descarga el navegador.
+Cualquiera que abriera la pagina podia, con las politicas del instalador
+(`for all using (true)`), borrar las ventas del mes, poner en cero el total
+de una orden cobrada, leer todo el historico e insertar ordenes falsas. El
+PIN no lo impedia: el PIN vive en el navegador.
+
+**`BLINDAR.sql`** cierra las dos capas:
+
+1. **El rol `anon` se queda sin nada.** Ni leer el menu. Quitarle los
+   permisos al rol es mas fiable que cubrirlo con politicas: una politica que
+   se olvide deja un hueco, un permiso que no existe no lo deja.
+2. **Ya autenticado**, los permisos se acotan a lo que la app de verdad hace,
+   sacado de leer cada llamada del codigo: nadie borra nada en ninguna tabla;
+   una orden cobrada solo admite que se la anule (GRANT por columna, no por
+   tabla); las lineas son inmutables; un turno cerrado no se reabre —lo pedia
+   el spec y no se cumplia—; el fondo inicial no cambia despues de abrir la
+   caja; el menu es de solo lectura; la bitacora solo admite que se le
+   agregue.
+
+**Cuenta de dispositivo, no cuentas por persona.** Se descarto la matriz de
+usuarios: el dueno pidio acceso general, los telefonos se comparten, y la
+trazabilidad por persona ya existe donde sirve (PIN + nombre -> bitacora y
+recibo). Una sola cuenta del local, cuya contrasena NO esta en el codigo: se
+escribe una vez por aparato. Lo que aporta no es saber QUIEN, es que un
+desconocido no pueda ni asomarse.
+Sin conexion sigue funcionando: la sesion vive en localStorage y el token se
+renueva cuando vuelve la senal.
+
+**`VERIFICAR_BLINDAJE.sql`**: 33 operaciones con los dos roles, 33 en verde
+contra Postgres 16. Corre dentro de una transaccion que termina en rollback,
+asi que se puede pasar en produccion y con una caja abierta — verificado que
+no deja ni una fila.
+
+Escribiendo esa verificacion salieron dos falsos positivos propios:
+- Con RLS y sin politica, un update o un delete NO fallan: tocan 0 filas y
+  devuelven exito. Contarlo como "permitido" daba por abierta una puerta
+  cerrada.
+- `un_solo_turno_abierto` hace fallar el caso de abrir caja en cualquier base
+  viva. Se cierra en la preparacion, dentro de la transaccion que se deshace.
+Y un bloqueo silencioso de verdad: `audit_log` no tenia politica de update,
+asi que el intento devolvia exito con 0 filas. Ahora se revoca el permiso.
+
+**Claves de API.** El diagnostico detecta la unica equivocacion que no da
+sintomas: pegar la clave secreta en vez de la publica. La app funciona MEJOR
+con ella —salta las politicas—, asi que nadie se entera. Reconoce los dos
+formatos que conviven (sb_publishable_/sb_secret_ y el JWT heredado, leyendo
+el rol de su carga) y corta ahi mismo, con la instruccion de revocarla:
+quitarla de la app no basta.
+
+**Lo que sigue abierto:** nada del acceso anonimo. Queda el riesgo normal de
+cualquier POS — un aparato robado sigue vinculado hasta que se cambie la
+contrasena de la cuenta del local.
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

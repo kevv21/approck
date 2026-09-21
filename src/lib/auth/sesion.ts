@@ -14,10 +14,14 @@ import { identificar } from "../observabilidad";
  * bitacora de cada anulación y cada descuento, y sale impreso en el recibo.
  * Eso es lo que de verdad sirve cuando falta plata en la caja.
  *
- * ALCANCE HONESTO: esto no es seguridad. La app usa la clave anon de
- * Supabase, así que cualquiera con la URL puede saltarse la pantalla
- * llamando a la API directo. Sirve para que nadie entre por accidente desde
- * un teléfono ajeno, no para resistir a un atacante.
+ * ALCANCE: esto identifica, no autentica. Quien impide que un desconocido
+ * llegue a la base es la capa de AFUERA —la vinculación del aparato con la
+ * cuenta del local, en auth/dispositivo.ts—, porque las políticas exigen una
+ * sesión de Supabase. Antes de eso, esta pantalla era lo único que había y
+ * no resistía a nadie: bastaba llamar a la API con la clave del código.
+ *
+ * Este PIN sigue haciendo falta, pero para otra cosa: saber QUIÉN de los que
+ * comparten el teléfono anuló esa orden.
  */
 export interface Sesion {
   nombre: string;

@@ -35,7 +35,20 @@ function obtener(): SupabaseClient {
     instancia = createClient(
       hayConfig ? url : URL_INERTE,
       hayConfig ? key : KEY_INERTE,
-      { auth: { persistSession: false } }
+      {
+        auth: {
+          // El dispositivo se vincula UNA vez con la cuenta del local y se
+          // queda vinculado. Antes era `false` porque no habia sesion que
+          // guardar; ahora la hay, y sin persistirla habria que volver a
+          // escribir la contraseña cada vez que se abre la app.
+          persistSession: true,
+          // Renueva el token solo mientras haya señal. Sin esto, a la hora
+          // de trabajo la caja se quedaria fuera a media noche de sabado.
+          autoRefreshToken: true,
+          // La sesion NO viene en la URL: esto no es un login por enlace.
+          detectSessionInUrl: false,
+        },
+      }
     );
   }
   return instancia;
