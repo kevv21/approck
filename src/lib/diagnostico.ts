@@ -48,7 +48,21 @@ const COLUMNA_NO_EXISTE = "42703";
 
 const PEGA_EL_SQL =
   "Abre tu proyecto en supabase.com → SQL Editor → New query, pega TODO " +
-  "supabase/00_INSTALAR.sql y dale Run. Se puede volver a correr sin romper nada.";
+  "supabase/00_INSTALAR.sql y dale Run. Se puede volver a correr sin romper " +
+  "nada. OJO: son 34 KB; si el pegado se corta a la mitad, Postgres responde " +
+  "un error de sintaxis en medio de una lista de valores. Comprueba que la " +
+  "última línea del editor sea la última del archivo.";
+
+/**
+ * Cuando las tablas ESTAN pero les faltan columnas, no hace falta repetir el
+ * instalador entero: basta el archivo del cambio, que son cuatro lineas. Es
+ * ademas el consejo mas seguro, porque pegar 34 KB en un textarea del
+ * navegador es justo lo que se corta.
+ */
+const CORRE_EL_DELTA =
+  "No repitas el instalador entero: pega solo supabase/09_mitades_pedidosya.sql, " +
+  "que son cuatro `alter table`. Se puede correr sobre la base que ya tienes y " +
+  "repetir sin romper nada.";
 
 /** Una consulta que no trae filas: solo sirve para ver si el nombre existe. */
 async function sonda(tabla: string, columna = "*") {
@@ -149,7 +163,7 @@ export async function diagnosticar(): Promise<Prueba[]> {
             titulo: "Esquema al día",
             estado: "mal",
             detalle: `La base quedó en una versión anterior. Falta: ${viejas.join("; ")}.`,
-            arreglo: PEGA_EL_SQL,
+            arreglo: CORRE_EL_DELTA,
           }
         : {
             clave: "columnas",

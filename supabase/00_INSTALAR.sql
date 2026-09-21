@@ -10,6 +10,21 @@
 --
 -- Al terminar deberías ver 57 productos en la tabla `producto` y 59 insumos
 -- en `insumo`.
+--
+-- OJO CON EL PEGADO. Son unos 34 KB. Si se corta a la mitad, Postgres
+-- responde algo como:
+--
+--     ERROR: 42601: syntax error at or near "'Carne molida'"
+--     LINE 1: ('Carne molida', 'Lb', 260),
+--
+-- Ese «LINE 1» es la pista: significa que lo que se ejecutó EMPEZABA ahí, o
+-- sea que le falta el encabezado `insert into ... values`. No es un error del
+-- archivo: es que llegó incompleto. Comprueba que la última línea del editor
+-- sea la última de este archivo, y que no tengas texto seleccionado (el
+-- editor de Supabase ejecuta solo la selección cuando hay una).
+--
+-- SI YA TENÍAS LA BASE INSTALADA y solo quieres ponerla al día, no repitas
+-- todo esto: pega `supabase/09_mitades_pedidosya.sql`, que son cuatro líneas.
 -- ===========================================================================
 
 

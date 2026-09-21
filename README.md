@@ -85,8 +85,20 @@ supabase/00_INSTALAR.sql
 Eso es todo: tablas, tipos, políticas, los 57 productos de la carta y los 59
 insumos del inventario. Se puede volver a correr sin duplicar nada.
 
-> Los archivos `01_` a `09_` quedan como historial de los cambios. **No los
+> Los archivos `01_` a `08_` quedan como historial de los cambios. **No los
 > ejecutes uno por uno**: están incompletos por separado y el orden importa.
+
+**Si ya tenías la base instalada** y solo quieres ponerla al día, no repitas
+el instalador: pega `supabase/09_mitades_pedidosya.sql`, que son cuatro
+`alter table`.
+
+> Pegar 34 KB en el editor del navegador se corta a veces. Cuando pasa,
+> Postgres responde `syntax error at or near "'Carne molida'"` con un
+> `LINE 1:` delante. Ese `LINE 1` es la pista: lo que se ejecutó **empezaba**
+> ahí, o sea que le faltaba el encabezado `insert into ... values`. No es un
+> error del archivo, llegó incompleto. Comprueba que la última línea del
+> editor sea la última del archivo, y que no tengas texto seleccionado: el
+> editor de Supabase ejecuta solo la selección cuando hay una.
 
 ### 2. Variables de entorno
 
