@@ -91,9 +91,15 @@ export async function diagnosticar(): Promise<Prueba[]> {
           : "La URL no parece una dirección web (debe empezar con https://).",
       arreglo:
         "En Supabase: Project Settings → API. Copia Project URL y la clave " +
-        "anon public. En local van en .env.local; en Vercel, en Settings → " +
-        "Environment Variables, y hay que volver a desplegar para que tomen " +
-        "efecto. Una variable creada pero EN BLANCO es peor que no crearla.",
+        "«anon public» — NUNCA la service_role: estas variables viajan al " +
+        "navegador y esa clave da acceso total a la base. En local van en " +
+        ".env.local; en Vercel, en Settings → Environment Variables, marcando " +
+        "Production, Preview y Development. Después hay que REDESPLEGAR: " +
+        "las NEXT_PUBLIC_ se incrustan al compilar, no se leen al arrancar. " +
+        "Y mira el resultado en la URL de producción, no en una de " +
+        "despliegue con código aleatorio (approck-a1b2c3-…): esas quedan " +
+        "congeladas con el build viejo para siempre. " +
+        "Una variable creada pero EN BLANCO es peor que no crearla.",
     });
     return pruebas; // sin credenciales, el resto no se puede probar
   }
