@@ -8,13 +8,8 @@ export class Cola {
         "Faltan SUPABASE_URL o SUPABASE_ANON_KEY. Copia .env.example a .env y llénalos."
       );
     }
-    if (!correo || !clave) {
-      throw new Error(
-        "Faltan SUPABASE_EMAIL o SUPABASE_PASSWORD. Desde el blindaje, la " +
-        "clave sola no abre nada: el puente tiene que entrar con la cuenta " +
-        "del local, la misma que se escribe en los telefonos."
-      );
-    }
+    // El correo y la clave son OPCIONALES: solo hacen falta si alguien corrio
+    // supabase/EXIGIR_CUENTA.sql. Se comprueba contra la base, no se supone.
     this.correo = correo;
     this.clave = clave;
     // persistSession false a proposito: este proceso arranca y para con la
@@ -25,9 +20,29 @@ export class Cola {
   }
 
   /**
-   * Entra con la cuenta del local. Hay que llamarlo antes de todo lo demas:
-   * sin sesion, las politicas rechazan hasta el SELECT de la cola.
+   * Entra con la cuenta del local SOLO si la base la exige.
+   *
+   * Por defecto no hace falta y esto no hace nada. Si alguien corrio
+   * EXIGIR_CUENTA.sql, la cola responde "permission denied" y entonces si.
    */
+  async entrarSiHaceFalta() {
+    const { error } = await this.db.from("print_job").select("id").limit(1);
+    const hacefalta = error &&
+      (error.code === "42501" || /permission denied|not authorized/i.test(error.message));
+    if (!hacefalta) {
+      this.log(error ? `Aviso al probar la cola: ${error.message}` : "Cola accesible sin cuenta.");
+      return;
+    }
+    if (!this.correo || !this.clave) {
+      throw new Error(
+        "La base exige una cuenta (alguien corrio EXIGIR_CUENTA.sql) y faltan " +
+        "SUPABASE_EMAIL o SUPABASE_PASSWORD en bridge/.env. Es la misma cuenta " +
+        "que se escribe en los telefonos."
+      );
+    }
+    await this.entrar();
+  }
+
   async entrar() {
     const { error } = await this.db.auth.signInWithPassword({
       email: this.correo,
@@ -48,6 +63,7 @@ export class Cola {
    * que hay que renovarlo o a la hora deja de imprimir sin decir por que.
    */
   async renovarSiHaceFalta() {
+    if (!this.correo) return;   // nunca entro; no hay nada que renovar
     const { data } = await this.db.auth.getSession();
     const expira = data.session?.expires_at ?? 0;
     // Con cinco minutos de margen: renovar justo al filo deja peticiones en

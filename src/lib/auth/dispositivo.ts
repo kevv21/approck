@@ -25,10 +25,45 @@ import { supabase } from "../supabase";
  * Lo que esta cuenta aporta no es saber QUIEN, es que un desconocido no
  * pueda ni asomarse.
  *
+ * CUANDO HACE FALTA Y CUANDO NO
+ *
+ * Por defecto NO hace falta: BLINDAR.sql deja que la clave publishable lea y
+ * cree ordenes, y el dueño prefirio no tener la friccion de escribir una
+ * contrasena en cada telefono. La app no pide nada.
+ *
+ * Solo si alguien corre `supabase/EXIGIR_CUENTA.sql`, la base deja de
+ * contestarle a la clave sola. La app lo DETECTA —no hay ajuste que tocar ni
+ * que volver a desplegar— y empieza a pedir la cuenta.
+ *
  * SIN CONEXION: la sesion vive en localStorage y el token se renueva solo
  * cuando hay señal. Un dispositivo ya vinculado sigue tomando ordenes sin
  * internet, igual que antes; la vinculacion solo se comprueba al sincronizar.
  */
+
+/** Postgres: privilegio insuficiente. Es como PostgREST dice "no puedes". */
+const SIN_PERMISO = "42501";
+
+/**
+ * ¿La base exige una cuenta, o contesta con la clave sola?
+ *
+ * Se pregunta a la base en vez de guardarlo en un ajuste, porque el ajuste se
+ * desincroniza: alguien corre el SQL y la app sigue creyendo que no hace
+ * falta, o al reves. Aqui la respuesta siempre es la de verdad.
+ *
+ * Ante la duda se responde que NO hace falta: dejar pasar a la pantalla del
+ * PIN y que falle una consulta con un mensaje claro es mejor que plantar una
+ * pantalla de contraseña delante de alguien que no la tiene ni la necesita.
+ */
+export async function requiereCuenta(): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("settings").select("id").limit(1);
+    if (!error) return false;
+    return error.code === SIN_PERMISO ||
+           /permission denied|not authorized/i.test(error.message);
+  } catch {
+    return false; // sin conexion: no es momento de pedir contraseñas
+  }
+}
 
 export type EstadoVinculo = "comprobando" | "vinculado" | "sin_vincular";
 

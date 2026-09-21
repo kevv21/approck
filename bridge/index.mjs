@@ -121,9 +121,10 @@ async function main() {
     log,
   });
 
-  // Sin esto, desde el blindaje, la primera consulta a la cola devuelve
-  // "permission denied" y el puente se queda mirando una cola vacia.
-  await cola.entrar();
+  // Solo entra si la base lo exige. Por defecto no hace falta y esto no
+  // pide nada; si alguien corrio EXIGIR_CUENTA.sql, sin esto el puente se
+  // quedaria mirando una cola vacia sin decir por que.
+  await cola.entrarSiHaceFalta();
 
   const intervalo = Number(process.env.INTERVALO ?? 3000);
   log(`Puente iniciado. Consultando la cola cada ${intervalo}ms.`);

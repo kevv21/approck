@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import {
   entrar, nombresRecordados, salir, sesionActual, type Sesion,
 } from "@/lib/auth/sesion";
-import { alCambiarVinculo, sesionGuardada } from "@/lib/auth/dispositivo";
+import {
+  alCambiarVinculo, requiereCuenta, sesionGuardada,
+} from "@/lib/auth/dispositivo";
 import VincularDispositivo from "@/components/VincularDispositivo";
 import { registrar } from "@/lib/auth/auditoria";
 import { hayConfig } from "@/lib/supabase";
@@ -19,9 +21,9 @@ import { usePathname } from "next/navigation";
  */
 export default function Acceso({ children }: { children: React.ReactNode }) {
   const [sesion, setSesion] = useState<Sesion | null | undefined>(undefined);
-  // undefined = todavía no se sabe. La vinculación es la puerta de afuera; el
-  // PIN, la de adentro.
-  const [vinculado, setVinculado] = useState<boolean | undefined>(undefined);
+  // undefined = todavía no se sabe. true = se puede pasar al PIN, sea porque
+  // la base no exige cuenta o porque este aparato ya está vinculado.
+  const [puedePasar, setPuedePasar] = useState<boolean | undefined>(undefined);
   const [nombre, setNombre] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,16 +34,24 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSesion(sesionActual());
     setPrevios(nombresRecordados());
-    if (!hayConfig) { setVinculado(false); return; }
-    sesionGuardada().then((s) => setVinculado(Boolean(s)));
+    if (!hayConfig) { setPuedePasar(true); return; }
+
+    // Se pregunta a la BASE si hace falta una cuenta, en vez de suponerlo.
+    // Por defecto no hace falta y nadie ve una pantalla de contraseña; si
+    // alguien corre EXIGIR_CUENTA.sql, aparece sola.
+    const mirar = async () => {
+      const [sesion, hace] = await Promise.all([sesionGuardada(), requiereCuenta()]);
+      setPuedePasar(Boolean(sesion) || !hace);
+    };
+    mirar();
     // Si el token caduca sin poder renovarse, la pantalla vuelve sola a pedir
     // la vinculación en vez de dejar a la caja dando errores sin explicación.
-    return alCambiarVinculo(setVinculado);
+    return alCambiarVinculo(() => { mirar(); });
   }, []);
 
   // Mientras se lee sessionStorage no se dibuja nada, para no mostrar la
   // pantalla de acceso un instante a quien ya entró.
-  if (sesion === undefined || vinculado === undefined) return null;
+  if (sesion === undefined || puedePasar === undefined) return null;
   // Dos rutas quedan libres, las dos por la misma razón: se usan JUSTO
   // cuando el PIN no se puede verificar.
   //   /prueba        diagnóstico de impresora, antes de tener nada montado.
@@ -51,10 +61,10 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   const LIBRES = ["/prueba", "/configuracion"];
   if (!hayConfig || LIBRES.includes(ruta)) return <>{children}</>;
 
-  // Puerta de afuera: sin dispositivo vinculado no hay nada que ver, porque
-  // la base tampoco responde. Las políticas exigen una sesión.
-  if (!vinculado) {
-    return <VincularDispositivo alVincular={() => setVinculado(true)} />;
+  // Puerta de afuera, y solo cuando la base la exige: si no responde a la
+  // clave sola, no hay nada que ver sin una cuenta.
+  if (!puedePasar) {
+    return <VincularDispositivo alVincular={() => setPuedePasar(true)} />;
   }
 
   if (sesion) {

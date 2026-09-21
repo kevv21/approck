@@ -252,6 +252,19 @@ PIN no lo impedia: el PIN vive en el navegador.
    caja; el menu es de solo lectura; la bitacora solo admite que se le
    agregue.
 
+**La cuenta quedo OPCIONAL, y apagada por defecto.** Se implemento el cierre
+del acceso anonimo y despues el dueno decidio que no queria escribir un correo
+y una contrasena en cada telefono. Es su decision y es defendible: lo que no
+tiene vuelta atras —borrar ventas, cambiar totales, reabrir turnos— sigue
+cerrado pase lo que pase. Lo que queda abierto es leer e insertar.
+
+No se borro el trabajo: `EXIGIR_CUENTA.sql` lo enciende y `PERMITIR_ANONIMO.sql`
+lo apaga, y **la app lo detecta sola preguntandole a la base**, sin ajuste que
+tocar ni despliegue. Se pregunta en vez de guardarlo en una variable porque
+una variable se desincroniza: alguien corre el SQL y la app sigue creyendo lo
+contrario. El puente hace lo mismo: solo entra si la cola le responde
+"permission denied".
+
 **Cuenta de dispositivo, no cuentas por persona.** Se descarto la matriz de
 usuarios: el dueno pidio acceso general, los telefonos se comparten, y la
 trazabilidad por persona ya existe donde sirve (PIN + nombre -> bitacora y

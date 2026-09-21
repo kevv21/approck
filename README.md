@@ -136,60 +136,45 @@ Pon `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
 > variable `NEXT_PUBLIC_`: por definición acaba dentro del código que
 > descarga el navegador.
 
-### 2b. Crear la cuenta del local
+### 2b. Blindar la base
 
-**Este paso va ANTES del siguiente. Si blindas sin la cuenta, la app no entra.**
+Pega **`supabase/BLINDAR.sql`**. Acota lo que se puede hacer con la clave
+pública a lo que la app de verdad necesita: **nadie puede borrar nada** en
+ninguna tabla, una orden cobrada solo admite que se la anule, sus líneas son
+inmutables, un turno cerrado no se reabre, el fondo inicial no cambia y el
+menú es de solo lectura.
 
-Supabase → **Authentication → Users → Add user**:
+Hace falta porque esa clave viaja dentro del código que descarga el navegador,
+y el instalador dejaba las políticas permitiéndolo todo.
 
-| | |
-|---|---|
-| Email | `caja@rockmunchies.local` (el que quieras, no recibe correo) |
-| Password | una larga, distinta de todo lo demás |
-| Auto Confirm User | **marcado** |
+Comprueba con **`supabase/VERIFICAR_BLINDAJE.sql`**: intenta 33 operaciones y
+dice cuáles pasan y cuáles rebotan. No ensucia nada — corre dentro de una
+transacción que termina en `rollback`—, así que se puede correr en producción
+y con una caja abierta.
 
-Esa contraseña se escribe **una vez en cada teléfono** y en la PC de caja. No
-va en el código ni en ninguna variable de entorno: ese es el punto.
+> **Lo que NO cierra, y es una decisión:** cualquiera con la dirección de la
+> app puede **leer** las ventas e **insertar** órdenes falsas. Cerrarlo obliga
+> a escribir un correo y una contraseña en cada teléfono, y se prefirió no
+> tener esa fricción. Lo que sí queda cerrado es la **destrucción** y la
+> **adulteración**: una orden falsa se anula, un mes de ventas borrado no.
 
-### 2c. Blindar la base
+### 2c. Exigir cuenta (opcional)
 
-Pega **`supabase/BLINDAR.sql`**. Hace dos cosas:
+Si algún día quieres cerrar también la lectura:
 
-1. **La clave sola deja de abrir nada.** El rol `anon` se queda sin permisos:
-   ni leer el menú. Hay que estar autenticado con la cuenta del local.
-2. **Ya autenticado, los permisos se acotan** a lo que la app hace: nadie
-   borra nada en ninguna tabla, una orden cobrada solo admite que se la
-   anule, sus líneas son inmutables, un turno cerrado no se reabre, el fondo
-   inicial no cambia y el menú es de solo lectura.
+1. Supabase → **Authentication → Users → Add user**: un correo cualquiera
+   (`caja@rockmunchies.local`), una contraseña larga, **Auto Confirm User**.
+2. Pega **`supabase/EXIGIR_CUENTA.sql`**.
 
-Hace falta porque la clave pública viaja dentro del código que descarga el
-navegador. Es normal y Supabase lo diseña así, pero solo es seguro si las
-políticas acotan lo que puede hacer — y el instalador las dejaba
-permitiéndolo todo.
+A partir de ahí, cada teléfono y la PC de caja piden esa cuenta **una vez**.
+La app lo detecta sola — pregunta a la base, no hay ajuste que tocar ni que
+volver a desplegar. Para deshacerlo: **`supabase/PERMITIR_ANONIMO.sql`** y
+luego `BLINDAR.sql` otra vez.
 
-Para comprobarlo, pega **`supabase/VERIFICAR_BLINDAJE.sql`**: intenta 33
-operaciones con los dos roles y dice cuáles pasan y cuáles rebotan. Las 33
-tienen que salir con ✓. No ensucia nada — corre dentro de una transacción que
-termina en `rollback`—, así que se puede correr en producción y con una caja
-abierta.
+El puente igual: `SUPABASE_EMAIL` y `SUPABASE_PASSWORD` en `bridge/.env` solo
+hacen falta en ese modo, y si no los necesita no los pide.
 
-### 2d. Vincular cada aparato
-
-La primera vez que se abre la app en un teléfono pide el correo y la
-contraseña de la cuenta del local. Se hace **una vez por aparato** y queda
-vinculado; después solo pide el PIN. Sin conexión sigue funcionando: el token
-se renueva solo cuando vuelve la señal.
-
-El puente de impresión también necesita entrar: en `bridge/.env` van
-`SUPABASE_EMAIL` y `SUPABASE_PASSWORD`, la misma cuenta. Ese archivo vive en
-la PC de caja, no viaja a ningún navegador.
-
-> **Lo que esto NO es:** control por persona. Sigue siendo un acceso general,
-> como pediste. Quién hizo cada anulación o descuento lo sigue diciendo el PIN
-> más el nombre, que van a la bitácora y salen en el recibo. Esta cuenta no
-> responde «quién fue», responde «este aparato es del local».
-
-### 2e. Comprobar que quedó bien
+### 2d. Comprobar que quedó bien
 
 Abre **`/configuracion`** (pestaña *Estado*). Revisa una por una las variables
 de entorno, la conexión, las tablas, las columnas, el menú y si hay caja

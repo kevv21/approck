@@ -4,10 +4,11 @@
 -- Pega esto en Supabase y dale Run. Intenta 33 operaciones con los dos roles
 -- que importan y dice cuales pasan y cuales rebotan:
 --
+--   authenticated  un aparato vinculado. Debe poder hacer su trabajo y nada
+--                  mas. Estas 27 filas tienen que salir SIEMPRE en verde.
 --   anon           la clave publishable a secas, la que cualquiera saca del
---                  codigo de la pagina. NO debe poder hacer NADA, ni leer.
---   authenticated  un aparato vinculado con la cuenta del local. Debe poder
---                  hacer su trabajo y nada mas.
+--                  codigo de la pagina. Estas 6 filas dependen de si corriste
+--                  EXIGIR_CUENTA.sql; la salida dice cual es tu caso.
 --
 -- NO ENSUCIA NADA. Todo corre dentro de una transaccion que termina en
 -- ROLLBACK, asi que las ordenes y los turnos de prueba desaparecen. Se puede
@@ -107,12 +108,38 @@ begin
   end loop;
 end $$;
 
+-- Si la clave a secas puede leer el menu, es que NO se corrio
+-- EXIGIR_CUENTA.sql. No es un fallo: es la otra configuracion, y entonces lo
+-- que se espera de las filas anonimas es justo lo contrario.
+with modo as (
+  select exists (
+    select 1 from _resultado
+    where rol = 'anon' and veredicto like 'PERMITIR%'
+  ) as anonimo_abierto
+)
 select
-  rol,
-  case when veredicto like esperado || '%' then '✓' else '✗ ESPERABA ' || esperado end as ok,
-  caso,
-  veredicto
-from _resultado order by n;
+  r.rol,
+  case
+    when r.rol = 'authenticated' and r.veredicto like r.esperado || '%' then '✓'
+    when r.rol = 'authenticated' then '✗ ESPERABA ' || r.esperado
+    -- anon: se acepta cualquiera de los dos modos, pero se dice cual.
+    when m.anonimo_abierto and r.veredicto like 'PERMITIR%' then '· abierto'
+    when not m.anonimo_abierto and r.veredicto like 'BLOQUEAR%' then '✓ cerrado'
+    else '✗ incoherente'
+  end as ok,
+  r.caso,
+  r.veredicto
+from _resultado r cross join modo m order by r.n;
+
+-- Resumen en una linea.
+select case when exists (
+    select 1 from _resultado where rol = 'anon' and veredicto like 'PERMITIR%')
+  then 'Acceso anónimo ABIERTO: cualquiera con la dirección de la app puede leer '
+       || 'las ventas y crear órdenes. Borrar y adulterar siguen cerrados. '
+       || 'Para cerrarlo: supabase/EXIGIR_CUENTA.sql'
+  else 'Acceso anónimo CERRADO: la clave sola no abre nada. Cada aparato pide '
+       || 'la cuenta del local una vez. Para abrirlo: supabase/PERMITIR_ANONIMO.sql'
+  end as modo;
 
 -- Nada de lo de arriba queda escrito.
 rollback;
