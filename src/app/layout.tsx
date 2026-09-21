@@ -3,6 +3,7 @@ import NavPestanas from "@/components/NavPestanas";
 import IndicadorConexion from "@/components/IndicadorConexion";
 import RegistrarSW from "@/components/RegistrarSW";
 import Acceso from "@/components/Acceso";
+import ProveedorAvisos from "@/components/Avisos";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,10 +43,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NavPestanas items={NAV} />
           <IndicadorConexion />
         </header>
-        <Acceso>
-          <main className="pb-24">{children}</main>
-        </Acceso>
         <RegistrarSW />
+        <ProveedorAvisos>
+          <Acceso>
+            <main>{children}</main>
+          </Acceso>
+        </ProveedorAvisos>
       </body>
     </html>
   );

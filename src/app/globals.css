@@ -1,56 +1,168 @@
 @import "tailwindcss";
 
+/* ===========================================================================
+   APPROCK — sistema visual
+   ===========================================================================
+
+   De dónde sale: del mundo del local. Una cocina de noche y una tira de papel
+   térmico. El fondo anterior era un gris azulado de panel de control
+   (#0b0d12) que no decía nada de una pizzería; ahora es carbón CÁLIDO, y el
+   texto tiene el tono del papel del recibo en vez de blanco azulado.
+
+   El naranja de la marca no se toca. Lo que cambia es todo lo que estaba a su
+   alrededor, que no estaba elegido.
+
+   Cuatro superficies, no dos: sin profundidad todo pesaba lo mismo y la
+   pantalla se leía como un muro de cajas.
+   =========================================================================== */
+
 :root {
-  --bg: #0b0d12;
-  --panel: #151922;
-  --panel-2: #1d222e;
-  --borde: #2a3142;
-  --txt: #e8eaf0;
-  --txt-2: #9aa3b8;
-  --acc: #ff6b1a;
+  /* superficies, de más honda a más cerca */
+  --bg:      #17120f;   /* la sala, apagada */
+  --panel:   #1f1915;   /* paneles */
+  --panel-2: #2a221c;   /* tarjetas y campos, un escalón más cerca */
+  --panel-3: #362b23;   /* algo levantado: hoja, aviso */
+  --borde:   #3d3128;   /* líneas cálidas, no azules */
+  --borde-2: #4d3e32;   /* líneas cuando algo está activo */
+
+  /* tinta */
+  --txt:   #f3ece2;     /* color del papel térmico */
+  --txt-2: #a89a8c;
+  --txt-3: #7a6e63;     /* apoyos y unidades */
+
+  --acc:   #ff6b1a;     /* la marca */
   --acc-2: #ffa04d;
+  /* Tinta sobre el naranja. Marrón muy oscuro, no negro: sobre este naranja
+     el negro puro vibra. */
+  --sobre-acc: #2b1103;
+
   /* Segunda mitad de una pizza partida. Azul y no otro naranja a propósito:
      dos tonos del mismo color se confunden en una pantalla sucia y con
      prisa, y confundir las mitades cuesta una pizza rehecha. */
-  --mitad-b: #38bdf8;
-  --ok: #22c55e;
-  --mal: #ef4444;
+  --mitad-b: #4cc2f5;
+
+  --ok:  #4ade80;
+  --mal: #f87171;
+
+  --sombra: 0 1px 2px rgb(0 0 0 / .4), 0 4px 16px rgb(0 0 0 / .3);
+  --sombra-alta: 0 -2px 24px rgb(0 0 0 / .55);
 }
 
 html, body {
   background: var(--bg);
   color: var(--txt);
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
+  overscroll-behavior-y: none;
 }
-body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* El dinero es lo que más se lee en una caja. Cifras de ancho fijo para que
+     los precios no bailen de una fila a otra al cambiar una cantidad. */
+  font-variant-numeric: tabular-nums;
+}
 
-/* Botones grandes: se usa con los dedos, a veces grasosos, a veces apurado. */
+/* --- botones ------------------------------------------------------------ */
+/* Grandes: se usa con los dedos, a veces grasosos, a veces apurado. */
 .btn {
-  @apply rounded-lg px-4 py-3 font-semibold transition active:scale-[0.97] select-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 font-semibold
+         transition select-none;
   min-height: 48px;
+  transition-duration: 120ms;
 }
-.btn-acc   { background: var(--acc); color: #1a0d04; }
+.btn:active { transform: scale(.97); }
+.btn-acc   { background: var(--acc); color: var(--sobre-acc); box-shadow: var(--sombra); }
 .btn-ghost { background: var(--panel-2); color: var(--txt); border: 1px solid var(--borde); }
-.btn-ok    { background: var(--ok); color: #05210f; }
-.btn-mal   { background: var(--mal); color: #2a0606; }
-.btn:disabled { opacity: .4; pointer-events: none; }
+.btn-ok    { background: var(--ok); color: #06240f; }
+.btn-mal   { background: var(--mal); color: #2e0707; }
+.btn:disabled { opacity: .35; pointer-events: none; box-shadow: none; }
 
-.panel { background: var(--panel); border: 1px solid var(--borde); @apply rounded-xl; }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  @apply rounded-2xl;
+}
+
 .input {
   background: var(--panel-2); border: 1px solid var(--borde); color: var(--txt);
-  @apply rounded-lg px-3 py-2 w-full outline-none;
-  min-height: 44px;
-  font-size: 16px; /* evita el zoom automatico de Safari en iPhone */
+  @apply rounded-xl px-3.5 w-full outline-none transition;
+  min-height: 48px;
+  font-size: 16px;            /* evita el zoom automático de Safari en iPhone */
+  transition-duration: 120ms;
 }
-.input:focus { border-color: var(--acc); }
+.input::placeholder { color: var(--txt-3); }
+.input:focus { border-color: var(--acc); background: var(--panel-3); }
+
 /* 40px de alto: Android pide 48dp y WCAG 44px. Estaban en 34, y el tipo de
    orden se toca en CADA pedido, con las manos grasosas y de pie. */
 .chip {
-  @apply inline-flex items-center justify-center rounded-full px-3.5 text-sm
+  @apply inline-flex items-center justify-center rounded-full px-4 text-sm
          font-medium border transition;
   min-height: 40px;
+  transition-duration: 120ms;
   border-color: var(--borde); background: var(--panel-2); color: var(--txt-2);
 }
-.chip-on { background: var(--acc); color: #1a0d04; border-color: var(--acc); }
-.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.chip-on {
+  background: var(--acc); color: var(--sobre-acc); border-color: var(--acc);
+  box-shadow: var(--sombra);
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- la firma: el pedido se lee como el ticket que va a ser -------------- */
+/*
+   No es adorno. El cajero compara la pantalla contra el papel que sale de la
+   impresora decenas de veces por noche; que se parezcan es lo que hace que la
+   comparación sea de un vistazo. De ahí los puntos guía y el importe a la
+   derecha en monoespaciada, igual que en el recibo térmico.
+*/
+.tira {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: .5rem;
+}
+.tira::before {
+  content: "";
+  grid-column: 1 / 2;
+  grid-row: 1;
+  align-self: end;
+  margin-bottom: .3em;
+  border-bottom: 1px dotted var(--borde-2);
+  width: 100%;
+}
+.tira > * { grid-row: 1; background: var(--panel); }
+.tira > :first-child { grid-column: 1; padding-right: .4rem; justify-self: start; }
+.tira > :last-child  { grid-column: 2; padding-left: .4rem; }
+
+/* --- movimiento, con respeto ------------------------------------------- */
+@keyframes surgir {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes latido {
+  0%, 100% { transform: scale(1); }
+  40%      { transform: scale(1.12); }
+}
+.surgir { animation: surgir 160ms cubic-bezier(.2,.8,.2,1); }
+.latido { animation: latido 280ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+  .btn:active { transform: none; }
+}
+
+/* Foco visible para quien usa teclado en la PC de caja. */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+/* Barras de desplazamiento discretas en las filas que se deslizan. */
+.sin-barra { scrollbar-width: none; }
+.sin-barra::-webkit-scrollbar { display: none; }

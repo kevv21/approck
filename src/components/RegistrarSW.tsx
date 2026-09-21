@@ -74,25 +74,27 @@ export default function RegistrarSW() {
 
   if (!hayVersionNueva) return null;
 
+  // Arriba, no abajo. Abajo vive la barra del pedido, y dos cosas fijas en el
+  // mismo borde se tapan entre sí justo donde está el pulgar. Además, esto no
+  // es una acción que se tome en medio de un pedido: es un aviso.
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 p-3">
-      <div className="panel mx-auto flex max-w-md items-center gap-3 p-3"
-           style={{ borderColor: "var(--acc)" }}>
-        <span className="flex-1 text-sm">
-          Hay una versión nueva lista.
-          <span className="block text-xs" style={{ color: "var(--txt-2)" }}>
-            Se aplica al recargar. Termina el pedido primero.
-          </span>
+    <div className="flex items-center gap-3 px-3 py-2 text-sm"
+         style={{ background: "var(--panel-3)", borderBottom: "1px solid var(--acc)" }}
+         role="status">
+      <span className="min-w-0 flex-1 leading-tight">
+        Hay una versión nueva.
+        <span className="ml-1" style={{ color: "var(--txt-2)" }}>
+          Termina el pedido y recarga.
         </span>
-        <button className="btn btn-acc shrink-0 !px-4 !py-2 text-sm"
-                onClick={async () => {
-                  const reg = await navigator.serviceWorker.getRegistration();
-                  reg?.waiting?.postMessage("activar-ya");
-                  location.reload();
-                }}>
-          Recargar
-        </button>
-      </div>
+      </span>
+      <button className="btn btn-acc shrink-0 !min-h-10 !rounded-lg !px-3 text-sm"
+              onClick={async () => {
+                const reg = await navigator.serviceWorker.getRegistration();
+                reg?.waiting?.postMessage("activar-ya");
+                location.reload();
+              }}>
+        Recargar
+      </button>
     </div>
   );
 }
