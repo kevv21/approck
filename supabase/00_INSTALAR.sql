@@ -672,3 +672,23 @@ alter table settings   add column if not exists precio_mitades text not null def
 
 -- Una linea de mitad y mitad no sale del catalogo: es una combinacion. Su
 -- producto_id queda NULL, que es justo lo que permite la FK.
+
+
+-- ===========================================================================
+-- COMPROBACION FINAL
+--
+-- Si el pegado se corto a la mitad, esto NO aparece: el editor de Supabase
+-- ejecuta todo en una transaccion, asi que un error de sintaxis en la linea
+-- 501 deshace TAMBIEN las 500 anteriores y la base queda vacia, sin una sola
+-- tabla. Es facil creer que "solo fallo el insert de los insumos".
+--
+-- Si ves esta tabla con 12 / 57 / 59, la instalacion quedo completa.
+-- ===========================================================================
+select
+  (select count(*) from information_schema.tables
+    where table_schema = 'public'
+      and table_name in ('producto','orden','orden_item','pago','turno',
+                         'settings','print_job','puente_latido','insumo',
+                         'conteo','conteo_item','audit_log')) as tablas_de_12,
+  (select count(*) from producto) as productos_de_57,
+  (select count(*) from insumo)   as insumos_de_59;

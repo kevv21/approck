@@ -94,8 +94,19 @@ trae las cuatro columnas que faltan y termina con un diagnóstico que te dice
 en el panel de resultados cuántas órdenes han entrado, cómo va la cola de
 impresión y si el puente está conectado.
 
-> Pegar 34 KB en el editor del navegador se corta a veces. Cuando pasa,
-> Postgres responde `syntax error at or near "'Carne molida'"` con un
+> **Cópialo del RAW, no de la vista de GitHub.** GitHub virtualiza los
+> archivos largos: solo dibuja las líneas visibles, así que `Ctrl+A` sobre el
+> código coloreado copia un trozo, no el archivo. Usa el botón **Raw** (o
+> [este enlace directo](https://raw.githubusercontent.com/kevv21/approck/main/supabase/00_INSTALAR.sql))
+> y ahí sí `Ctrl+A`, `Ctrl+C`.
+>
+> **Y si se corta, la base queda VACÍA, no a medias.** El editor de Supabase
+> ejecuta todo en una transacción: un error de sintaxis en la línea 501
+> deshace también las 500 anteriores. Por eso el archivo termina con una
+> consulta que muestra `12 / 57 / 59`: si ves esa tabla, quedó completo; si
+> ves un error, no se creó nada.
+>
+> El síntoma cuando pasa: `syntax error at or near "'Carne molida'"` con un
 > `LINE 1:` delante. Ese `LINE 1` es la pista: lo que se ejecutó **empezaba**
 > ahí, o sea que le faltaba el encabezado `insert into ... values`. No es un
 > error del archivo, llegó incompleto. Comprueba que la última línea del
