@@ -5,7 +5,7 @@ export class Cola {
   constructor({ url, key, log }) {
     if (!url || !key) {
       throw new Error(
-        "Faltan SUPABASE_URL o SUPABASE_ANON_KEY. Copiá .env.example a .env y llenalos."
+        "Faltan SUPABASE_URL o SUPABASE_ANON_KEY. Copia .env.example a .env y llénalos."
       );
     }
     this.db = createClient(url, key, { auth: { persistSession: false } });

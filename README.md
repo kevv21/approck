@@ -89,8 +89,10 @@ insumos del inventario. Se puede volver a correr sin duplicar nada.
 > ejecutes uno por uno**: están incompletos por separado y el orden importa.
 
 **Si ya tenías la base instalada** y solo quieres ponerla al día, no repitas
-el instalador: pega `supabase/09_mitades_pedidosya.sql`, que son cuatro
-`alter table`.
+el instalador: pega **`supabase/PUESTA_A_PUNTO.sql`**. Son 5 KB en vez de 34,
+trae las cuatro columnas que faltan y termina con un diagnóstico que te dice
+en el panel de resultados cuántas órdenes han entrado, cómo va la cola de
+impresión y si el puente está conectado.
 
 > Pegar 34 KB en el editor del navegador se corta a veces. Cuando pasa,
 > Postgres responde `syntax error at or near "'Carne molida'"` con un
