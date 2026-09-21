@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev:https": "next dev --experimental-https -H 0.0.0.0"
+    "dev:https": "next dev --experimental-https -H 0.0.0.0",
+    "vercel:configurar": "node scripts/configurar-vercel.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

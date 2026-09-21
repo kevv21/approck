@@ -104,6 +104,21 @@ impresión y si el puente está conectado.
 
 ### 2. Variables de entorno
 
+**En Vercel, con un comando** (recomendado — el formulario del panel es donde
+esto se rompe: se guarda con el campo Value vacío, o el valor cae en *Note*, o
+queda *Sensitive* y ya no se puede releer para comprobar):
+
+```bash
+npm run vercel:configurar
+```
+
+Pide los dos valores, **los valida antes de mandarlos** (rechaza comillas,
+espacios, la URL del panel en vez de la Project URL, y la clave secreta), los
+escribe en los tres entornos, redespliega sin caché y al final **comprueba que
+hayan llegado de verdad al código desplegado**, que es lo único que cuenta.
+
+En local:
+
 ```bash
 cp .env.example .env.local
 ```
