@@ -12,11 +12,15 @@
  *    con "Application error" y reinstalar la PWA no lo arreglaba, porque la
  *    cache sobrevive. En el wifi de un local eso pasa solo.
  *
- * 2. skipWaiting() + clients.claim() hacian que un service worker NUEVO
- *    tomara el control de una pagina cargada con el HTML VIEJO. Esa pagina
- *    pide trozos de JavaScript que ya no existen -> ChunkLoadError, o sea
- *    pantalla en blanco a media atencion. Ahora la version nueva espera a
- *    que se cierre la app, que en un POS es cada noche.
+ * 2. Un service worker NUEVO tomando el control de una pagina cargada con el
+ *    HTML VIEJO deja a esa pagina pidiendo trozos de JavaScript que ya no
+ *    existen -> ChunkLoadError, pantalla en blanco a media atencion.
+ *    Se probo quitando skipWaiting(), y salio peor: un aparato con la v1
+ *    instalada se quedaba varado en ella, sirviendo su cache envenenada,
+ *    hasta cerrar todas las pestañas. Ahora skipWaiting se queda, y el
+ *    problema se ataca donde de verdad esta: un chunk que falta devuelve
+ *    504 en vez de reventar, y la app se limpia la cache y recarga una vez
+ *    si aun asi falla.
  *
  * Estrategia:
  *   - Estaticos de Next (/_next/static/): cache primero. Llevan hash en el
@@ -27,7 +31,7 @@
  *     ordenes o de la cola de impresion seria peor que fallar.
  */
 
-const VERSION = "v2";
+const VERSION = "v3";
 const CACHE_SHELL = `approck-shell-${VERSION}`;
 const CACHE_ESTATICOS = `approck-static-${VERSION}`;
 
@@ -42,10 +46,20 @@ self.addEventListener("install", (e) => {
       // addAll falla entera si un recurso falla; se agregan de a uno.
       .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
   );
-  // NO se llama a skipWaiting(): ver el punto 2 de arriba. La version nueva
-  // queda esperando y toma el control cuando se cierran todas las pestañas.
-  // La app avisa de que hay una lista, para que se recargue cuando convenga
-  // y no en medio de un pedido.
+  // skipWaiting SI, y esto es una correccion de la correccion anterior.
+  //
+  // Se habia quitado para que una version nueva no tomara el control de una
+  // pagina con el HTML viejo (ChunkLoadError). Pero eso dejaba varado a
+  // cualquier aparato que ya tuviera la v1 instalada: la v1 seguia mandando
+  // hasta cerrar TODAS las pestañas, sirviendo su cache envenenada, y el
+  // telefono se quedaba con una version de hace dias sin que nadie lo notara.
+  // Varado en silencio es peor que un error visible.
+  //
+  // Lo que hacia peligroso el skipWaiting ya no esta: un chunk que falta
+  // devuelve 504 en vez de dejar la promesa rechazada, y la app se limpia la
+  // cache y recarga una vez si aun asi revienta. El intercambio ahora sale a
+  // favor de que los arreglos lleguen.
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {

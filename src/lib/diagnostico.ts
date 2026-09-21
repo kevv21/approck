@@ -1,4 +1,5 @@
 import { hayConfig, supabase } from "./supabase";
+import { requiereCuenta } from "./auth/dispositivo";
 
 /**
  * Diagnostico de la instalacion.
@@ -43,8 +44,23 @@ const COLUMNAS: { tabla: string; columna: string; para: string }[] = [
   { tabla: "orden",      columna: "id_local",         para: "no duplicar órdenes al sincronizar" },
 ];
 
-const RELACION_NO_EXISTE = "42P01";
-const COLUMNA_NO_EXISTE = "42703";
+/**
+ * "Esa tabla no existe", dicho de las dos formas en que llega.
+ *
+ * PostgREST no siempre deja pasar el error de Postgres: cuando la tabla no
+ * esta en su cache de esquema responde con codigo PROPIO, `PGRST205`, y un
+ * mensaje distinto. Mirando solo `42P01` —el de Postgres— una base
+ * COMPLETAMENTE VACIA pasaba la prueba y el diagnostico decia "las 12 tablas
+ * existen". Comprobado contra un proyecto real sin instalar.
+ */
+const noExisteTabla = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "42P01" || e.code === "PGRST205" ||
+          /could not find the table|does not exist/i.test(e.message ?? ""));
+
+/** Lo mismo para una columna: `42703` de Postgres, `PGRST204` de PostgREST. */
+const noExisteColumna = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "42703" || e.code === "PGRST204" ||
+          /column .* does not exist|could not find the .* column/i.test(e.message ?? ""));
 
 const PEGA_EL_SQL =
   "Abre tu proyecto en supabase.com → SQL Editor → New query, pega TODO " +
@@ -212,41 +228,54 @@ export async function diagnosticar(): Promise<Prueba[]> {
         "legacy quedan deprecadas a finales de 2026.",
   });
 
-  // --- 1c. el aparato esta vinculado ---------------------------------------
+  // --- 1c. hace falta una cuenta? ------------------------------------------
   //
-  // Desde el blindaje, las politicas exigen `authenticated`. Sin esta prueba,
-  // un aparato sin vincular veia "faltan las tablas" en todas las filas de
-  // abajo —porque PostgREST responde igual a "no existe" que a "no puedes
-  // verla"— y mandaba a repetir el instalador para nada.
+  // Solo si alguien corrio EXIGIR_CUENTA.sql. Por defecto NO hace falta, y
+  // antes esta prueba daba "Aparato sin vincular" en rojo igual, mandando a
+  // escribir una contraseña que nadie necesitaba — justo lo contrario de lo
+  // que hace la pantalla de Caja. Ahora las dos le preguntan a la base.
+  //
+  // Importa el orden: esto va ANTES de mirar las tablas, porque PostgREST
+  // responde parecido a "no existe" y a "no puedes verla", y sin separarlo
+  // un aparato sin vincular veia "faltan las 12 tablas" y repetia el
+  // instalador para nada.
   const { data: authData } = await supabase.auth.getSession();
   const sesion = authData.session;
-  pruebas.push(
-    sesion
-      ? {
-          clave: "vinculo",
-          titulo: "Aparato vinculado",
-          estado: "ok",
-          detalle: `Con la cuenta ${sesion.user.email ?? "del local"}.`,
-        }
-      : {
-          clave: "vinculo",
-          titulo: "Aparato sin vincular",
-          estado: "mal",
-          detalle:
-            "La base no responde a la clave sola: las políticas exigen una " +
-            "sesión. Todo lo de abajo va a fallar por esto, no por otra cosa.",
-          arreglo:
-            "Abre Caja y escribe el correo y la contraseña de la cuenta del " +
-            "local. Se hace una vez por aparato. Si todavía no existe esa " +
-            "cuenta: Supabase → Authentication → Users → Add user, con " +
-            "«Auto Confirm User» marcado.",
-        }
-  );
-  if (!sesion) return pruebas; // sin sesión, el resto solo daría ruido
+  const hayQueVincular = await requiereCuenta();
+
+  if (hayQueVincular && !sesion) {
+    pruebas.push({
+      clave: "vinculo",
+      titulo: "Aparato sin vincular",
+      estado: "mal",
+      detalle:
+        "Esta base exige una cuenta (alguien corrió EXIGIR_CUENTA.sql) y este " +
+        "aparato no la tiene. Todo lo de abajo fallaría por esto, no por otra cosa.",
+      arreglo:
+        "Abre Caja y escribe el correo y la contraseña de la cuenta del " +
+        "local. Se hace una vez por aparato. Si todavía no existe esa " +
+        "cuenta: Supabase → Authentication → Users → Add user, con " +
+        "«Auto Confirm User» marcado. Y si no quieres esa contraseña, " +
+        "deshazlo con supabase/PERMITIR_ANONIMO.sql y luego BLINDAR.sql.",
+    });
+    return pruebas; // sin sesión, el resto solo daría ruido
+  }
+
+  if (sesion) {
+    pruebas.push({
+      clave: "vinculo",
+      titulo: "Aparato vinculado",
+      estado: "ok",
+      detalle: `Con la cuenta ${sesion.user.email ?? "del local"}.`,
+    });
+  }
+  // Si no hace falta cuenta, no se dice nada: una fila verde de algo que no
+  // aplica es ruido, y esta pantalla existe para separar lo que falta de lo
+  // que no.
 
   // --- 2. el proyecto responde --------------------------------------------
   const { error: eConexion } = await sonda("settings", "id");
-  if (eConexion && eConexion.code !== RELACION_NO_EXISTE) {
+  if (eConexion && !noExisteTabla(eConexion)) {
     pruebas.push({
       clave: "conexion",
       titulo: "Conexión con Supabase",
@@ -270,7 +299,7 @@ export async function diagnosticar(): Promise<Prueba[]> {
   const faltantes: string[] = [];
   for (const tabla of TABLAS) {
     const { error } = await sonda(tabla, "*");
-    if (error?.code === RELACION_NO_EXISTE) faltantes.push(tabla);
+    if (noExisteTabla(error)) faltantes.push(tabla);
   }
   pruebas.push(
     faltantes.length
@@ -294,7 +323,7 @@ export async function diagnosticar(): Promise<Prueba[]> {
     const viejas: string[] = [];
     for (const c of COLUMNAS) {
       const { error } = await sonda(c.tabla, c.columna);
-      if (error?.code === COLUMNA_NO_EXISTE) viejas.push(`${c.tabla}.${c.columna} (${c.para})`);
+      if (noExisteColumna(error)) viejas.push(`${c.tabla}.${c.columna} (${c.para})`);
     }
     pruebas.push(
       viejas.length

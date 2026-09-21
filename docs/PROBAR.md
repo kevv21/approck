@@ -8,7 +8,7 @@ datos ni computadora.
 ## Antes de empezar: dos cosas que no se negocian
 
 **Tiene que ser `https://`.** Web Bluetooth no funciona sobre `http://`. Si
-abrís la app por `http://192.168.1.x:3000`, el botón de conectar no responde
+abres la app por `http://192.168.1.x:3000`, el botón de conectar no responde
 y el navegador no siempre explica por qué.
 
 **Tiene que ser Android.** En iPhone no hay forma: Safari no implementa Web

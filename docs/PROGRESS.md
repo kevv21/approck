@@ -231,6 +231,31 @@ que es donde se busca a proposito, y con confirmacion.
 **Ver la contrasena al vincular.** Una contrasena larga a ciegas en un teclado
 de telefono se escribe mal mas veces de las que se escribe bien.
 
+## Revision del 2026-09-21 (segunda)
+
+Revisando el despliegue REAL, no una simulacion, salieron tres fallos:
+
+1. **El diagnostico buscaba el codigo de error equivocado.** PostgREST no
+   siempre deja pasar el de Postgres: cuando la tabla no esta en su cache de
+   esquema responde con codigo PROPIO, `PGRST205`. Mirando solo `42P01`, una
+   base COMPLETAMENTE VACIA pasaba la prueba y el diagnostico decia "las 12
+   tablas existen". Comprobado contra el proyecto real del dueno, que estaba
+   sin instalar: antes detectaba 0 faltantes, ahora las 12.
+
+2. **El diagnostico seguia exigiendo vinculacion.** Al hacer la cuenta
+   opcional se actualizo `Acceso.tsx` pero no `diagnostico.ts`, asi que
+   Estado pedia en rojo una contrasena que nadie necesitaba, justo lo
+   contrario de lo que hacia la pantalla de Caja. Ahora las dos le preguntan
+   a la base.
+
+3. **Quitar `skipWaiting()` dejaba aparatos varados.** Se habia quitado para
+   evitar el ChunkLoadError, pero un aparato con la v1 instalada seguia con
+   ella hasta cerrar TODAS las pestañas, sirviendo su cache envenenada y una
+   version de hace dias sin que nadie lo notara. Varado en silencio es peor
+   que un error visible. Vuelve `skipWaiting`, porque lo que lo hacia
+   peligroso ya no esta: un chunk que falta devuelve 504 en vez de reventar,
+   y la app se limpia la cache y recarga una vez si aun asi falla.
+
 ## Seguridad — 2026-09-21
 
 La clave publishable viaja dentro del codigo que descarga el navegador.
