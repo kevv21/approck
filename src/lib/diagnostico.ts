@@ -73,26 +73,53 @@ export async function diagnosticar(): Promise<Prueba[]> {
   const pruebas: Prueba[] = [];
 
   // --- 1. variables de entorno --------------------------------------------
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  //
+  // Se leen SIN respaldo para poder distinguir dos fallos que se ven igual y
+  // se arreglan distinto. Next sustituye estas expresiones al compilar, asi
+  // que lo que quede aqui dice que recibio el build:
+  //
+  //   undefined  la variable NO EXISTIA al compilar. O no se guardo, o se
+  //              guardo en otro entorno (Production / Preview / Development),
+  //              o el nombre tiene una errata. Redesplegar no arregla nada
+  //              hasta corregir eso.
+  //   ""         existe pero esta en blanco. Se guardo sin pegar el valor.
+  //
+  // Decir solo "sin valor" mandaba a redesplegar una y otra vez a quien tenia
+  // el nombre mal escrito.
+  const urlCruda = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const keyCruda = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = urlCruda || "";
+
+  const comoLlego = (v: string | undefined, nombre: string) =>
+    v === undefined
+      ? `${nombre}: no existía al compilar`
+      : v === "" ? `${nombre}: existe pero vacía` : null;
+
   if (!hayConfig) {
-    const falta = [
-      !url && "NEXT_PUBLIC_SUPABASE_URL",
-      !key && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    ].filter(Boolean);
+    const falta = [comoLlego(urlCruda, "NEXT_PUBLIC_SUPABASE_URL"),
+                   comoLlego(keyCruda, "NEXT_PUBLIC_SUPABASE_ANON_KEY")]
+      .filter(Boolean);
+    const ningunaExiste = urlCruda === undefined && keyCruda === undefined;
     pruebas.push({
       clave: "env",
       titulo: "Variables de entorno",
       estado: "mal",
       detalle: falta.length
-        ? `Sin valor: ${falta.join(" y ")}.`
+        ? falta.join(" · ") + (ningunaExiste
+            ? ". Las dos faltan, así que no es una errata suelta: o no se"
+              + " guardaron, o están en otro entorno, o este build salió antes"
+              + " de guardarlas."
+            : ".")
         : url.includes("xxxxxxxx")
           ? "La URL todavía trae el texto de ejemplo de .env.example."
           : "La URL no parece una dirección web (debe empezar con https://).",
       arreglo:
-        "En Supabase: Project Settings → API. Copia Project URL y la clave " +
-        "«anon public» — NUNCA la service_role: estas variables viajan al " +
-        "navegador y esa clave da acceso total a la base. En local van en " +
+        "En Supabase: Project Settings → API. Copia la Publishable key " +
+        "(sb_publishable_…), que reemplaza a la anon y respeta las políticas " +
+        "igual. NUNCA la Secret ni la service_role: estas variables viajan al " +
+        "navegador y esas claves saltan RLS, o sea acceso total a la base. " +
+        "El nombre de la variable sigue siendo ANON_KEY; solo cambia el " +
+        "valor. En local van en " +
         ".env.local; en Vercel, en Settings → Environment Variables, marcando " +
         "Production, Preview y Development. Después hay que REDESPLEGAR: " +
         "las NEXT_PUBLIC_ se incrustan al compilar, no se leen al arrancar. " +
