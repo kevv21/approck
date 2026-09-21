@@ -18,6 +18,16 @@ export async function cargarMenu(): Promise<Producto[]> {
   return data as Producto[];
 }
 
+/**
+ * Referencia al producto del catalogo, para la columna `orden_item.producto_id`.
+ *
+ * Una pizza mitad y mitad no sale del catalogo: es una combinacion, y llega
+ * con el id vacio. La columna es `uuid`, asi que mandar "" rompe el insert
+ * con "invalid input syntax for type uuid" y se pierde el cobro entero.
+ * NULL es justamente lo que la llave foranea permite.
+ */
+export const refProducto = (id: string): string | null => id || null;
+
 export async function turnoAbierto() {
   const { data } = await supabase
     .from("turno").select("*").is("cerrado_at", null).maybeSingle();
@@ -175,7 +185,7 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
   const { error: eItems } = await supabase.from("orden_item").insert(
     t.lineas.map((l) => ({
       orden_id: orden.id,
-      producto_id: l.productoId,
+      producto_id: refProducto(l.productoId),
       nombre_snapshot: l.nombre,
       precio_snapshot: l.precioUnit,
       grupo_snapshot: l.grupo,

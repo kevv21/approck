@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
+import NavPestanas from "@/components/NavPestanas";
 import IndicadorConexion from "@/components/IndicadorConexion";
 import RegistrarSW from "@/components/RegistrarSW";
 import Acceso from "@/components/Acceso";
@@ -27,6 +27,7 @@ const NAV = [
   { href: "/inventario", label: "Inventario" },
   { href: "/cierre", label: "Cierres" },
   { href: "/prueba", label: "Probar" },
+  { href: "/configuracion", label: "Estado" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -38,13 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <span className="mr-2 font-black tracking-tight" style={{ color: "var(--acc)" }}>
             APPROCK
           </span>
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href}
-                  className="rounded-lg px-3 py-2 text-sm font-medium"
-                  style={{ color: "var(--txt-2)" }}>
-              {n.label}
-            </Link>
-          ))}
+          <NavPestanas items={NAV} />
           <IndicadorConexion />
         </header>
         <Acceso>

@@ -5,6 +5,12 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // El selector de mitad y mitad estuvo escrito, importado y con su
+    // manejador listo, pero NUNCA montado: el boton no abria nada y todo
+    // compilaba. Con esto, un componente importado y no usado, o un estado
+    // que nadie lee, rompe el CI en vez de llegar al local.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

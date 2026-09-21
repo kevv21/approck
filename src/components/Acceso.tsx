@@ -32,9 +32,14 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   // Mientras se lee sessionStorage no se dibuja nada, para no mostrar la
   // pantalla de acceso un instante a quien ya entró.
   if (sesion === undefined) return null;
-  // /prueba queda libre: es el diagnóstico de impresora, y se usa antes
-  // de tener la base configurada o el PIN a mano.
-  if (!hayConfig || ruta === "/prueba") return <>{children}</>;
+  // Dos rutas quedan libres, las dos por la misma razón: se usan JUSTO
+  // cuando el PIN no se puede verificar.
+  //   /prueba        diagnóstico de impresora, antes de tener nada montado.
+  //   /configuracion el PIN vive en `settings.pin_hash`. Si esa tabla no
+  //                  existe todavía, entrar es imposible — y la pantalla que
+  //                  explica por qué quedaría del otro lado de la puerta.
+  const LIBRES = ["/prueba", "/configuracion"];
+  if (!hayConfig || LIBRES.includes(ruta)) return <>{children}</>;
 
   if (sesion) {
     return (

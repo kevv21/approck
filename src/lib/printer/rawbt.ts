@@ -79,7 +79,7 @@ export class AdaptadorRawBT implements PrinterAdapter {
 
   motivoNoDisponible(): string | null {
     if (!this.disponible())
-      return "RawBT es una app de Android. En iPhone o PC usá el puente de la PC de caja.";
+      return "RawBT es una app de Android. En iPhone o PC usa el puente de la PC de caja.";
     if (rawbtDescartada())
       return "Parece que RawBT no está instalada. Instalala y volvé a intentar.";
     return null;
@@ -110,7 +110,7 @@ export class AdaptadorRawBT implements PrinterAdapter {
     if (datos.length > LIMITE_B64) {
       throw new Error(
         `El trabajo pesa ${Math.round(datos.length / 1024)} kB y no cabe en un intent de Android. ` +
-        "Apagá el modo imagen, o usá el servidor HTTP de RawBT."
+        "Apaga el modo imagen, o usa el servidor HTTP de RawBT."
       );
     }
     const volver = `${location.origin}${location.pathname}?sinrawbt=1`;

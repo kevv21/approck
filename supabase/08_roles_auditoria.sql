@@ -82,6 +82,6 @@ create policy p_audit_sel on audit_log for select using (true);
 -- de quien entra, que es lo que se guarda en la bitacora y sale en el recibo.
 -- ---------------------------------------------------------------------------
 alter table settings add column if not exists pin_hash text;
--- PIN inicial: 1234. Cambialo desde Configuracion.
+-- PIN inicial: 1234. Cámbialo desde Configuracion.
 update settings set pin_hash = '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4'
   where id = 'default' and pin_hash is null;

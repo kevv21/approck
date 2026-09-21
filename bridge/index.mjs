@@ -39,11 +39,29 @@ const log = (m) => console.log(`${hora()}  ${m}`);
 const INTERVALO_LATIDO_MS = 10_000;
 
 // --- ticket de prueba (ESC/POS minimo, sin depender del build de Next) -----
+/**
+ * CP437, igual que la app (src/lib/escpos.ts, CODEPAGE_DEFAULT = 0).
+ *
+ * Antes esto declaraba CP1252 con `ESC t 16` y despues escribia los
+ * codepoints Unicode crudos, que son Latin-1. Dos errores que se tapaban
+ * entre si a medias: el selftest de la PT-210 reporta CP437, asi que la enie
+ * salia como un simbolo cualquiera y el ticket de prueba hacia dudar de la
+ * impresora cuando el que estaba mal era el puente.
+ *
+ * Las mayusculas con tilde NO existen en CP437; se mandan sin tilde, que es
+ * lo que hace tambien el lado de la app.
+ */
+const CP437 = {
+  "á": 0xa0, "é": 0x82, "í": 0xa1, "ó": 0xa2, "ú": 0xa3, "ü": 0x81,
+  "ñ": 0xa4, "Ñ": 0xa5, "¿": 0xa8, "¡": 0xad,
+  "Á": 0x41, "É": 0x45, "Í": 0x49, "Ó": 0x4f, "Ú": 0x55, "Ü": 0x55,
+};
+
 function ticketPrueba() {
   const ESC = 0x1b;
   const b = [
     ESC, 0x40,        // init
-    ESC, 0x74, 16,    // codepage CP1252
+    ESC, 0x74, 0,     // codepage CP437, el que reporta el selftest
     ESC, 0x61, 1,     // centrado
   ];
   const texto =
@@ -54,8 +72,10 @@ function ticketPrueba() {
     "Acentos: Toña Jamón Española\n" +
     "================================\n";
   for (const ch of texto) {
+    const mapeado = CP437[ch];
+    if (mapeado !== undefined) { b.push(mapeado); continue; }
     const c = ch.codePointAt(0);
-    b.push(c <= 0xff ? c : 0x3f);
+    b.push(c <= 0x7e ? c : 0x3f); // fuera de ASCII imprimible -> '?'
   }
   b.push(ESC, 0x64, 4); // avanzar 4 lineas
   return Buffer.from(b);
@@ -77,7 +97,7 @@ async function main() {
     const lista = await PuertoImpresora.listarPuertos();
     if (lista.length === 0) {
       console.log("No se encontró ningún puerto serie.");
-      console.log("En Windows: emparejá la impresora y buscá el puerto COM SALIENTE.");
+      console.log("En Windows: empareja la impresora y busca el puerto COM SALIENTE.");
     }
     for (const p of lista) {
       console.log(`${p.path}\t${p.manufacturer ?? ""}\t${p.friendlyName ?? ""}`);

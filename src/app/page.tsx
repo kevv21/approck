@@ -12,11 +12,11 @@ import { hayInternet } from "@/lib/offline/conexion";
 import { previsualizarTicket, type DatosTicket } from "@/lib/ticket";
 import { descargarHtml, imprimirHtml } from "@/lib/printer";
 import { hayConfig } from "@/lib/supabase";
-import menuDemo from "@/lib/menu-demo.json";
+import Link from "next/link";
 import {
   CONFIG_DEFAULT, METODOS_PAGO, TIPOS_ORDEN,
   type ConfigCobro, type Descuento, type LineaOrden,
-  nombreMitades,
+  datosLineaMitades,
   type MetodoPago, type MitadPizza, type Producto, type TipoOrden,
 } from "@/lib/types";
 
@@ -44,21 +44,21 @@ export default function Caja() {
 
   const [turno, setTurno] = useState<{ id: string } | null>(null);
   const [verPreview, setVerPreview] = useState(false);
+  const [verMas, setVerMas] = useState(false);
+  const [confirmaCancelar, setConfirmaCancelar] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
 
   const [menuDesdeCache, setMenuDesdeCache] = useState(false);
-  const [abrirMitades, setAbrirMitades] = useState(false);
+  // null = cerrado; "" = agregando una nueva; <id> = editando esa linea.
+  const [editaMitades, setEditaMitades] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hayConfig) {
-      // Modo demo: sin base configurada la app igual se puede recorrer con el
-      // menú real empaquetado. No guarda nada, pero deja probar el flujo
-      // completo y la vista previa del recibo desde el teléfono.
-      setMenu(menuDemo as Producto[]);
-      setCat((menuDemo as Producto[])[0]?.categoria ?? "");
-      return;
-    }
+    // Sin base configurada NO se carga un menú de mentira. Antes se cargaba
+    // uno empaquetado y la pantalla se veía normal: se podían armar pedidos
+    // completos que no se guardaban en ningún lado. En una caja eso no es una
+    // demostración, es una forma de perder una venta. Se muestra qué falta.
+    if (!hayConfig) return;
     // Con respaldo local: si no hay internet se usa la copia guardada, para
     // poder seguir tomando órdenes.
     cargarMenuConRespaldo(cargarMenu, guardarMenuLocal)
@@ -67,37 +67,49 @@ export default function Caja() {
         setCat(productos[0]?.categoria ?? "");
         setMenuDesdeCache(desdeCache);
         if (desdeCache && productos.length === 0) {
-          setAviso({ txt: "No hay menú guardado en este dispositivo. Conectate una vez para descargarlo.", mal: true });
+          setAviso({ txt: "No hay menú guardado en este dispositivo. Conéctate una vez para descargarlo.", mal: true });
         }
       })
       .catch((e) => setAviso({ txt: `No se pudo cargar el menú: ${e.message}`, mal: true }));
     turnoAbierto().then((t) => setTurno(t)).catch(() => {});
   }, []);
 
-  const categorias = useMemo(
-    () => [...new Set(menu.map((p) => p.categoria))],
-    [menu]
-  );
+  // Pizzas primero: son la mayoría de lo que se vende, y en una fila que se
+  // desliza lo que queda fuera de pantalla cuesta un gesto más.
+  const categorias = useMemo(() => {
+    const vistas = [...new Set(menu.map((p) => p.categoria))];
+    const esPizza = (c: string) =>
+      menu.some((p) => p.categoria === c && p.grupo_descuento === "pizza");
+    return [...vistas.filter(esPizza), ...vistas.filter((c) => !esPizza(c))];
+  }, [menu]);
 
   // Solo las pizzas pueden partirse: una mitad de cerveza no existe.
+  // Son 26 repartidas en cinco categorias, asi que el selector las ofrece
+  // todas, no solo las de la categoria abierta.
   const pizzas = useMemo(
     () => menu.filter((p) => p.grupo_descuento === "pizza"),
     [menu]
   );
 
-  const agregarMitades = (a: MitadPizza, b: MitadPizza, precio: number) => {
-    setLineas((prev) => [...prev, {
-      id: crypto.randomUUID(),
-      // Sin producto del catálogo: es una combinación, no un ítem del menú.
-      productoId: "",
-      nombre: nombreMitades(a, b),
-      precioUnit: precio,
-      cantidad: 1,
-      grupo: "pizza",
-      aplicaIva: true,
-      mitades: [a, b],
-    }]);
-    setAbrirMitades(false);
+  const catEsDePizzas = useMemo(
+    () => pizzas.length > 0 && menu.some(
+      (p) => p.categoria === cat && p.grupo_descuento === "pizza"),
+    [menu, cat, pizzas.length]
+  );
+
+  /** Línea del pedido que se está editando, si el modal se abrió para eso. */
+  const lineaEnEdicion = editaMitades
+    ? lineas.find((l) => l.id === editaMitades) ?? null
+    : null;
+
+  const confirmarMitades = (a: MitadPizza, b: MitadPizza) => {
+    const datos = datosLineaMitades(a, b, config.precioMitades);
+    setLineas((prev) =>
+      lineaEnEdicion
+        ? prev.map((l) => (l.id === lineaEnEdicion.id ? { ...l, ...datos } : l))
+        : [...prev, { id: crypto.randomUUID(), cantidad: 1, ...datos }]
+    );
+    setEditaMitades(null);
   };
 
   const config: ConfigCobro = {
@@ -152,10 +164,6 @@ export default function Caja() {
 
   const cobrar = async () => {
     if (lineas.length === 0) return;
-    if (!hayConfig) {
-      setAviso({ txt: "Modo demo: no hay dónde guardar la orden.", mal: true });
-      return;
-    }
     if (metodoPago === "efectivo" && recibidoCent > 0 && cambio < 0) {
       setAviso({ txt: "El monto recibido es menor que el total.", mal: true });
       return;
@@ -167,7 +175,7 @@ export default function Caja() {
       // solo en el teléfono no existe para el arqueo de caja.
       if (!(await hayInternet())) {
         setAviso({
-          txt: "Sin conexión no se puede cobrar. Podés seguir tomando órdenes: se suben solas al volver la señal.",
+          txt: "Sin conexión no se puede cobrar. Puedes seguir tomando órdenes: se suben solas al volver la señal.",
           mal: true,
         });
         return;
@@ -191,10 +199,6 @@ export default function Caja() {
   /** Guarda sin cobrar. Funciona sin conexión: se sube sola al reconectar. */
   const guardarSinCobrar = async () => {
     if (lineas.length === 0) return;
-    if (!hayConfig) {
-      setAviso({ txt: "Modo demo: no hay dónde guardar la orden.", mal: true });
-      return;
-    }
     setGuardando(true);
     setAviso(null);
     try {
@@ -219,10 +223,6 @@ export default function Caja() {
 
   const imprimirPrecuenta = async () => {
     if (lineas.length === 0) return;
-    if (!hayConfig) {
-      setAviso({ txt: "Modo demo: usá \"Imprimir en navegador\" para ver el ticket.", mal: true });
-      return;
-    }
     setGuardando(true);
     setAviso(null);
     try {
@@ -249,49 +249,80 @@ export default function Caja() {
 
   const previsualizacion = previsualizarTicket(datosTicket());
 
+  // Sin base no se dibuja la caja. Antes se dibujaba igual, con un menú
+  // empaquetado, y se veía normal: alguien podía tomar un pedido entero que
+  // no iba a quedar en ninguna parte. Una caja a medias es peor que ninguna.
+  if (!hayConfig) {
+    return (
+      <div className="mx-auto max-w-lg p-3">
+        <div className="panel p-5" style={{ borderColor: "var(--mal)" }}>
+          <b style={{ color: "var(--mal)" }}>Falta conectar la base de datos.</b>
+          <p className="mt-2 text-sm leading-snug" style={{ color: "var(--txt-2)" }}>
+            Sin ella no hay menú que mostrar ni dónde guardar una orden. Son dos
+            variables de entorno y un archivo de SQL que se pega una sola vez.
+          </p>
+          <div className="mt-4 grid gap-2">
+            <Link className="btn btn-acc text-center" href="/configuracion">
+              Ver qué falta
+            </Link>
+            <Link className="btn btn-ghost text-center" href="/prueba">
+              Probar la impresora
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto grid max-w-7xl gap-3 p-3 lg:grid-cols-[1fr_400px]">
-      {!hayConfig && (
-        <div className="panel p-3 text-sm lg:col-span-2"
-             style={{ borderColor: "var(--acc)" }}>
-          <b style={{ color: "var(--acc)" }}>Modo demo.</b>{" "}
-          <span style={{ color: "var(--txt-2)" }}>
-            Sin base de datos configurada. Podés armar órdenes y ver el recibo,
-            pero nada se guarda ni se imprime. Para probar la impresora andá a{" "}
-            <b>Probar</b>; para usarlo de verdad, configurá Supabase (ver README).
-          </span>
-        </div>
-      )}
       {/* ---------------------------------------------------------- menú -- */}
-      <section className="panel p-3">
-        {pizzas.length > 0 && (
-          <button onClick={() => setAbrirMitades(true)}
-                  className="mb-3 flex w-full items-center gap-3 rounded-lg p-3 text-left
-                             transition active:scale-[0.99]"
-                  style={{ background: "var(--panel-2)", border: "1px dashed var(--acc)" }}>
-            <svg viewBox="0 0 100 100" className="h-9 w-9 shrink-0" aria-hidden="true">
-              <circle cx="50" cy="50" r="46" fill="none"
-                      stroke="var(--borde)" strokeWidth="6" />
-              <path d="M50 4 A46 46 0 0 0 50 96 Z" fill="var(--acc)" />
-              <path d="M50 4 A46 46 0 0 1 50 96 Z" fill="var(--acc-2)" opacity=".5" />
-            </svg>
-            <span>
-              <b style={{ color: "var(--acc)" }}>Pizza mitad y mitad</b>
-              <span className="block text-xs" style={{ color: "var(--txt-2)" }}>
-                Se suman las dos y se divide entre 2
-              </span>
-            </span>
-          </button>
-        )}
-
-        <div className="mb-3 flex flex-wrap gap-1.5">
+      {/* min-w-0: sin esto la fila de categorías que se desliza ensancha la
+          columna del grid (los hijos traen min-width:auto) y la página
+          entera termina con scroll horizontal. */}
+      <section className="panel min-w-0 p-3">
+        {/*
+          Una sola fila que se desliza, no cinco que se apilan. Con doce
+          categorías envueltas, en un teléfono había que bajar media pantalla
+          antes de ver el primer producto, y eso es lo que se toca todo el
+          tiempo. Las pizzas van primero porque son la mayoría de los pedidos.
+        */}
+        <div className="-mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 pb-1"
+             style={{ scrollbarWidth: "none" }}>
           {categorias.map((c) => (
             <button key={c} onClick={() => setCat(c)}
-                    className={`chip ${cat === c ? "chip-on" : ""}`}>{c}</button>
+                    className={`chip shrink-0 ${cat === c ? "chip-on" : ""}`}>{c}</button>
           ))}
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+          {/*
+            La mitad y mitad es UNA OPCION MAS para agregar, no un cartel fijo
+            arriba de todo: antes ocupaba lugar incluso mirando las cervezas.
+            Aparece como primera tarjeta cuando la categoria abierta es de
+            pizzas, que es el unico momento en que alguien la busca.
+          */}
+          {catEsDePizzas && (
+            <button onClick={() => setEditaMitades("")}
+                    className="rounded-lg p-3 text-left transition active:scale-[0.97]"
+                    style={{ background: "var(--panel-2)",
+                             border: "1px dashed var(--acc)" }}>
+              <svg viewBox="0 0 100 100" className="h-7 w-7" aria-hidden="true">
+                <circle cx="50" cy="50" r="46" fill="none"
+                        stroke="var(--borde)" strokeWidth="6" />
+                <path d="M50 4 A46 46 0 0 0 50 96 Z" fill="var(--acc)" />
+                <path d="M50 4 A46 46 0 0 1 50 96 Z" fill="var(--mitad-b)" />
+              </svg>
+              <div className="mt-1 text-sm font-semibold leading-tight"
+                   style={{ color: "var(--acc)" }}>
+                Mitad y mitad
+              </div>
+              <div className="mt-0.5 text-[11px] leading-snug"
+                   style={{ color: "var(--txt-2)" }}>
+                Elige dos pizzas
+              </div>
+            </button>
+          )}
           {menu.filter((p) => p.categoria === cat).map((p) => (
             <button key={p.id} onClick={() => agregar(p)}
                     className="rounded-lg p-3 text-left transition active:scale-[0.97]"
@@ -310,7 +341,7 @@ export default function Caja() {
       </section>
 
       {/* -------------------------------------------------------- pedido -- */}
-      <section className="space-y-3">
+      <section className="min-w-0 space-y-3">
         <div className="panel p-3">
           <div className="mb-2 grid grid-cols-2 gap-1.5">
             {TIPOS_ORDEN.map((x) => (
@@ -365,18 +396,27 @@ export default function Caja() {
                     <span className="mono text-sm font-bold">{fmtC(l.bruto)}</span>
                   </div>
                   {l.mitades && (
-                    <div className="mt-1 flex flex-col gap-0.5 pl-24 text-xs"
-                         style={{ color: "var(--txt-2)" }}>
-                      {l.mitades.map((mit, k) => (
-                        <span key={k}>
-                          <b style={{ color: k === 0 ? "var(--acc)" : "var(--acc-2)" }}>½</b>{" "}
-                          {mit.nombre}
-                        </span>
-                      ))}
+                    <div className="mt-1.5 flex items-end justify-between gap-2">
+                      <div className="flex flex-col gap-0.5 text-xs"
+                           style={{ color: "var(--txt-2)" }}>
+                        {l.mitades.map((mit, k) => (
+                          <span key={k} className="flex items-center gap-1.5">
+                            <span aria-hidden="true"
+                                  className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                  style={{ background: k === 0 ? "var(--acc)" : "var(--mitad-b)" }} />
+                            <span>½ {mit.nombre}</span>
+                          </span>
+                        ))}
+                      </div>
+                      {/* Cambiar una mitad sin borrar y rehacer la línea. */}
+                      <button className="btn btn-ghost !min-h-0 shrink-0 !px-2.5 !py-1 !text-xs"
+                              onClick={() => setEditaMitades(l.id)}>
+                        Cambiar
+                      </button>
                     </div>
                   )}
                   {l.descTotal > 0 && (
-                    <div className="mono mt-1 pl-24 text-right text-xs" style={{ color: "var(--acc-2)" }}>
+                    <div className="mono mt-1 text-right text-xs" style={{ color: "var(--acc-2)" }}>
                       desc. -{fmtC(l.descTotal)} → {fmtC(l.neto)}
                     </div>
                   )}
@@ -474,31 +514,64 @@ export default function Caja() {
               También imprimir ticket de cocina
             </label>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button className="btn btn-ghost" onClick={() => setVerPreview((v) => !v)}>
-                {verPreview ? "Ocultar" : "Ver ticket"}
+            {/*
+              Jerarquía: antes eran siete botones del mismo tamaño y el de
+              cobrar quedaba perdido entre ellos. En una caja con fila
+              esperando, la acción principal tiene que ser una sola y obvia;
+              lo demás se busca cuando hace falta.
+            */}
+            <div className="mt-3 space-y-2">
+              <button className="btn btn-acc w-full !py-4 text-base"
+                      disabled={guardando} onClick={cobrar}>
+                {guardando ? "Guardando…" : `Cobrar ${fmtC(t.total)} e imprimir`}
               </button>
-              <button className="btn btn-acc" disabled={guardando} onClick={cobrar}>
-                {guardando ? "Guardando..." : "Cobrar e imprimir"}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn btn-ok" disabled={guardando}
+                        onClick={guardarSinCobrar}>
+                  Guardar sin cobrar
+                </button>
+                <button className="btn btn-ghost" disabled={guardando}
+                        onClick={imprimirPrecuenta}>
+                  Pre-cuenta
+                </button>
+              </div>
+
+              <button className="btn btn-ghost w-full !min-h-0 !py-2 text-sm"
+                      onClick={() => setVerMas((v) => !v)}>
+                {verMas ? "Menos opciones" : "Más opciones"}
               </button>
-              <button className="btn btn-ok col-span-2" disabled={guardando}
-                      onClick={guardarSinCobrar}>
-                Guardar orden {menuDesdeCache ? "(sin conexión)" : ""}
-              </button>
-              <button className="btn btn-ghost col-span-2" disabled={guardando}
-                      onClick={imprimirPrecuenta}>Imprimir pre-cuenta</button>
-              {/* Respaldo del spec: si el puente está caído, igual se entrega
-                  algo. Funciona en cualquier navegador, iPhone incluido. */}
-              <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
-                      onClick={() => imprimirHtml(datosTicket())}>
-                Imprimir en navegador
-              </button>
-              <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
-                      onClick={() => descargarHtml(datosTicket())}>
-                Descargar recibo
-              </button>
-              <button className="btn btn-ghost col-span-2 !min-h-0 !py-2 text-sm"
-                      onClick={limpiar}>Cancelar orden</button>
+
+              {verMas && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
+                          onClick={() => setVerPreview((v) => !v)}>
+                    {verPreview ? "Ocultar ticket" : "Ver ticket"}
+                  </button>
+                  {/* Respaldo del spec: si el puente está caído, igual se
+                      entrega algo. Funciona en cualquier navegador, iPhone
+                      incluido. */}
+                  <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
+                          onClick={() => imprimirHtml(datosTicket())}>
+                    Imprimir en navegador
+                  </button>
+                  <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
+                          onClick={() => descargarHtml(datosTicket())}>
+                    Descargar recibo
+                  </button>
+                  {/* Con confirmación: un toque borraba un pedido entero. */}
+                  <button className="btn btn-mal !min-h-0 !py-2 text-sm"
+                          onClick={() => setConfirmaCancelar(true)}>
+                    Cancelar orden
+                  </button>
+                </div>
+              )}
+
+              {menuDesdeCache && (
+                <p className="text-center text-xs" style={{ color: "var(--acc-2)" }}>
+                  Menú desde la copia local. Sin conexión solo se puede guardar.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -515,6 +588,48 @@ export default function Caja() {
           </div>
         )}
       </section>
+
+      {/* Cancelar borra un pedido que puede llevar diez líneas cargadas a
+          mano. Un toque accidental no debería poder hacerlo. */}
+      {confirmaCancelar && (
+        <div role="dialog" aria-modal="true"
+             className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,.65)" }}
+             onClick={() => setConfirmaCancelar(false)}>
+          <div className="panel w-full max-w-sm space-y-3 p-4"
+               onClick={(e) => e.stopPropagation()}>
+            <b>¿Cancelar la orden?</b>
+            <p className="text-sm" style={{ color: "var(--txt-2)" }}>
+              {lineas.length === 1
+                ? `Se borra 1 línea por ${fmtC(t.total)}.`
+                : `Se borran ${lineas.length} líneas por ${fmtC(t.total)}.`}{" "}
+              No se puede deshacer.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button className="btn btn-ghost"
+                      onClick={() => setConfirmaCancelar(false)}>
+                Seguir con la orden
+              </button>
+              <button className="btn btn-mal"
+                      onClick={() => { limpiar(); setConfirmaCancelar(false); }}>
+                Sí, cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* El selector de mitades. Estaba escrito pero nunca se montaba, así
+          que el botón no abría nada. */}
+      {editaMitades !== null && (
+        <MitadYMitad
+          pizzas={pizzas}
+          regla={config.precioMitades}
+          inicial={lineaEnEdicion?.mitades ?? null}
+          onConfirmar={confirmarMitades}
+          onCancelar={() => setEditaMitades(null)}
+        />
+      )}
     </div>
   );
 }

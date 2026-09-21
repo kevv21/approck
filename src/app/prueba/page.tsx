@@ -171,8 +171,8 @@ export default function Prueba() {
       <div className="panel p-4">
         <Titulo n={2} txt="Resolver los acentos" activo={paso === "acentos"} />
         <p className="mb-3 text-sm" style={{ color: "var(--txt-2)" }}>
-          Imprime los tres juegos de caracteres en una sola hoja. Mirá el papel,
-          buscá el bloque donde <b>Toña</b> y <b>Jamón</b> se lean bien, y
+          Imprime los tres juegos de caracteres en una sola hoja. Mira el papel,
+          busca el bloque donde <b>Toña</b> y <b>Jamón</b> se lean bien, y
           elegí ese número acá abajo.
         </p>
 

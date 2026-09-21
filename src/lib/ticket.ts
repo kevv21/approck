@@ -109,10 +109,6 @@ const fechaCorta = (d: Date) =>
   `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ` +
   `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
-const fechaLarga = (d: Date) =>
-  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/` +
-  `${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-
 // ---------------------------------------------------------------- cocina ---
 function construirCocina(d: DatosTicket, p: EscPos, m: Maqueta): void {
   const tipo = TIPOS_ORDEN.find((t) => t.valor === d.tipo)!;

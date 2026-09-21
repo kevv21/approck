@@ -27,7 +27,7 @@ Sin terminal, todo desde el navegador (sirve incluso desde el mismo Android):
 3. Deploy. Tarda un par de minutos.
 4. Vercel también despliega la rama de trabajo
    `claude/determined-franklin-kz5981` como *preview*. En **Deployments**
-   buscá la de esa rama y copiá su dirección: es la que tiene lo último.
+   busca la de esa rama y copia su dirección: es la que tiene lo último.
 
 Te queda algo tipo `https://approck-git-claude-xxxx.vercel.app`.
 
@@ -69,7 +69,7 @@ Esto es lo que más confunde. La PT-210 habla por dos canales distintos:
 | **Clásico (SPP)** | El puente de la PC | Sí, crea el puerto COM |
 
 Desde el teléfono se usa BLE, así que **no la emparejes en los ajustes**. Si
-ya lo hiciste y no conecta, andá a Ajustes → Bluetooth, tocá la impresora y
+ya lo hiciste y no conecta, ve a Ajustes → Bluetooth, toca la impresora y
 **Desvincular**. Después probá de nuevo desde la app.
 
 ---
@@ -80,7 +80,7 @@ ya lo hiciste y no conecta, andá a Ajustes → Bluetooth, tocá la impresora y
    Si parpadea, está buscando conexión: está bien.
 2. Abrí la dirección de Vercel en Chrome.
 3. Tocá **Probar** en el menú de arriba.
-4. Mirá los tres checks del diagnóstico antes de seguir:
+4. Mira los tres checks del diagnóstico antes de seguir:
 
 | Check | Si sale ✕ |
 |---|---|
@@ -89,14 +89,14 @@ ya lo hiciste y no conecta, andá a Ajustes → Bluetooth, tocá la impresora y
 | Modo imagen | Raro; el navegador no deja usar canvas |
 
 5. Tocá **Bluetooth**. Se abre el buscador de Chrome.
-6. Elegí la impresora. Puede aparecer como `PT-210`, `MTP-II`, `Printer001`
+6. Elige la impresora. Puede aparecer como `PT-210`, `MTP-II`, `Printer001`
    o incluso sin nombre, según el lote.
 
 ### Si la lista sale vacía
 
 En orden, y probando después de cada uno:
 
-1. Apagá y prendé la impresora.
+1. Apaga y prende la impresora.
 2. Revisá que no esté conectada a otro teléfono. **Estas impresoras aceptan
    una sola conexión a la vez**, y si quedó tomada por otro aparato no
    aparece.
@@ -118,8 +118,8 @@ Española  Champiñón
 ¿Cuántos? ¡Sí! Año Niño
 ```
 
-Mirá el papel, buscá el bloque donde **Toña** y **Jamón** se leen bien, y
-tocá esa opción en la app. Queda guardada en ese teléfono.
+Mira el papel, busca el bloque donde **Toña** y **Jamón** se leen bien, y
+toca esa opción en la app. Queda guardada en ese teléfono.
 
 **Si ninguno se lee bien:**
 
@@ -172,7 +172,7 @@ supabase/08_roles_auditoria.sql
 cp .env.example .env.local
 ```
 
-Pegá los dos valores. Si desplegaste con Vercel, cargalos también en el panel
+Pega los dos valores. Si desplegaste con Vercel, cárgalos también en el panel
 del proyecto y volvé a desplegar.
 
 ### 3. Entrar
@@ -185,11 +185,11 @@ cada anulación y descuento, y sale impreso en el recibo.
 | Paso | Dónde | Qué mirar |
 |---|---|---|
 | Abrir turno | Cierres | Poné un fondo inicial |
-| Tomar una orden | Caja | Elegí tipo, agregá productos |
-| Descuento | Caja | 10% a pizzas. Fijate en el aviso naranja si además ponés uno general |
+| Tomar una orden | Caja | Elige tipo, agrega productos |
+| Descuento | Caja | 10% a pizzas. Fíjate en el aviso naranja si además pones uno general |
 | Propina | Caja | Prendela y mirá cómo cambia el total |
 | Ver ticket | Caja | Es exactamente lo que sale en papel |
-| Cobrar | Caja | Elegí Efectivo, Banpro o BAC |
+| Cobrar | Caja | Elige Efectivo, Banpro o BAC |
 | Inventario | Inventario | Contá algunos insumos y bajá el Excel |
 | Cierre | Cierres | Bajá el Excel y revisá que PedidosYa esté aparte |
 | Bitácora | Cierres | Desplegá y verificá que quedó registrado el descuento |
@@ -199,7 +199,7 @@ cada anulación y descuento, y sale impreso en el recibo.
 Con la app abierta, **apagá los datos y el wifi** del teléfono.
 
 - El indicador de la barra pasa a rojo.
-- Podés seguir armando órdenes. **Guardar orden** las deja en el teléfono con
+- Puedes seguir armando órdenes. **Guardar orden** las deja en el teléfono con
   un número temporal `T-1`, `T-2`.
 - **Cobrar** se bloquea con un mensaje: un cobro que existe solo en el
   teléfono no entra en el arqueo.

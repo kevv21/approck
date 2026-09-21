@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- APPROCK — INSTALACIÓN COMPLETA
 --
--- Pegá TODO este archivo en el SQL Editor de Supabase y dale Run. Una sola
+-- Pega TODO este archivo en el SQL Editor de Supabase y dale Run. Una sola
 -- vez, un solo paste. Reemplaza a los ocho archivos numerados, que quedan
 -- como historial de los cambios.
 --
@@ -625,6 +625,35 @@ create policy p_audit_sel on audit_log for select using (true);
 -- de quien entra, que es lo que se guarda en la bitacora y sale en el recibo.
 -- ---------------------------------------------------------------------------
 alter table settings add column if not exists pin_hash text;
--- PIN inicial: 1234. Cambialo desde Configuracion.
+-- PIN inicial: 1234. Cámbialo desde Configuracion.
 update settings set pin_hash = '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4'
   where id = 'default' and pin_hash is null;
+
+
+-- ===== 09_mitades_pedidosya.sql =========================
+-- ---------------------------------------------------------------------------
+-- Pizza mitad y mitad, y PedidosYa fuera de los metodos de pago.
+--
+-- Esto ANTES vivia solo en el archivo numerado 09, que este instalador no
+-- aplicaba. Quien pegaba unicamente 00_INSTALAR.sql terminaba con una base
+-- donde NINGUNA orden se podia guardar, porque la app escribe
+-- orden.precio_mitades en cada insercion. Va aca.
+-- ---------------------------------------------------------------------------
+
+-- PedidosYa deja de ser metodo de pago: esa plata no pasa por la caja. La
+-- plataforma cobra, descuenta comision y deposita dias despues. Se anota el
+-- total que ella reporta al cerrar el turno, y se informa aparte.
+alter table turno add column if not exists ventas_pedidosya integer not null default 0;
+
+-- Las dos mitades se guardan EN LA LINEA, no como dos lineas: es un solo
+-- producto que sale del horno, y partirlo en dos descuadraria el conteo de
+-- pizzas del cierre.
+alter table orden_item add column if not exists mitades jsonb;
+
+-- Con que regla se cobro la mitad y mitad. Se guarda por orden para que un
+-- cambio de politica manana no reescriba lo que ya se cobro ayer.
+alter table orden      add column if not exists precio_mitades text not null default 'promedio';
+alter table settings   add column if not exists precio_mitades text not null default 'promedio';
+
+-- Una linea de mitad y mitad no sale del catalogo: es una combinacion. Su
+-- producto_id queda NULL, que es justo lo que permite la FK.

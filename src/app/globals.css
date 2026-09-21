@@ -9,6 +9,10 @@
   --txt-2: #9aa3b8;
   --acc: #ff6b1a;
   --acc-2: #ffa04d;
+  /* Segunda mitad de una pizza partida. Azul y no otro naranja a propósito:
+     dos tonos del mismo color se confunden en una pantalla sucia y con
+     prisa, y confundir las mitades cuesta una pizza rehecha. */
+  --mitad-b: #38bdf8;
   --ok: #22c55e;
   --mal: #ef4444;
 }

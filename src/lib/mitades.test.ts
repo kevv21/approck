@@ -3,9 +3,10 @@ import { previsualizarTicket } from "./ticket";
 import { centavos } from "./money";
 import { calcularTotales } from "./pricing";
 import {
-  CONFIG_DEFAULT, METODOS_PAGO, nombreMitades, precioMitadYMitad,
-  type LineaOrden, type MitadPizza,
+  CONFIG_DEFAULT, METODOS_PAGO, datosLineaMitades, nombreMitades,
+  precioMitadYMitad, type LineaOrden, type MitadPizza,
 } from "./types";
+import { refProducto } from "./repo";
 
 const pizza = (nombre: string, precio: number): MitadPizza =>
   ({ productoId: nombre, nombre, precio: centavos(precio) });
@@ -111,5 +112,40 @@ describe("cómo se imprime", () => {
     for (const t of [ticket(), ticket("cocina")]) {
       expect(t.split("\n").filter((l) => l.length > 32)).toEqual([]);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// La linea que se agrega al pedido, y como llega a la base.
+// ---------------------------------------------------------------------------
+describe("la linea de mitad y mitad guardada", () => {
+  it("no apunta a ningun producto del catalogo: es una combinacion", () => {
+    expect(datosLineaMitades(criolla, fabulosa, "promedio").productoId).toBe("");
+  });
+
+  it("al guardar, ese id vacio se traduce a NULL", () => {
+    // Postgres: `producto_id` es uuid. Mandar "" revienta el insert con
+    // "invalid input syntax for type uuid" y se pierde el cobro completo.
+    expect(refProducto("")).toBeNull();
+  });
+
+  it("una linea normal sigue apuntando a su producto", () => {
+    expect(refProducto("9f1c0b2a-0000-4000-8000-000000000001"))
+      .toBe("9f1c0b2a-0000-4000-8000-000000000001");
+  });
+
+  it("lleva el precio ya resuelto por la regla vigente", () => {
+    expect(datosLineaMitades(criolla, fabulosa, "promedio").precioUnit).toBe(35000);
+    expect(datosLineaMitades(criolla, fabulosa, "mayor").precioUnit).toBe(45000);
+  });
+
+  it("guarda las dos mitades para la comanda de cocina", () => {
+    const l = datosLineaMitades(criolla, fabulosa, "promedio");
+    expect(l.mitades).toEqual([criolla, fabulosa]);
+    expect(l.nombre).toBe("Criolla / La Fabulosa");
+  });
+
+  it("cuenta como pizza para los descuentos por categoria", () => {
+    expect(datosLineaMitades(criolla, fabulosa, "promedio").grupo).toBe("pizza");
   });
 });

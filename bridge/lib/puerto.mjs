@@ -38,7 +38,7 @@ export class PuertoImpresora {
     } catch {
       throw new Error(
         "No se pudo cargar 'serialport'. Ejecutá `npm install` dentro de bridge/, " +
-        "o poné SIMULAR=true para probar sin impresora."
+        "o pon SIMULAR=true para probar sin impresora."
       );
     }
     return this.#SerialPort;

@@ -64,23 +64,29 @@ apilan descuentos.
 Antes de configurar nada: **[docs/PROBAR.md](docs/PROBAR.md)** explica cómo
 verificar la impresora desde el teléfono en cinco minutos, sin base de datos.
 La pantalla `/prueba` resuelve los acentos imprimiendo los tres juegos de
-caracteres en una sola hoja: mirás el papel y elegís el que se lee bien.
+caracteres en una sola hoja: miras el papel y eliges el que se lee bien.
 
-Sin Supabase configurado la app arranca en **modo demo** con los 48 productos
-de la carta, así se puede recorrer la interfaz sin instalar nada más.
+Sin Supabase configurado la app **no** simula nada: la pantalla de caja dice
+qué falta y lleva a **Estado**. Antes cargaba un menú de mentira y se veía
+normal, así que se podían armar pedidos completos que no se guardaban en
+ningún lado. En una caja eso no es una demostración.
 
 ## Puesta en marcha
 
 ### 1. Base de datos (5 minutos)
 
 Crea un proyecto gratis en [supabase.com](https://supabase.com). En
-**SQL Editor**, ejecuta en orden:
+**SQL Editor → New query**, pega **un solo archivo**:
 
 ```
-supabase/01_schema.sql      -- tablas, tipos, cola de impresión
-supabase/02_rls.sql         -- políticas de acceso
-supabase/03_seed_menu.sql   -- los 57 productos de la carta
+supabase/00_INSTALAR.sql
 ```
+
+Eso es todo: tablas, tipos, políticas, los 57 productos de la carta y los 59
+insumos del inventario. Se puede volver a correr sin duplicar nada.
+
+> Los archivos `01_` a `09_` quedan como historial de los cambios. **No los
+> ejecutes uno por uno**: están incompletos por separado y el orden importa.
 
 ### 2. Variables de entorno
 
@@ -90,6 +96,16 @@ cp .env.example .env.local
 
 Pon `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
 **Project Settings → API**.
+
+> Una variable creada pero **en blanco** es peor que no crearla: `""` no es
+> `undefined`, así que no cae al respaldo y llega vacía hasta el cliente.
+
+### 2b. Comprobar que quedó bien
+
+Abre **`/configuracion`** (pestaña *Estado*). Revisa una por una las variables
+de entorno, la conexión, las tablas, las columnas, el menú y si hay caja
+abierta, y dice qué hacer con lo que falle. No pide PIN, justamente porque el
+PIN vive en la base que esa pantalla sirve para diagnosticar.
 
 ### 3. Correr
 
@@ -238,7 +254,7 @@ de Supabase se cae con el wifi del local y no siempre reconecta.
   seguridad.** Sirve para que nadie entre por accidente desde un teléfono
   ajeno, no para resistir a un atacante. Lo que sí da garantías es la
   bitácora, que registra quién hizo cada anulación y cada descuento.
-  PIN inicial: **1234**. Cambialo antes de operar.
+  PIN inicial: **1234**. Cámbialo antes de operar.
 - **Offline parcial.** Se pueden tomar órdenes sin señal: quedan en
   IndexedDB con un número temporal `T-n` y se suben solas al reconectar, con
   el correlativo real que asigna Postgres. Cobrar y cerrar caja **requieren

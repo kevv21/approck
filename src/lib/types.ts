@@ -102,6 +102,27 @@ export function precioMitadYMitad(
 export const nombreMitades = (a: MitadPizza, b: MitadPizza): string =>
   `${a.nombre} / ${b.nombre}`;
 
+/**
+ * Los datos de una linea de mitad y mitad, sin id ni cantidad.
+ *
+ * `productoId` va VACIO a proposito: esta linea no sale del catalogo, es una
+ * combinacion. En la base esa columna es uuid, asi que al guardar se traduce
+ * a NULL (ver `refProducto` en repo.ts). Mandar "" tal cual rompia el insert
+ * con "invalid input syntax for type uuid".
+ */
+export function datosLineaMitades(
+  a: MitadPizza, b: MitadPizza, regla: ReglaMitades
+): Omit<LineaOrden, "id" | "cantidad"> {
+  return {
+    productoId: "",
+    nombre: nombreMitades(a, b),
+    precioUnit: precioMitadYMitad(a, b, regla),
+    grupo: "pizza",
+    aplicaIva: true,
+    mitades: [a, b],
+  };
+}
+
 export type AlcanceDescuento = "general" | "pizza" | "bebida";
 export type TipoDescuento = "porcentaje" | "monto";
 

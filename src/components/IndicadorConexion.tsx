@@ -55,7 +55,7 @@ export default function IndicadorConexion() {
   return (
     <button
       onClick={e.enLinea && pendientes > 0 ? sincronizar : refrescar}
-      className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+      className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
       style={{ background: "var(--panel-2)", border: "1px solid var(--borde)" }}
       title={e.conError > 0 ? `${e.conError} con error al subir` : undefined}
     >

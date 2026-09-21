@@ -126,7 +126,67 @@ contra `docs/SPEC.md` y las contradicciones abiertas.
         ejecuciones seguidas sobre la misma base.
       → falta: la prueba en hardware real (impresora).
 
-**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~95%.** (155 pruebas)
+**Avance contra el spec, ya ajustado a lo que pidió el dueño: ~96%.** (175 pruebas)
+
+## Revisión del 2026-09-21
+
+Cuatro cosas que estaban rotas y no se veían compilando:
+
+1. **El selector de mitad y mitad nunca se montaba.** El componente estaba
+   escrito, importado y con su manejador listo, pero el `<MitadYMitad />`
+   no aparecía en el JSX: el botón cambiaba un estado que nadie leía y no
+   pasaba nada. Ahora `noUnusedLocals` está encendido, así que un componente
+   importado y no usado rompe el CI en vez de llegar al local.
+2. **`00_INSTALAR.sql` no traía lo de `09_mitades_pedidosya.sql`.** Quien
+   seguía el README y pegaba el único archivo que ahí se nombra terminaba con
+   una base donde NINGUNA orden se podía guardar, porque la app escribe
+   `orden.precio_mitades` en cada inserción. Verificado contra Postgres 16:
+   tres corridas, 57 productos y 59 insumos estables. Hay una prueba nueva
+   (`instalador.test.ts`) que compara las columnas que el código escribe
+   contra las que el instalador declara; quitando el arreglo, falla nombrando
+   `mitades`, `precio_mitades` y `ventas_pedidosya`.
+3. **La línea de mitad y mitad no se podía guardar** aunque el modal abriera:
+   su `producto_id` iba como `""` y la columna es `uuid`. Postgres responde
+   `invalid input syntax for type uuid` y se pierde el cobro entero.
+   Confirmado en base real; ahora va `NULL`, que es lo que la FK permite.
+4. **`/configuracion` quedaba del otro lado de la puerta.** El PIN vive en
+   `settings.pin_hash`; si esa tabla no existe todavía no se puede entrar, y
+   la pantalla que explica por qué estaba detrás del PIN. Queda exenta, como
+   `/prueba`.
+
+Además:
+- **Se acabó el modo demo.** Antes, sin base configurada, la caja cargaba un
+  menú empaquetado y se veía normal: se podían armar pedidos enteros que no
+  se guardaban en ningún lado. Ahora dice qué falta y lleva a **Estado**
+  (`/configuracion`), que revisa variables, conexión, tablas, columnas, menú
+  y caja abierta, y dice qué hacer con cada fallo.
+- **El ticket de prueba del puente declaraba CP1252 y escribía Latin-1**,
+  contra una impresora cuyo selftest reporta CP437. La eñe salía como otro
+  símbolo y hacía dudar de la impresora cuando el que estaba mal era el
+  puente. Corregido a CP437, igual que el lado de la app.
+- **Voseo barrido**: quedaban «podés», «elegí», «pegá», «andá» y una docena
+  más en la interfaz, el README y el SQL. El dueño pidió español neutro.
+
+UX:
+- La mitad y mitad es **una opción más dentro de la rejilla de pizzas**, no un
+  cartel fijo arriba de todo que ocupaba lugar incluso mirando las cervezas.
+- En el selector, cada mitad tiene su color y ese mismo color marca la pizza
+  elegida en la lista y el punto en el pedido. La segunda mitad es **azul**,
+  no otro naranja: dos tonos del mismo color se confunden con prisa, y
+  confundir las mitades cuesta una pizza rehecha.
+- Se puede **cambiar** una mitad ya agregada sin borrar y rehacer la línea, e
+  **intercambiar** las dos con un botón.
+- Las 26 pizzas van **agrupadas por categoría** en el selector, no en una
+  rejilla plana de 26.
+- Los siete botones iguales del final se volvieron **uno principal**
+  (`Cobrar C$ X e imprimir`), dos secundarios y el resto bajo «Más opciones».
+- **Cancelar orden pide confirmación**: un toque borraba un pedido de diez
+  líneas cargadas a mano.
+- Las doce categorías eran **cinco filas** en un teléfono; ahora es una sola
+  que se desliza, con las pizzas primero. (Y `min-w-0` en las columnas del
+  grid, porque sin eso la fila ensanchaba la página entera.)
+- La barra de arriba **marca en qué pestaña estás** y el indicador de conexión
+  dejó de comerse la última.
 
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
