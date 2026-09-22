@@ -292,6 +292,57 @@ export async function anularOrden(ordenId: string, motivo: string) {
   return data;
 }
 
+/**
+ * QUITAR DEL HISTORIAL. No es una anulacion y no es un delete.
+ *
+ * La orden desaparece del listado de cierres, de los totales, del Excel y de
+ * "Ultimas ordenes", y NO dice "anulada" en ninguna parte: eso es lo que se
+ * pidio. La fila sigue en la base, marcada con quien la quito y cuando.
+ *
+ * Por que no se borra la fila: si una orden cobrada en efectivo se puede
+ * hacer desaparecer sin rastro, el arqueo deja de servir para lo unico que
+ * sirve. Quien cobra podria quedarse con la plata, borrar la orden, y la caja
+ * cuadraria perfecto. Marcada, el arqueo da igual —la orden no cuenta— pero
+ * queda de donde salio. Y se puede deshacer; un delete no.
+ *
+ * Para borrar de verdad las pruebas antes de abrir: `LIMPIAR_PRUEBAS.sql`.
+ */
+export async function ocultarOrden(ordenId: string, motivo: string) {
+  const limpio = motivo.trim();
+  if (!limpio) throw new Error("Decir por que se quita es lo que la separa de una venta desaparecida.");
+
+  const quien = sesionActual()?.nombre ?? "(sin sesión)";
+  const { data, error } = await supabase.from("orden").update({
+    oculta_at: new Date().toISOString(),
+    oculta_por: quien,
+    oculta_motivo: limpio,
+  }).eq("id", ordenId).select("numero, total").single();
+  if (error) throw error;
+
+  await registrar({
+    accion: "exclusion",
+    motivo: limpio,
+    ordenId,
+    detalle: { orden: data.numero, monto: data.total },
+  });
+  return data;
+}
+
+/** Devuelve al historial una orden quitada. */
+export async function restaurarOrden(ordenId: string) {
+  const { data, error } = await supabase.from("orden").update({
+    oculta_at: null, oculta_por: null, oculta_motivo: null,
+  }).eq("id", ordenId).select("numero, total").single();
+  if (error) throw error;
+
+  await registrar({
+    accion: "restauracion",
+    ordenId,
+    detalle: { orden: data.numero, monto: data.total },
+  });
+  return data;
+}
+
 export async function encolar(
   ordenId: string | null,
   tipo: "cliente" | "cocina" | "prueba" | "precuenta",
@@ -368,6 +419,7 @@ export async function ultimasOrdenes(limite = 10): Promise<OrdenBreve[]> {
     .from("orden")
     .select("id, numero, tipo, mesa, cliente, total, estado, created_at")
     .neq("estado", "anulada")
+    .is("oculta_at", null)
     .order("created_at", { ascending: false })
     .limit(limite);
   if (error) throw error;

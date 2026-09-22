@@ -5,7 +5,12 @@ import { sesionActual } from "./sesion";
 
 export type AccionAuditoria =
   | "anulacion" | "descuento" | "cambio_precio" | "reimpresion"
-  | "apertura_caja" | "cierre_caja" | "login_fallido";
+  | "apertura_caja" | "cierre_caja" | "login_fallido"
+  // Quitar del historial no es anular: la orden no cuenta en el cierre y no
+  // figura como anulada en ninguna pantalla. Aqui SI queda, porque es lo
+  // unico que separa "sacar una orden de prueba" de "hacer desaparecer una
+  // venta cobrada en efectivo".
+  | "exclusion" | "restauracion";
 
 export interface EntradaAuditoria {
   accion: AccionAuditoria;

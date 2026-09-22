@@ -688,6 +688,24 @@ alter table orden add column if not exists empaque_por_pizza integer not null de
 alter table orden add column if not exists empaque_gravado   boolean not null default true;
 alter table orden add column if not exists empaque           integer not null default 0;
 
+-- ------------------------------------------- quitar del historial ----------
+-- La orden sale del cierre SIN figurar como anulada. Marca la fila, no la
+-- borra: un delete deja el arqueo sin con que cuadrar. Ver 11_ocultar.sql.
+alter table orden add column if not exists oculta_at     timestamptz;
+alter table orden add column if not exists oculta_por    text;
+alter table orden add column if not exists oculta_motivo text;
+
+-- El cierre filtra por esta columna en cada consulta del dia.
+create index if not exists idx_orden_oculta on orden (oculta_at)
+  where oculta_at is null;
+
+-- Dos acciones nuevas en la bitacora. `add value` corre dentro de una
+-- transaccion en Postgres 12+, asi que no rompe el editor de Supabase;
+-- verificado contra 16.13.
+alter type accion_auditoria add value if not exists 'exclusion';
+alter type accion_auditoria add value if not exists 'restauracion';
+
+
 -- La tarifa vigente, que es la que propone la pantalla al tomar una orden.
 alter table settings add column if not exists empaque_por_pizza integer not null default 3000;
 alter table settings add column if not exists empaque_gravado   boolean not null default true;

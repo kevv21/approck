@@ -17,6 +17,9 @@ export interface FilaOrden {
   subtotal_bruto: number;
   desc_total: number;
   desc_motivo: string | null;
+  /** Quitada del historial: no entra al cierre ni a esta hoja. */
+  oculta_por?: string | null;
+  oculta_motivo?: string | null;
   costo_envio: number;
   iva: number;
   propina: number;

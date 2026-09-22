@@ -402,6 +402,54 @@ cobrar -> aviso con Reimprimir -> la orden encabezando «Ultimas ordenes».
 
 **204 pruebas.**
 
+## Quitar ordenes del historial — 2026-09-22
+
+Pedido: poder **borrar** pedidos del historial sin que figuren como
+cancelados ni salgan en el cierre.
+
+**Se hizo lo segundo y lo tercero; la fila NO se borra.** La orden desaparece
+del listado, de los totales, del Excel y de «Ultimas ordenes», y no dice
+«anulada» en ninguna pantalla — que es lo que se pidio. Pero la fila sigue en
+la base, marcada con `oculta_at / oculta_por / oculta_motivo`.
+
+La razon de no borrarla no es prudencia general, es una concreta: si una orden
+cobrada en EFECTIVO se puede hacer desaparecer sin rastro, el arqueo deja de
+servir para lo unico que sirve. Quien cobra se queda con la plata, borra la
+orden, y la caja cuadra perfecto. Marcada, el arqueo da igual —la orden no
+cuenta— pero queda de donde salio. Y se puede **devolver**; un delete no.
+
+- Boton **Quitar** por fila en Cierres, con motivo (sugiere «Prueba»).
+- Interruptor **Ver quitadas / Ver el cierre**. En esa vista cada fila dice
+  «Quitada por <quien> · <motivo>», hay boton **Devolver**, no hay **Anular**
+  y **el Excel queda deshabilitado**, con un aviso de que los totales de
+  arriba son los de esa lista y no los del dia.
+- En la bitacora quedan dos acciones nuevas: `exclusion` y `restauracion`.
+
+**Para borrar de verdad las pruebas antes de abrir**: `LIMPIAR_PRUEBAS.sql`,
+que se corre a mano una sola vez. Muestra primero cuanto va a borrar, el
+borrado va comentado para que haya que descomentarlo a proposito, y reinicia
+el correlativo para que la primera venta real sea la #1.
+
+**SQL nuevo:** `supabase/11_ocultar.sql` (ya incluido en `00_INSTALAR.sql`) y
+un `BLINDAR.sql` actualizado, que ahora concede el UPDATE de esas tres
+columnas y **sigue negando el DELETE**.
+
+Verificado contra Postgres 16.13 real, con `BLINDAR.sql` aplicado y los
+GRANT por defecto de Supabase:
+quitar ✓, el cierre deja de contarla ✓, no figura como anulada ✓, devolver ✓,
+**borrar la fila denegado** ✓, **cambiar el total denegado** ✓, la bitacora
+acepta las acciones nuevas ✓ y **sigue sin poder editarse ni borrarse** ✓.
+El instalador corre tres veces seguidas: 12 tablas, 57 productos, 59 insumos.
+
+Un fallo propio, encontrado manejando la pantalla y no leyendola: la edicion
+de las dependencias de `buscar` no llego a aplicarse, asi que «Ver quitadas»
+cambiaba de vista **sin volver a consultar**. Mostraba la MISMA lista del
+cierre con los botones cambiados, y se habria podido «devolver» una orden que
+nunca se quito. Corregido y comprobado: la consulta pasa de `oculta_at=is.null`
+a `oculta_at=not.is.null`, 3 filas contra 1.
+
+**204 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

@@ -10,6 +10,10 @@
 -- sacado de leer cada llamada del codigo:
 --
 --   - Nadie borra nada, en ninguna tabla. Anular es cambiar un estado.
+--   - Una orden se puede QUITAR del historial (sale del cierre sin figurar
+--     como anulada) y devolver. Marca la fila; no la borra. Nadie puede
+--     borrar una orden: un delete deja el arqueo sin con que cuadrar y hace
+--     que quedarse con el efectivo de una venta no se note.
 --   - Una orden cobrada solo admite que se la anule. Su total, sus lineas y
 --     su metodo de pago quedan congelados (permiso por COLUMNA, no por
 --     tabla, que es lo unico que lo consigue).
@@ -64,7 +68,8 @@ begin
     -- ------------------------------------------------------------------
     execute format('revoke update on orden from %I', r);
     execute format(
-      'grant update (estado, anulada_por, anulada_motivo, anulada_at) on orden to %I', r);
+      'grant update (estado, anulada_por, anulada_motivo, anulada_at, ' ||
+      'oculta_at, oculta_por, oculta_motivo) on orden to %I', r);
 
     -- ------------------------------------------------------------------
     -- orden_item: inmutable. Una linea vendida no se reescribe.

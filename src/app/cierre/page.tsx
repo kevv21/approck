@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { descargarBlob, generarCierreExcel, nombreArchivoCierre, type FilaOrden } from "@/lib/excel";
 import { fmtC, centavos, aCordobas } from "@/lib/money";
-import { abrirTurno, anularOrden, cerrarTurno, reimprimir, turnoAbierto, turnoDeRango } from "@/lib/repo";
+import {
+  abrirTurno, anularOrden, cerrarTurno, ocultarOrden, reimprimir, restaurarOrden,
+  turnoAbierto, turnoDeRango,
+} from "@/lib/repo";
 import { listarAuditoria, type FilaAuditoria } from "@/lib/auth/auditoria";
 import { hayConfig, supabase } from "@/lib/supabase";
 import { hayInternet } from "@/lib/offline/conexion";
@@ -32,6 +35,12 @@ export default function Cierre() {
   const [fondo, setFondo] = useState("");
   const [contado, setContado] = useState("");
   const [pedidosYa, setPedidosYa] = useState("");
+  /**
+   * Las quitadas no se ven ni cuentan. Este interruptor existe para poder
+   * devolverlas: una pantalla desde la que se saca algo y no se puede volver
+   * a meter es una pantalla desde la que se pierde algo.
+   */
+  const [verOcultas, setVerOcultas] = useState(false);
 
   const rango = useCallback(() => {
     const d = new Date(`${desde}T00:00:00`);
@@ -45,12 +54,15 @@ export default function Cierre() {
     setAviso(null);
     try {
       const { d, h } = rango();
-      const { data, error } = await supabase
+      let q = supabase
         .from("orden")
         .select("*, orden_item(*)")
         .gte("created_at", d.toISOString())
-        .lte("created_at", h.toISOString())
-        .order("numero");
+        .lte("created_at", h.toISOString());
+      // Quitadas fuera: no aparecen en la tabla, no suman en los totales y no
+      // entran al Excel, porque el Excel se arma con esta misma lista.
+      q = verOcultas ? q.not("oculta_at", "is", null) : q.is("oculta_at", null);
+      const { data, error } = await q.order("numero");
       if (error) throw error;
       setOrdenes(
         (data ?? []).map((o: Record<string, unknown>) => ({
@@ -62,7 +74,11 @@ export default function Cierre() {
     } finally {
       setCargando(false);
     }
-  }, [rango]);
+    // `verOcultas` va aquí, no solo dentro: sin esta dependencia el botón
+    // cambiaba de vista sin volver a consultar, y "Ver quitadas" mostraba la
+    // MISMA lista del cierre con los botones cambiados. Se habría podido
+    // "devolver" una orden que nunca se quitó.
+  }, [rango, verOcultas]);
 
   // El turno abierto si lo hay; si no, el ultimo del rango consultado, para
   // que re-descargar el Excel de un dia cerrado no pierda ni el bloque de
@@ -178,10 +194,24 @@ export default function Cierre() {
         <button className="btn btn-ghost" onClick={buscar} disabled={cargando}>
           {cargando ? "Buscando..." : "Buscar"}
         </button>
-        <button className="btn btn-acc" onClick={exportar} disabled={ordenes.length === 0}>
+        <button className="btn btn-acc" onClick={exportar}
+                disabled={ordenes.length === 0 || verOcultas}>
           Descargar Excel
         </button>
+        <button className={`chip ${verOcultas ? "chip-on" : ""}`}
+                style={{ minHeight: "40px" }}
+                onClick={() => setVerOcultas((v) => !v)}>
+          {verOcultas ? "Ver el cierre" : "Ver quitadas"}
+        </button>
       </div>
+
+      {verOcultas && (
+        <div className="panel p-3 text-sm" style={{ borderColor: "var(--acc-2)" }}>
+          <b style={{ color: "var(--acc-2)" }}>Órdenes quitadas del historial.</b>{" "}
+          No cuentan en el cierre ni salen en el Excel. Los totales de arriba
+          son los de esta lista, no los del día.
+        </div>
+      )}
 
       {aviso && <div className="panel p-3 text-sm">{aviso}</div>}
 
@@ -297,17 +327,68 @@ export default function Cierre() {
                 <td className="px-3 py-2">
                   {TIPOS_ORDEN.find((t) => t.valor === o.tipo)?.etiqueta}
                 </td>
-                <td className="px-3 py-2">{o.cliente ?? o.mesa ?? "—"}</td>
+                <td className="px-3 py-2">
+                  {o.cliente ?? o.mesa ?? "—"}
+                  {/* Solo aquí: en el cierre normal no hay nada que decir
+                      porque la orden quitada ni aparece. */}
+                  {verOcultas && o.oculta_por && (
+                    <div className="text-[11px]" style={{ color: "var(--txt-3)" }}>
+                      Quitada por {o.oculta_por}
+                      {o.oculta_motivo ? ` · ${o.oculta_motivo}` : ""}
+                    </div>
+                  )}
+                </td>
                 <td className="mono px-3 py-2" style={{ color: "var(--acc-2)" }}>
                   {o.desc_total > 0 ? `-${fmtC(o.desc_total)}` : ""}
                 </td>
                 <td className="mono px-3 py-2 font-bold">{fmtC(o.total)}</td>
-                <td className="flex gap-1 px-3 py-2">
+                <td className="flex flex-wrap gap-1 px-3 py-2">
                   <button className="chip"
                           onClick={() => reimprimir((o as unknown as { id: string }).id)}>
                     Reimprimir
                   </button>
-                  {o.estado === "pagada" && (
+
+                  {/* Quitar del historial: la orden sale del cierre SIN quedar
+                      como anulada. No borra la fila; ver `ocultarOrden`. */}
+                  {verOcultas ? (
+                    <button className="chip" style={{ color: "var(--ok)" }}
+                            onClick={async () => {
+                              try {
+                                await restaurarOrden((o as unknown as { id: string }).id);
+                                setAviso(`Orden #${o.numero} devuelta al historial.`);
+                                buscar();
+                              } catch (e) {
+                                setAviso(`Error: ${(e as Error).message}`);
+                              }
+                            }}>
+                      Devolver
+                    </button>
+                  ) : (
+                    <button className="chip" style={{ color: "var(--txt-2)" }}
+                            onClick={async () => {
+                              // Se pide por qué, y se guarda solo en la bitácora.
+                              // En el cierre no aparece nada: ni la orden ni un
+                              // hueco donde estaba. Pero si un día falta plata,
+                              // esto es lo único que dice qué se sacó y quién.
+                              const motivo = prompt(
+                                `¿Por qué se quita la orden #${o.numero} del historial?\n` +
+                                `Deja de contar en el cierre. No dirá "anulada".`,
+                                "Prueba"
+                              );
+                              if (!motivo?.trim()) return;
+                              try {
+                                await ocultarOrden((o as unknown as { id: string }).id, motivo);
+                                setAviso(`Orden #${o.numero} quitada del historial.`);
+                                buscar();
+                              } catch (e) {
+                                setAviso(`Error: ${(e as Error).message}`);
+                              }
+                            }}>
+                      Quitar
+                    </button>
+                  )}
+
+                  {!verOcultas && o.estado === "pagada" && (
                     <button className="chip" style={{ color: "var(--mal)" }}
                             onClick={async () => {
                               // Motivo obligatorio: una anulación sin motivo es
