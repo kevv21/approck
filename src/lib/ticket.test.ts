@@ -77,9 +77,35 @@ describe("maquetado", () => {
 });
 
 describe("contenido exigido por el spec", () => {
-  it("el recibo lleva la leyenda de que no es factura fiscal", () => {
-    expect(previsualizarTicket(datos())).toContain("no es");
-    expect(LEYENDA_FISCAL).toContain("no es factura fiscal");
+  // El dueño pidió que el papel diga solo esto. Ya no lleva la negación
+  // explícita de "no es factura fiscal"; sigue sin afirmar que lo sea.
+  it("el papel se declara hoja de consumo", () => {
+    expect(previsualizarTicket(datos())).toContain("Hoja de consumo");
+    expect(LEYENDA_FISCAL).toBe("Hoja de consumo");
+  });
+
+  it("se puede apagar la leyenda desde settings", () => {
+    const txt = previsualizarTicket(datos({ mostrarLeyendaFiscal: false }));
+    expect(txt).not.toContain("Hoja de consumo");
+  });
+
+  // El método de pago sale del papel por decisión del dueño. Para el arqueo
+  // vive en la base, que es donde se cuadra la caja.
+  it("no imprime el método de pago", () => {
+    for (const m of ["efectivo", "banpro", "bac"] as const) {
+      const txt = previsualizarTicket(datos({ metodoPago: m }));
+      expect(txt, m).not.toContain("Pago:");
+      expect(txt, m).not.toContain("Banpro");
+      expect(txt, m).not.toContain("BAC");
+    }
+  });
+
+  // Recibido y Cambio se quedan: no son la etiqueta del método, son la cuenta
+  // que el cliente revisa en el mostrador antes de irse.
+  it("sigue imprimiendo recibido y cambio en efectivo", () => {
+    const txt = previsualizarTicket(datos({ metodoPago: "efectivo" }));
+    expect(txt).toContain("Recibido:");
+    expect(txt).toContain("Cambio:");
   });
 
   it("las reimpresiones se marcan COPIA, no REIMPRESIÓN", () => {

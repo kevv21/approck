@@ -28,6 +28,8 @@ interface Aviso {
   detalle?: string;
   tono: TonoAviso;
   deshacer?: () => void;
+  /** Un botón propio, cuando la acción no es deshacer sino seguir. */
+  accion?: { texto: string; hacer: () => void };
 }
 
 interface Api {
@@ -65,7 +67,7 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
     setAviso({ ...a, id: ++siguiente.current });
     reloj.current = setTimeout(
       () => setAviso(null),
-      a.deshacer ? DURACION_DESHACER : DURACION
+      a.deshacer || a.accion ? DURACION_DESHACER : DURACION
     );
   }, []);
 
@@ -102,13 +104,17 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
                 </div>
               )}
             </div>
-            {aviso.deshacer && (
+            {(aviso.deshacer || aviso.accion) && (
               <button
                 className="shrink-0 rounded-lg px-3 text-sm font-bold"
                 style={{ color: "var(--acc)", minHeight: "40px" }}
-                onClick={() => { aviso.deshacer?.(); cerrar(); }}
+                onClick={() => {
+                  if (aviso.accion) aviso.accion.hacer();
+                  else aviso.deshacer?.();
+                  cerrar();
+                }}
               >
-                Deshacer
+                {aviso.accion ? aviso.accion.texto : "Deshacer"}
               </button>
             )}
           </div>

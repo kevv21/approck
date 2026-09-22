@@ -237,6 +237,11 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
   };
 
   await encolar(orden.id, "cliente", base);
+  // Hoy NADIE la enciende: el dueño pidió que del cobro salga solo la hoja de
+  // consumo. El camino se queda para volver a activarla con una línea, y
+  // `reimprimir(id, true)` sigue sacando la comanda a pedido. Único borde:
+  // una orden que quedó en la cola local ANTES de este cambio conserva
+  // `imprimirCocina: true` en su payload y sacará comanda al sincronizar.
   if (d.imprimirCocina) await encolar(orden.id, "cocina", { ...base, documento: "cocina" });
 
   // El spec exige que todo descuento quede registrado con usuario, hora y
@@ -336,6 +341,37 @@ export async function marcarJob(
     ...(intentos != null ? { intentos } : {}),
     ...(estado === "impreso" ? { impreso_at: new Date().toISOString() } : {}),
   }).eq("id", id);
+}
+
+export interface OrdenBreve {
+  id: string;
+  numero: number | null;
+  tipo: string;
+  mesa: string | null;
+  cliente: string | null;
+  total: number;
+  estado: string;
+  created_at: string;
+}
+
+/**
+ * Las ultimas ordenes, para poder REIMPRIMIR sin rehacer el pedido.
+ *
+ * Existe por un problema concreto de caja: si el ticket no sale —papel,
+ * puente caido, impresora apagada— el cajero volvia a cargar el pedido entero
+ * y lo cobraba otra vez. Esa segunda orden es real para la base, asi que el
+ * cierre del dia sale con la venta DUPLICADA y el efectivo no cuadra.
+ * Reimprimir no toca la base: encola el mismo ticket, marcado COPIA.
+ */
+export async function ultimasOrdenes(limite = 10): Promise<OrdenBreve[]> {
+  const { data, error } = await supabase
+    .from("orden")
+    .select("id, numero, tipo, mesa, cliente, total, estado, created_at")
+    .neq("estado", "anulada")
+    .order("created_at", { ascending: false })
+    .limit(limite);
+  if (error) throw error;
+  return (data ?? []) as OrdenBreve[];
 }
 
 /** Reimprime una orden ya cerrada. */

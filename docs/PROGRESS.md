@@ -361,6 +361,47 @@ que ya lo trae). Idempotente. Sin el, la app no puede guardar ordenes: escribe
 
 **201 pruebas.**
 
+## Hoja de consumo y reimpresion — 2026-09-22
+
+1. **El recibo ya no imprime el metodo de pago.** Para el arqueo vive en la
+   base, que es donde se cuadra la caja. `Recibido` y `Cambio` en efectivo se
+   quedan: eso no es la etiqueta del metodo, es la cuenta que el cliente
+   revisa en el mostrador.
+2. **La leyenda es ahora solo "Hoja de consumo"**, sin el "no es factura
+   fiscal". Sigue sin afirmar que sea una factura, pero **la negacion
+   explicita ya no esta**: queda como riesgo abierto hasta que lo valide el
+   contador. Se apaga entera con `mostrarLeyendaFiscal: false` en settings.
+3. **La comanda de cocina dejo de imprimirse.** Del cobro sale solo la hoja
+   de consumo. El camino sigue en `repo.ts` (`imprimirCocina`) y
+   `reimprimir(id, true)` la saca a pedido, asi que volver a encenderla es
+   una linea. Borde conocido: una orden que quedo en la cola LOCAL antes de
+   este cambio conserva `imprimirCocina: true` y sacara comanda al subir.
+4. **Reimprimir sin rehacer el pedido.** Es la razon de todo lo anterior:
+   cuando el ticket no salia, la unica salida visible era cargar el pedido
+   otra vez y cobrarlo de nuevo. Esa segunda orden es real para la base, asi
+   que el cierre salia con la venta DUPLICADA y el efectivo no cuadraba.
+   Ahora hay dos caminos, los dos sin tocar la base: el aviso del cobro trae
+   **Reimprimir** durante 5.5 s, y un panel **Ultimas ordenes** (las 10
+   ultimas, con la mas reciente siempre a la vista) lo permite despues. Sale
+   marcada COPIA y queda en la bitacora.
+
+Probando el cobro en un Android emulado de 360px salieron tres fallos que
+explican por que alguien rehacia el pedido:
+- **La hoja del pedido quedaba abierta y VACIA** tras cobrar, con
+  `TOTAL C$ 0.00` y el boton «Cobrar e imprimir» todavia activo.
+- **En telefono no habia confirmacion del cobro.** El mensaje «Orden #N
+  cobrada» se escribia dentro del bloque del pedido, que en esa disposicion
+  no se ve. Lo ultimo que decia la pantalla era «Agregado — Pepperoni».
+- El boton de cobrar se podia tocar con el pedido vacio.
+Los tres corregidos: la hoja se cierra, el cobro se confirma en un aviso a la
+vista y el boton se deshabilita sin lineas.
+
+Verificado a 360 y 412px contra un PostgREST simulado: cero desbordamiento
+horizontal, boton de 40px (el minimo de Android) y el flujo completo de
+cobrar -> aviso con Reimprimir -> la orden encabezando «Ultimas ordenes».
+
+**204 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

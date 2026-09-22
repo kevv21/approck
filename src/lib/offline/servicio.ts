@@ -32,6 +32,8 @@ export interface ResultadoGuardar {
   offline: boolean;
   numero: number;
   idLocal?: string;
+  /** Id en la base. Solo existe si subio; hace falta para reimprimir. */
+  id?: string;
 }
 
 /**
@@ -49,7 +51,7 @@ export async function guardarOrden(
 
   if (await hayInternet()) {
     const { orden } = await guardarYEncolar({ ...d, idLocal });
-    return { offline: false, numero: orden.numero, idLocal };
+    return { offline: false, numero: orden.numero, idLocal, id: orden.id };
   }
 
   const numeroTemp = await siguienteNumeroTemp();

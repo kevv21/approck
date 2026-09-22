@@ -3,7 +3,7 @@ import {
   envolver, parLineado, type AnchoPapel,
 } from "./escpos";
 import { fmtPlano as fmt } from "./money";
-import { TIPOS_ORDEN, etiquetaPago, type MetodoPago, type TipoOrden, type Totales } from "./types";
+import { TIPOS_ORDEN, type MetodoPago, type TipoOrden, type Totales } from "./types";
 
 export interface DatosNegocio {
   nombre: string;
@@ -26,7 +26,15 @@ export const NEGOCIO: DatosNegocio = {
  * Exigida por el spec hasta que exista facturacion autorizada por la DGI.
  * No quitarla sin confirmacion del contador.
  */
-export const LEYENDA_FISCAL = "Recibo de consumo - no es factura fiscal";
+/**
+ * Lo unico que declara el papel. El dueno pidio que diga solo esto.
+ *
+ * Sigue sin afirmar que es una factura —dice literalmente que es una hoja de
+ * consumo—, pero ya no lleva la negacion explicita. Queda como riesgo abierto
+ * hasta que lo valide el contador (docs/PROGRESS.md). Se apaga entera con
+ * `mostrarLeyendaFiscal: false` desde settings, sin tocar codigo.
+ */
+export const LEYENDA_FISCAL = "Hoja de consumo";
 
 export type TipoDocumento = "cliente" | "precuenta" | "cocina";
 
@@ -249,15 +257,16 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
   if (t.totalUsd != null) p.linea(parLineado("Equivale a US$", fmt(t.totalUsd), m.columnas));
   p.separador();
 
-  // 5. Pago (la pre-cuenta no lo lleva: todavía no se cobró)
-  if (!esPrecuenta && d.metodoPago) {
-    p.linea(`Pago: ${etiquetaPago(d.metodoPago)}`);
-    if (d.metodoPago === "efectivo" && d.recibido != null && d.recibido > 0) {
-      const cambio = Math.max(0, d.recibido - t.total);
-      const mp = columnaMontos([d.recibido, cambio]);
-      p.linea("Recibido: ".padEnd(10) + mp(d.recibido));
-      p.linea("Cambio:".padEnd(10) + mp(cambio));
-    }
+  // 5. Efectivo recibido y cambio. El METODO de pago no se imprime: el dueño
+  //    lo pidió fuera y, de todos modos, para el arqueo vive en la base.
+  //    Esto se queda porque es la cuenta que el cliente revisa en el
+  //    mostrador, no una etiqueta.
+  if (!esPrecuenta && d.metodoPago === "efectivo" &&
+      d.recibido != null && d.recibido > 0) {
+    const cambio = Math.max(0, d.recibido - t.total);
+    const mp = columnaMontos([d.recibido, cambio]);
+    p.linea("Recibido: ".padEnd(10) + mp(d.recibido));
+    p.linea("Cambio:".padEnd(10) + mp(cambio));
   }
 
   if (esPrecuenta) {

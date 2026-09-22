@@ -6,10 +6,11 @@ import BarraPedido from "@/components/BarraPedido";
 import HojaPedido from "@/components/HojaPedido";
 import { useAvisos } from "@/components/Avisos";
 import Plegable from "@/components/Plegable";
+import UltimasOrdenes from "@/components/UltimasOrdenes";
 import MitadYMitad from "@/components/MitadYMitad";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
-import { cargarMenu, encolar, turnoAbierto } from "@/lib/repo";
+import { cargarMenu, encolar, reimprimir, turnoAbierto } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
 import { guardarMenuLocal } from "@/lib/offline/db";
 import { hayInternet } from "@/lib/offline/conexion";
@@ -45,7 +46,6 @@ export default function Caja() {
   const [envio, setEnvio] = useState("");
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("efectivo");
   const [recibido, setRecibido] = useState("");
-  const [imprimirCocina, setImprimirCocina] = useState(true);
   // Se puede quitar en el momento: a veces el cliente trae su propia caja, o
   // se lleva una sola porción.
   const [cobrarEmpaque, setCobrarEmpaque] = useState(true);
@@ -58,6 +58,8 @@ export default function Caja() {
   const [confirmaCancelar, setConfirmaCancelar] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
+  /** Sube tras cada orden guardada, para recargar el listado de reimpresion. */
+  const [refrescoOrdenes, setRefrescoOrdenes] = useState(0);
 
   const [menuDesdeCache, setMenuDesdeCache] = useState(false);
   // null = cerrado; "" = agregando una nueva; <id> = editando esa linea.
@@ -226,10 +228,22 @@ export default function Caja() {
         lineas, descuentos, config, tipo,
         mesa, cliente, telefonoCliente: telefono, direccion, notas, atendio,
         metodoPago, recibido: recibidoCent > 0 ? recibidoCent : undefined,
-        motivoDescuento: motivoDesc, turnoId: turno?.id ?? null, imprimirCocina,
+        motivoDescuento: motivoDesc, turnoId: turno?.id ?? null,
       });
       setAviso({ txt: `Orden #${r.numero} cobrada y enviada a la estación de impresión.` });
+      setRefrescoOrdenes((n) => n + 1);
       limpiar();
+      setHojaAbierta(false);
+      avisar({
+        texto: `Orden #${r.numero} cobrada`,
+        detalle: "Enviada a imprimir",
+        tono: "agregado",
+        // Si el papel no sale, esto evita el error caro: rehacer el pedido y
+        // cobrarlo otra vez, que duplica la venta en el cierre.
+        ...(r.id
+          ? { accion: { texto: "Reimprimir", hacer: () => { reimprimir(r.id!).catch(() => {}); } } }
+          : {}),
+      });
     } catch (e) {
       setAviso({ txt: `Error al guardar: ${(e as Error).message}`, mal: true });
     } finally {
@@ -247,14 +261,21 @@ export default function Caja() {
         lineas, descuentos, config, tipo,
         mesa, cliente, telefonoCliente: telefono, direccion, notas, atendio,
         metodoPago, motivoDescuento: motivoDesc,
-        turnoId: turno?.id ?? null, imprimirCocina,
+        turnoId: turno?.id ?? null,
       });
       setAviso({
         txt: r.offline
           ? `Orden guardada en este dispositivo como T-${r.numero}. Se sube sola al volver la conexión.`
           : `Orden #${r.numero} guardada.`,
       });
+      setRefrescoOrdenes((n) => n + 1);
       limpiar();
+      setHojaAbierta(false);
+      avisar({
+        texto: r.offline ? `Guardada como T-${r.numero}` : `Orden #${r.numero} guardada`,
+        detalle: r.offline ? "Se sube sola al volver la señal" : "Sin cobrar",
+        tono: "agregado",
+      });
     } catch (e) {
       setAviso({ txt: `Error: ${(e as Error).message}`, mal: true });
     } finally {
@@ -444,12 +465,6 @@ export default function Caja() {
                 </div>
               )}
 
-              <label className="mt-3 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={imprimirCocina}
-                       onChange={(e) => setImprimirCocina(e.target.checked)} />
-                También imprimir ticket de cocina
-              </label>
-
               {/* Solo aparece cuando hay algo que empacar. A veces el cliente
                   trae su propia caja. */}
               {tipo !== "mesa" && lineas.some((l) => l.grupo === "pizza") && (
@@ -470,7 +485,7 @@ export default function Caja() {
                 {/* En teléfono este botón vive clavado al pie de la hoja: aquí
                     quedaba bajo el pliegue en cuanto había tres ítems. */}
                 <button className="btn btn-acc hidden w-full !py-4 text-base lg:flex"
-                        disabled={guardando} onClick={cobrar}>
+                        disabled={guardando || lineas.length === 0} onClick={cobrar}>
                   {guardando ? "Guardando…" : `Cobrar ${fmtC(t.total)} e imprimir`}
                 </button>
 
@@ -688,6 +703,9 @@ export default function Caja() {
           </div>
         </div>
 
+        <div className="mt-3">
+          <UltimasOrdenes refresco={refrescoOrdenes} />
+        </div>
       </section>
 
       {/* -------------------------------------------------------- pedido -- */}
@@ -727,6 +745,8 @@ export default function Caja() {
         </div>
 
         {pedido}
+
+        <UltimasOrdenes refresco={refrescoOrdenes} />
       </section>
 
       {/* En teléfono, el pedido no está a la vista: esta barra dice siempre
@@ -742,8 +762,11 @@ export default function Caja() {
                     style={{ color: "var(--txt-2)" }}>Total</span>
               <span className="text-2xl font-black">{fmtC(t.total)}</span>
             </div>
+            {/* Deshabilitado con el pedido vacío: un botón de cobrar activo
+                sobre «TOTAL C$ 0.00» hace dudar de si el cobro anterior
+                entró, y esa duda termina en la orden cargada dos veces. */}
             <button className="btn btn-acc w-full !py-4 text-base"
-                    disabled={guardando} onClick={cobrar}>
+                    disabled={guardando || lineas.length === 0} onClick={cobrar}>
               {guardando ? "Guardando…" : "Cobrar e imprimir"}
             </button>
           </>
