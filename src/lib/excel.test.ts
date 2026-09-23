@@ -189,3 +189,60 @@ describe("nombre del archivo", () => {
       .toBe("Cierre_2026-09-19_2230.xlsx");
   });
 });
+
+// Extras en el cierre — 2026-09-23
+//
+// Una Diabla con bacon entraba entera a la fila "Diabla": P. unitario C$300
+// pero el bacon metido en el subtotal, así que P. unitario × Cant. no daba el
+// subtotal, y el bacon vendido no aparecía en ninguna parte. Ahora cada extra
+// sale en su fila y la plata de la línea se reparte entre la pizza y sus
+// extras en proporción a su precio, al centavo.
+describe("extras en consumibles", () => {
+  const conExtras = orden(10, "efectivo", 890, {
+    iva: centavos(133.5),
+    items: [{
+      nombre_snapshot: "Diabla", cantidad: 2, precio_snapshot: centavos(300),
+      neto: centavos(890), iva: centavos(133.5),
+      modificadores: [
+        { nombre: "Extra Bacon", precio: centavos(60) },
+        { nombre: "Borde de queso", precio: centavos(85) },
+      ],
+    }],
+  });
+  const suelta = orden(11, "efectivo", 300, {
+    items: [{
+      nombre_snapshot: "Diabla", cantidad: 1, precio_snapshot: centavos(300),
+      neto: centavos(300), iva: centavos(45),
+    }],
+  });
+  const filas = async () => {
+    const ws = await abrir(await generarCierreExcel({ ...base, ordenes: [conExtras, suelta] }));
+    const out: Record<string, (string | number)[]> = {};
+    ws.eachRow((r) => {
+      const n = r.getCell(2).value;
+      if (typeof n === "string" && ["Diabla", "Extra Bacon", "Borde de queso"].includes(n))
+        out[n] = [1, 3, 4, 5].map((c) => r.getCell(c).value as number);
+    });
+    return out;
+  };
+
+  it("cada extra sale en su propia fila, con lo que se vendió", async () => {
+    const f = await filas();
+    expect(f["Extra Bacon"]).toEqual([2, 60, 120, 18]);
+    expect(f["Borde de queso"]).toEqual([2, 85, 170, 25.5]);
+  });
+
+  it("la pizza queda con su propio precio: P. unitario × Cant. = Subtotal", async () => {
+    const f = await filas();
+    // 2 con extras + 1 suelta; el subtotal es solo de la pizza.
+    expect(f["Diabla"]).toEqual([3, 300, 900, 135]);
+  });
+
+  it("repartir no pierde ni inventa plata", async () => {
+    const f = await filas();
+    const subtotal = f["Diabla"][2] as number + (f["Extra Bacon"][2] as number) + (f["Borde de queso"][2] as number);
+    const iva = f["Diabla"][3] as number + (f["Extra Bacon"][3] as number) + (f["Borde de queso"][3] as number);
+    expect(subtotal).toBeCloseTo(890 + 300, 2);
+    expect(iva).toBeCloseTo(133.5 + 45, 2);
+  });
+});

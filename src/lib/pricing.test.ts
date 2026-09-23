@@ -466,3 +466,44 @@ describe("promos de dos pizzas", () => {
     expect(t.empaque).toBe(centavos(30));
   });
 });
+
+// Extras de pizza — 2026-09-23
+//
+// El motor los sumaba desde la fase 2 (`modificadores`), pero no había forma
+// de agregarlos desde la caja. Estas pruebas fijan lo que ya hacía, ahora que
+// se van a usar de verdad.
+describe("extras de pizza", () => {
+  const diabla = (cantidad = 1, extras: { nombre: string; precio: number }[] = []): LineaOrden => ({
+    id: "d", productoId: "d", nombre: "Diabla", precioUnit: centavos(300),
+    cantidad, grupo: "pizza", modificadores: extras,
+  });
+  const BACON = { nombre: "Extra Bacon", precio: centavos(60) };
+  const BORDE = { nombre: "Borde de queso", precio: centavos(85) };
+
+  it("el extra se suma al precio de la pizza, y paga IVA como ella", () => {
+    const t = calcularTotales([diabla(1, [BACON])], [], CONFIG_DEFAULT);
+    expect(t.subtotalBruto).toBe(centavos(360));
+    expect(t.iva).toBe(centavos(54));
+    expect(t.total).toBe(centavos(414));
+  });
+
+  it("con cantidad 2, el extra va en las dos pizzas de la línea", () => {
+    const t = calcularTotales([diabla(2, [BACON, BORDE])], [], CONFIG_DEFAULT);
+    // (300 + 60 + 85) × 2
+    expect(t.subtotalBruto).toBe(centavos(890));
+  });
+
+  it("el empaque cuenta pizzas, no extras", () => {
+    const t = calcularTotales([diabla(2, [BACON, BORDE])], [],
+      { ...CONFIG_DEFAULT, cobrarEmpaque: true });
+    expect(t.pizzasEmpacadas).toBe(2);
+    expect(t.empaque).toBe(centavos(60));
+  });
+
+  it("un descuento a pizzas alcanza también al extra que lleva encima", () => {
+    const t = calcularTotales([diabla(1, [BACON])],
+      [{ alcance: "pizza", tipo: "porcentaje", valor: 1000 }], CONFIG_DEFAULT);
+    // 10% de 360, no de 300: el extra es parte de esa pizza.
+    expect(t.descPizzas).toBe(centavos(36));
+  });
+});

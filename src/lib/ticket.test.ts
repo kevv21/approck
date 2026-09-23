@@ -280,3 +280,41 @@ describe("empaque", () => {
     expect(txt).not.toContain("Empaque");
   });
 });
+
+// Extras: la columna de importes tiene que SUMAR el subtotal.
+//
+// La línea de la pizza imprimía `bruto`, que ya trae los extras adentro, y
+// debajo cada extra volvía a imprimir su precio. Una Diabla con bacon salía
+// "360.00" y "+ Extra Bacon 60.00": la columna sumaba 420 y el cliente
+// pagaba sobre 360. Nunca se vio porque no había forma de agregar extras.
+describe("extras en el recibo", () => {
+  const conExtras: LineaOrden[] = [{
+    id: "d", productoId: "d", nombre: "Diabla", precioUnit: centavos(300),
+    cantidad: 2, grupo: "pizza",
+    modificadores: [
+      { nombre: "Extra Bacon", precio: centavos(60) },
+      { nombre: "Borde de queso", precio: centavos(85) },
+    ],
+  }];
+  const txt = () => previsualizarTicket(datos({
+    tipo: "mesa",
+    totales: calcularTotales(conExtras, [], CONFIG_DEFAULT),
+  }));
+
+  it("imprime cada extra con su importe, debajo de su pizza", () => {
+    const t = txt();
+    expect(t).toContain("+ Extra Bacon");
+    expect(t).toContain("+ Borde de queso");
+    expect(t).toMatch(/\+ Extra Bacon\s+120\.00/);
+    expect(t).toMatch(/\+ Borde de queso\s+170\.00/);
+  });
+
+  it("la pizza muestra SU importe, sin los extras adentro", () => {
+    expect(txt()).toMatch(/2\s+Diabla\s+600\.00/);
+  });
+
+  it("la columna suma exactamente el subtotal", () => {
+    // 600 + 120 + 170 = 890
+    expect(txt()).toMatch(/Subtotal\s+C\$\s+890\.00/);
+  });
+});

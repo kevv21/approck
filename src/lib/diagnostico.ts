@@ -358,7 +358,7 @@ export async function diagnosticar(): Promise<Prueba[]> {
             titulo: "Menú cargado",
             estado: "mal",
             detalle: "La tabla producto está vacía: no hay nada que vender.",
-            arreglo: PEGA_EL_SQL + " Esa misma corrida carga los 57 productos.",
+            arreglo: PEGA_EL_SQL + " Esa misma corrida carga los 69 productos: la carta, las promociones y los extras.",
           }
     );
 

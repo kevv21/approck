@@ -500,6 +500,64 @@ Cambiar el precio es un solo numero por fila: para C$550 finales seria
 
 **210 pruebas.**
 
+## Extras de pizza — 2026-09-23
+
+Nueve extras de la lista del dueno: Bacon, Chorizo, Pina, Aceitunas, Brocoli
+y Pepperoni a C$60; Queso y Hongos a C$70; Borde de queso a C$85. **Precios
+SIN IVA, como el resto de la carta**: C$60 de extra son C$69 para el
+cliente. Si la lista ya traia el IVA adentro, cada precio se divide entre
+1.15 (C$60 -> 5217) en `13_extras.sql`.
+
+El motor, la base, la reimpresion y el ticket ya soportaban extras desde la
+fase 2 (`modificadores`); lo que nunca existio fue la forma de agregarlos.
+
+**Como se usa:** cada linea de pizza tiene «+ Extras». Abre una rejilla de
+botones con nombre y precio; tocar pone o quita, con aviso. Lo que lleva queda
+escrito debajo de la pizza («+ Bacon · + Borde de queso») y el boton pasa a
+«Extras (2)». Solo en pizzas —incluida la mitad y mitad—: una promo ya trae
+lo suyo. Con cantidad 2 o mas, el extra va en todas las de la linea, y el
+selector lo dice.
+
+**Por que en `producto` y no en una tabla propia.** Una tabla nueva obliga a
+tocar BLINDAR, PERMITIR_ANONIMO, EXIGIR_CUENTA, el diagnostico y la copia
+offline, y olvidar UNO deja el selector vacio en produccion sin ningun error.
+Como productos de la categoria «Extras» heredan todo eso ya probado; la caja
+no los muestra en la rejilla. Verificado con BLINDAR y PERMITIR_ANONIMO
+aplicados: `anon` y `authenticated` ven los 9, y ninguno cambia un precio
+(`authenticated` -> permission denied; `anon` -> 0 filas).
+
+**Los nombres llevan «Extra» delante** porque `nombre` es unico y la pizza
+«Pepperoni» ya existe. Comprobado contra Postgres: un extra llamado solo
+«Pepperoni» se descarta EN SILENCIO por el `on conflict do nothing`.
+
+Tres defectos que habrian salido con el primer extra cobrado:
+1. **El recibo no sumaba.** La linea de la pizza imprimia `bruto`, que ya trae
+   los extras, y debajo cada extra volvia a imprimir su precio: una Diabla con
+   bacon salia «360.00» y «+ Extra Bacon 60.00». Ahora la pizza imprime su
+   importe solo y la columna suma exactamente el subtotal.
+2. **El Excel escondia los extras.** Una Diabla con bacon entraba entera a la
+   fila «Diabla» (P. unitario C$300 con el bacon en el subtotal) y el bacon
+   vendido no aparecia. Ahora cada extra tiene su fila y el neto y el IVA de
+   la linea se reparten en proporcion, al centavo. Los pesos son
+   precio × cantidad: `repartirProporcional` topa en el total de los pesos, y
+   con precios unitarios dos Diablas con bacon quedaban a la mitad.
+3. **Tocar la misma pizza otra vez la fundia con la que ya tenia extras**: una
+   segunda Diabla despues de ponerle bacon a la primera daba «2 Diablas con
+   bacon». Ahora solo se suma a una linea sin nota ni extras.
+
+Y uno que no era de los extras: **la caja abria en «Bar»**. La categoria
+inicial salia del primer producto que devuelve la base, que ordena
+alfabeticamente, mientras la fila mostraba Promociones primero. El simulador
+de la vez anterior tenia las promos al principio de la lista y lo escondio;
+esta vez sirve el menu REAL exportado de Postgres, en el orden de la base.
+
+Verificado en un Android de 360px contra ese menu: abre en Promociones, la
+categoria «Extras» no aparece, Diabla + Bacon + Borde = C$511.75, botones de
+40px, cero desbordamiento, la segunda Diabla sale en su propia linea, y la
+promo no ofrece extras. Instalador: tres corridas, **12 / 69 / 59**.
+
+**220 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

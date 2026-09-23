@@ -82,9 +82,9 @@ Crea un proyecto gratis en [supabase.com](https://supabase.com). En
 supabase/00_INSTALAR.sql
 ```
 
-Eso es todo: tablas, tipos, políticas, los 60 productos (57 de la carta y 3
-promociones) y los 59 insumos del inventario. Se puede volver a correr sin
-duplicar nada.
+Eso es todo: tablas, tipos, políticas, los 69 productos (57 de la carta, 3
+promociones y 9 extras) y los 59 insumos del inventario. Se puede volver a
+correr sin duplicar nada.
 
 > Los archivos `01_` a `08_` quedan como historial de los cambios. **No los
 > ejecutes uno por uno**: están incompletos por separado y el orden importa.
@@ -104,7 +104,7 @@ impresión y si el puente está conectado.
 > **Y si se corta, la base queda VACÍA, no a medias.** El editor de Supabase
 > ejecuta todo en una transacción: un error de sintaxis en la línea 501
 > deshace también las 500 anteriores. Por eso el archivo termina con una
-> consulta que muestra `12 / 60 / 59`: si ves esa tabla, quedó completo; si
+> consulta que muestra `12 / 69 / 59`: si ves esa tabla, quedó completo; si
 > ves un error, no se creó nada.
 >
 > El síntoma cuando pasa: `syntax error at or near "'Carne molida'"` con un

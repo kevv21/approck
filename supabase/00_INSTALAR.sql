@@ -8,7 +8,7 @@
 -- Se puede volver a ejecutar sin romper nada: los tipos, las políticas y los
 -- índices están protegidos contra duplicados.
 --
--- Al terminar deberías ver 60 productos en la tabla `producto` y 59 insumos
+-- Al terminar deberías ver 69 productos en la tabla `producto` y 59 insumos
 -- en `insumo`.
 --
 -- OJO CON EL PEGADO. Son unos 34 KB. Si se corta a la mitad, Postgres
@@ -716,6 +716,24 @@ insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, a
 ('Promo 2 Hawaianas',       'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 30)
 on conflict (nombre) do nothing;
 
+-- --------------------------------------------------------- extras ---------
+-- Se agregan DENTRO de una pizza, no se venden sueltos. Van en `producto`
+-- para heredar permisos, diagnostico y copia offline; los nombres llevan
+-- "Extra" porque la pizza "Pepperoni" ya existe y `nombre` es unico. Precios
+-- SIN IVA, como la carta. Ver 13_extras.sql.
+insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, activo, orden) values
+('Extra Bacon',     null, 'Extras', 'otro', 6000, true, 10),
+('Extra Chorizo',   null, 'Extras', 'otro', 6000, true, 20),
+('Extra Piña',      null, 'Extras', 'otro', 6000, true, 30),
+('Extra Queso',     null, 'Extras', 'otro', 7000, true, 40),
+('Extra Aceitunas', null, 'Extras', 'otro', 6000, true, 50),
+('Extra Brócoli',   null, 'Extras', 'otro', 6000, true, 60),
+('Extra Hongos',    null, 'Extras', 'otro', 7000, true, 70),
+('Extra Pepperoni', null, 'Extras', 'otro', 6000, true, 80),
+('Borde de queso',  null, 'Extras', 'otro', 8500, true, 90)
+on conflict (nombre) do nothing;
+
+
 
 
 -- La tarifa vigente, que es la que propone la pantalla al tomar una orden.
@@ -736,7 +754,7 @@ alter table conteo_item add column if not exists pedido numeric(12,3);
 -- 501 deshace TAMBIEN las 500 anteriores y la base queda vacia, sin una sola
 -- tabla. Es facil creer que "solo fallo el insert de los insumos".
 --
--- Si ves esta tabla con 12 / 60 / 59, la instalacion quedo completa.
+-- Si ves esta tabla con 12 / 69 / 59, la instalacion quedo completa.
 -- ===========================================================================
 select
   (select count(*) from information_schema.tables
@@ -744,5 +762,5 @@ select
       and table_name in ('producto','orden','orden_item','pago','turno',
                          'settings','print_job','puente_latido','insumo',
                          'conteo','conteo_item','audit_log')) as tablas_de_12,
-  (select count(*) from producto) as productos_de_60,
+  (select count(*) from producto) as productos_de_69,
   (select count(*) from insumo)   as insumos_de_59;

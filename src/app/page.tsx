@@ -8,7 +8,7 @@ import { useAvisos } from "@/components/Avisos";
 import Plegable from "@/components/Plegable";
 import UltimasOrdenes from "@/components/UltimasOrdenes";
 import MitadYMitad from "@/components/MitadYMitad";
-import { aplicarBps, centavos, fmtC } from "@/lib/money";
+import { aplicarBps, centavos, fmt, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import { cargarMenu, encolar, reimprimir, turnoAbierto } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
@@ -24,6 +24,19 @@ import {
   datosLineaMitades,
   type MetodoPago, type MitadPizza, type Producto, type TipoOrden,
 } from "@/lib/types";
+
+/** Categoría del catálogo cuyos productos son extras de pizza. */
+const CATEGORIA_EXTRAS = "Extras";
+
+/**
+ * «Extra Bacon» → «Bacon» en los botones, donde ya se sabe que es un extra.
+ * El ticket imprime el nombre completo: ahí sí hace falta decirlo.
+ */
+const nombreCortoExtra = (nombre: string) => nombre.replace(/^Extra\s+/i, "");
+
+/** «+60» y no «+60.00» en un botón de 170px: los centavos no aportan ahí. */
+const precioCorto = (centavosMonto: number) =>
+  centavosMonto % 100 === 0 ? String(centavosMonto / 100) : fmt(centavosMonto);
 
 export default function Caja() {
   const { avisar } = useAvisos();
@@ -55,6 +68,7 @@ export default function Caja() {
   const [verMas, setVerMas] = useState(false);
   const [hojaAbierta, setHojaAbierta] = useState(false);
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null);
+  const [extrasAbierto, setExtrasAbierto] = useState<string | null>(null);
   const [confirmaCancelar, setConfirmaCancelar] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
@@ -76,7 +90,6 @@ export default function Caja() {
     cargarMenuConRespaldo(cargarMenu, guardarMenuLocal)
       .then(({ productos, desdeCache }) => {
         setMenu(productos);
-        setCat(productos[0]?.categoria ?? "");
         setMenuDesdeCache(desdeCache);
         if (desdeCache && productos.length === 0) {
           setAviso({ txt: "No hay menú guardado en este dispositivo. Conéctate una vez para descargarlo.", mal: true });
@@ -95,7 +108,9 @@ export default function Caja() {
   // línea el orden las mandaba al fondo, entre Bar y Postres. Una promoción
   // que hay que ir a buscar no se vende.
   const categorias = useMemo(() => {
-    const vistas = [...new Set(menu.map((p) => p.categoria))];
+    // Los extras no se venden sueltos: viven dentro de cada pizza.
+    const vistas = [...new Set(menu.map((p) => p.categoria))]
+      .filter((c) => c !== CATEGORIA_EXTRAS);
     const esPromo = (c: string) => c === "Promociones";
     const esPizza = (c: string) =>
       !esPromo(c) &&
@@ -106,6 +121,20 @@ export default function Caja() {
       ...vistas.filter((c) => !esPromo(c) && !esPizza(c)),
     ];
   }, [menu]);
+
+  // La categoría abierta sale de ESTA fila, no del primer producto que
+  // devuelve la base. La base ordena alfabéticamente, así que la caja abría
+  // en «Bar» mientras la fila mostraba Promociones primero. Un simulador con
+  // las promos al principio de la lista lo escondía.
+  useEffect(() => {
+    if (categorias.length > 0 && !categorias.includes(cat)) setCat(categorias[0]);
+  }, [categorias, cat]);
+
+  /** Bacon, borde de queso... Se agregan dentro de una pizza. */
+  const extras = useMemo(
+    () => menu.filter((p) => p.categoria === CATEGORIA_EXTRAS),
+    [menu]
+  );
 
   /**
    * El precio que se ve en la tarjeta del menú.
@@ -177,7 +206,12 @@ export default function Caja() {
 
   const agregar = (p: Producto) => {
     setLineas((prev) => {
-      const i = prev.findIndex((l) => l.productoId === p.id && !l.notas);
+      // Solo se suma a una línea SIN nota ni extras. Si no, tocar «Diabla» por
+      // segunda vez después de ponerle bacon a la primera daba dos Diablas
+      // con bacon, cuando el cliente pidió una.
+      const i = prev.findIndex(
+        (l) => l.productoId === p.id && !l.notas && !(l.modificadores?.length)
+      );
       if (i >= 0) {
         const c = [...prev];
         const n = c[i].cantidad + 1;
@@ -224,6 +258,28 @@ export default function Caja() {
 
   const setNotaLinea = (id: string, notas: string) =>
     setLineas((prev) => prev.map((l) => (l.id === id ? { ...l, notas } : l)));
+
+  /**
+   * Pone o quita un extra de una línea. Se guarda el NOMBRE y el PRECIO del
+   * momento, no una referencia al catálogo: si mañana el bacon sube, la
+   * reimpresión de hoy tiene que seguir diciendo lo que se cobró.
+   */
+  const alternarExtra = (lineaId: string, extra: Producto) => {
+    const linea = lineas.find((l) => l.id === lineaId);
+    if (!linea) return;
+    const lleva = (linea.modificadores ?? []).some((m) => m.nombre === extra.nombre);
+    setLineas((prev) => prev.map((l) => l.id !== lineaId ? l : {
+      ...l,
+      modificadores: lleva
+        ? (l.modificadores ?? []).filter((m) => m.nombre !== extra.nombre)
+        : [...(l.modificadores ?? []), { nombre: extra.nombre, precio: extra.precio }],
+    }));
+    avisar({
+      texto: lleva ? `${extra.nombre} quitado` : `${extra.nombre} agregado`,
+      detalle: linea.cantidad > 1 ? `${linea.nombre} ×${linea.cantidad}` : linea.nombre,
+      tono: lleva ? "quitado" : "agregado",
+    });
+  };
 
   const limpiar = () => {
     setLineas([]); setDescuentos([]); setMotivoDesc("");
@@ -393,20 +449,77 @@ export default function Caja() {
                         desc. -{fmtC(l.descTotal)} → {fmtC(l.neto)}
                       </div>
                     )}
+                    {/* Los extras que ya lleva, a la vista sin abrir nada: es lo
+                        que el cliente repite al final para confirmar. */}
+                    {(l.modificadores?.length ?? 0) > 0 && (
+                      <div className="mt-1 text-xs font-medium leading-snug"
+                           style={{ color: "var(--acc-2)" }}>
+                        {l.modificadores!.map((m) => `+ ${nombreCortoExtra(m.nombre)}`).join("  ·  ")}
+                      </div>
+                    )}
+
+                    {/* Selector de extras. Solo en pizzas: una promo ya trae lo
+                        suyo, y un extra de bacon sobre una cerveza no existe. */}
+                    {extrasAbierto === l.id && (
+                      <div className="mt-2 rounded-lg p-2" style={{ background: "var(--panel-3)" }}>
+                        {l.cantidad > 1 && (
+                          <p className="mb-2 text-[11px]" style={{ color: "var(--txt-2)" }}>
+                            Se aplica a las {l.cantidad} pizzas de esta línea. Para
+                            ponérselo a una sola, baja la cantidad y agrega otra.
+                          </p>
+                        )}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {extras.map((e) => {
+                            const lleva = (l.modificadores ?? []).some((m) => m.nombre === e.nombre);
+                            return (
+                              <button key={e.id} onClick={() => alternarExtra(l.id, e)}
+                                      aria-pressed={lleva}
+                                      className={`chip flex items-center justify-between gap-1 !px-3 text-left ${lleva ? "chip-on" : ""}`}
+                                      style={{ minHeight: "40px" }}>
+                                {/* Parte en dos líneas antes que cortarse: a 360px
+                                    «Borde de queso» quedaba en «Borde d…». */}
+                                <span className="text-xs font-semibold leading-tight">
+                                  {nombreCortoExtra(e.nombre)}
+                                </span>
+                                <span className="mono shrink-0 text-[11px]">+{precioCorto(e.precio)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* La nota es la excepción: una fila por línea en un pedido
                         de diez ítems era media pantalla de campos vacíos. */}
-                    {(notaAbierta === l.id || l.notas) ? (
+                    {(notaAbierta === l.id || l.notas) && (
                       <input className="input mt-2 !min-h-10 !text-xs" autoFocus={notaAbierta === l.id}
                              placeholder="Nota (sin cebolla, bien cocida...)"
                              value={l.notas ?? ""}
                              onChange={(e) => setNotaLinea(l.id, e.target.value)} />
-                    ) : (
-                      <button className="mt-1.5 text-xs font-semibold"
-                              style={{ color: "var(--txt-3)" }}
-                              onClick={() => setNotaAbierta(l.id)}>
-                        + Nota
-                      </button>
                     )}
+
+                    <div className="mt-1 flex items-center gap-4">
+                      {!(notaAbierta === l.id || l.notas) && (
+                        <button className="text-xs font-semibold"
+                                style={{ color: "var(--txt-3)", minHeight: "32px" }}
+                                onClick={() => setNotaAbierta(l.id)}>
+                          + Nota
+                        </button>
+                      )}
+                      {l.grupo === "pizza" && extras.length > 0 && (
+                        <button className="text-xs font-semibold"
+                                aria-expanded={extrasAbierto === l.id}
+                                style={{ color: (l.modificadores?.length ?? 0) > 0 ? "var(--acc-2)" : "var(--txt-3)",
+                                         minHeight: "32px" }}
+                                onClick={() => setExtrasAbierto((v) => (v === l.id ? null : l.id))}>
+                          {extrasAbierto === l.id
+                            ? "Listo"
+                            : (l.modificadores?.length ?? 0) > 0
+                              ? `Extras (${l.modificadores!.length})`
+                              : "+ Extras"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

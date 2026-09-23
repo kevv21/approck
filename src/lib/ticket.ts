@@ -214,7 +214,11 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
     // En una mitad y mitad el nombre combinado se parte feo en 32 columnas.
     // Encabeza "MITAD Y MITAD" y las dos mitades van debajo, sangradas.
     const encabezado = l.mitades ? "MITAD Y MITAD" : l.nombre;
-    for (const s of lineasItem(m, l.cantidad, encabezado, fmt(l.bruto))) p.linea(s);
+    // El importe de la pizza SOLA. `bruto` ya trae los extras adentro, y cada
+    // extra imprime el suyo debajo: con `bruto` aquí, una Diabla con bacon
+    // salía 360 + 60 y la columna sumaba más que el subtotal.
+    for (const s of lineasItem(m, l.cantidad, encabezado, fmt(l.precioUnit * l.cantidad)))
+      p.linea(s);
     for (const mitad of l.mitades ?? []) {
       for (const s of envolver(`1/2 ${mitad.nombre}`, m.columnas - m.sangria.length))
         p.linea(m.sangria + s);

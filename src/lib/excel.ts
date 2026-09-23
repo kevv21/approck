@@ -2,7 +2,7 @@
 
 // ExcelJS pesa ~250 kB. Se carga solo cuando alguien exporta.
 import type ExcelJSTypes from "exceljs";
-import { aCordobas } from "./money";
+import { aCordobas, repartirProporcional } from "./money";
 import { METODOS_PAGO, TIPOS_ORDEN, etiquetaPago, type MetodoPago, type TipoOrden } from "./types";
 
 export interface FilaOrden {
@@ -31,6 +31,8 @@ export interface FilaOrden {
     neto: number;
     /** IVA que aporta esta línea. 0 en productos exentos. */
     iva?: number | null;
+    /** Extras de la pizza (bacon, borde de queso...). Precio por unidad. */
+    modificadores?: { nombre: string; precio: number }[] | null;
   }[];
 }
 
@@ -164,14 +166,43 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   const agg = new Map<string, {
     cant: number; precio: number; neto: number; iva: number;
   }>();
+  // Montos en CENTAVOS: se pasan a córdobas al acumular, no antes, para que
+  // el reparto de abajo trabaje con enteros.
+  const acumular = (
+    nombre: string, cant: number, precio: number, neto: number, iva: number,
+  ) => {
+    const a = agg.get(nombre) ?? { cant: 0, precio: aCordobas(precio), neto: 0, iva: 0 };
+    a.cant += cant;
+    a.neto += aCordobas(neto);
+    a.iva  += aCordobas(iva);
+    agg.set(nombre, a);
+  };
+
   for (const o of pagadas) {
     for (const it of o.items) {
-      const a = agg.get(it.nombre_snapshot) ??
-        { cant: 0, precio: aCordobas(it.precio_snapshot), neto: 0, iva: 0 };
-      a.cant += it.cantidad;
-      a.neto += aCordobas(it.neto);
-      a.iva  += aCordobas(it.iva ?? 0);
-      agg.set(it.nombre_snapshot, a);
+      const extras = it.modificadores ?? [];
+      if (extras.length === 0) {
+        acumular(it.nombre_snapshot, it.cantidad, it.precio_snapshot, it.neto, it.iva ?? 0);
+        continue;
+      }
+      // Una pizza con extras se parte en su fila y una por extra. Sin esto,
+      // "Diabla" decía P. unitario C$300 con el bacon metido en el subtotal,
+      // y el bacon vendido no aparecía en ninguna parte.
+      //
+      // El neto y el IVA de la línea (ya con descuentos) se reparten en
+      // proporción a lo que aporta cada parte. Los pesos son precio × cantidad
+      // y no el precio suelto: `repartirProporcional` topa en el total de los
+      // pesos, y con precios unitarios dos Diablas con bacon quedaban a la
+      // mitad.
+      const pesos = [
+        it.precio_snapshot * it.cantidad,
+        ...extras.map((e) => e.precio * it.cantidad),
+      ];
+      const netos = repartirProporcional(it.neto, pesos);
+      const ivas  = repartirProporcional(it.iva ?? 0, pesos);
+      acumular(it.nombre_snapshot, it.cantidad, it.precio_snapshot, netos[0], ivas[0]);
+      extras.forEach((e, k) =>
+        acumular(e.nombre, it.cantidad, e.precio, netos[k + 1], ivas[k + 1]));
     }
   }
   const consumibles = [...agg.entries()]
