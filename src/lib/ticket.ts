@@ -242,9 +242,11 @@ function construirCliente(d: DatosTicket, p: EscPos, m: Maqueta): void {
   if (t.descPizzas > 0) filas.push(["Desc. pizzas", -t.descPizzas]);
   if (t.descBebidas > 0) filas.push(["Desc. bebidas", -t.descBebidas]);
   if (t.descGeneral > 0) filas.push(["Desc. general", -t.descGeneral]);
-  // El IVA se imprime cuando existe: sin esta línea el total no cuadra con
-  // los productos y el cliente pregunta de dónde sale la diferencia.
-  if (t.iva > 0) filas.push([`IVA ${t.ivaPct}%`, t.iva]);
+  // El IVA que se SUMA, no el total. Una promo trae el suyo dentro de sus
+  // C$500: imprimirlo aquí hacía creer que se le había cobrado IVA encima, y
+  // la columna dejaba de sumar el total. Sin esta línea cuando hay IVA
+  // agregado, el cliente pregunta de dónde sale la diferencia.
+  if (t.ivaAgregado > 0) filas.push([`IVA ${t.ivaPct}%`, t.ivaAgregado]);
   if (t.costoEnvio > 0) filas.push(["Envío", t.costoEnvio]);
   // Con el conteo: el cliente tiene que poder ver por qué son C$90 y no C$30.
   if (t.empaque > 0) filas.push([`Empaque x${t.pizzasEmpacadas}`, t.empaque]);

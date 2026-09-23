@@ -48,6 +48,8 @@ const COLUMNAS: { tabla: string; columna: string; para: string }[] = [
   { tabla: "orden",      columna: "empaque",          para: "guardar cualquier orden" },
   { tabla: "orden",      columna: "oculta_at",        para: "abrir Cierres y las últimas órdenes" },
   { tabla: "conteo_item", columna: "pedido",          para: "el pedido del inventario" },
+  // Se escribe en CADA línea de cada orden: sin ella no se guarda ningún cobro.
+  { tabla: "orden_item", columna: "iva_incluido_snapshot", para: "guardar cualquier orden" },
 ];
 
 /**

@@ -246,3 +246,29 @@ describe("extras en consumibles", () => {
     expect(iva).toBeCloseTo(133.5 + 45, 2);
   });
 });
+
+// Promociones con IVA incluido — 2026-09-23. Una promo se guarda con
+// neto = 50000 (ya trae el IVA) y base = 43478. Tomando el neto como
+// subtotal, la fila salía 500 + 65.22 = 565.22 y el total de consumibles
+// quedaba inflado en C$65.22 por promo.
+describe("promociones en consumibles", () => {
+  const conPromo = orden(20, "efectivo", 500, {
+    iva: 6522,
+    items: [{
+      nombre_snapshot: "Promo 2 Hawaianas", cantidad: 1,
+      precio_snapshot: centavos(500), neto: centavos(500), base: 43478, iva: 6522,
+    }],
+  });
+
+  it("la fila de la promo suma C$500, no C$565.22", async () => {
+    const ws = await abrir(await generarCierreExcel({ ...base, ordenes: [conPromo] }));
+    let fila: (number | string)[] = [];
+    ws.eachRow((r) => {
+      if (r.getCell(2).value === "Promo 2 Hawaianas")
+        fila = [1, 3, 4, 5].map((c) => r.getCell(c).value as number);
+    });
+    // Cant., P. unitario (lo que pagó el cliente), Subtotal (base), IVA
+    expect(fila).toEqual([1, 500, 434.78, 65.22]);
+    expect((fila[2] as number) + (fila[3] as number)).toBeCloseTo(500, 2);
+  });
+});

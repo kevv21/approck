@@ -211,6 +211,8 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
       precio_snapshot: l.precioUnit,
       grupo_snapshot: l.grupo,
       aplica_iva_snapshot: l.aplicaIva !== false,
+      // Sin esto, reimprimir una promo la recalculaba como base + 15%: C$575.
+      iva_incluido_snapshot: l.ivaIncluido === true,
       cantidad: l.cantidad,
       notas: l.notas || null,
       modificadores: l.modificadores ?? null,
@@ -441,6 +443,7 @@ export async function reimprimir(ordenId: string, cocina = false) {
     grupo: i.grupo_snapshot as LineaOrden["grupo"],
     notas: (i.notas as string) ?? undefined,
     aplicaIva: (i.aplica_iva_snapshot as boolean) ?? true,
+    ivaIncluido: (i.iva_incluido_snapshot as boolean) ?? false,
     modificadores: (i.modificadores as { nombre: string; precio: number }[]) ?? undefined,
     mitades: (i.mitades as LineaOrden["mitades"]) ?? undefined,
     descuentoLinea: (i.desc_linea_valor as number) > 0

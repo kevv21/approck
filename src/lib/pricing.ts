@@ -23,7 +23,9 @@ import type {
  *   2. descuento de linea (manual, sobre esa linea)
  *   3. descuento de categoria (pizzas / bebidas) sobre el remanente del grupo
  *   4. descuento general sobre el remanente de todas las lineas
- *   5. desglose por linea: base imponible e IVA, saltando productos exentos
+ *   5. desglose por linea: base imponible e IVA, saltando productos exentos.
+ *      Una linea con `ivaIncluido` (promociones) se desglosa HACIA ATRAS: su
+ *      precio es lo que paga el cliente y el IVA sale de adentro.
  *   6. envio: sin descuento, sin propina, y con IVA solo si `envioGravado`
  *   6b. empaque: C$ por PIZZA cuando la orden sale del local (para llevar,
  *       delivery, retiro). Como el envio: sin descuento y sin propina encima.
@@ -116,6 +118,9 @@ export function calcularTotales(
   let baseGravadaEsc = 0;
   let baseExentaEsc = 0;
   let ivaProductosEsc = 0;
+  // IVA que ya venia DENTRO del precio de una linea. No cambia el total: se
+  // separa solo para mostrar en el recibo el IVA que de verdad se suma.
+  let ivaIncluidoEsc = 0;
 
   const lineas: LineaCalculada[] = lineasEntrada.map((l, i) => {
     const descTotalEsc = Math.min(
@@ -130,11 +135,16 @@ export function calcularTotales(
     if (!gravada) {
       baseEsc = netoEsc;
       ivaEsc = 0;
-    } else if (preciosIncluyenIva) {
-      // El precio ya trae el IVA dentro: se desglosa hacia atras.
+    } else if (preciosIncluyenIva || l.ivaIncluido) {
+      // El precio ya trae el IVA dentro: se desglosa hacia atras. Base + IVA
+      // da EXACTAMENTE el neto, asi que la linea aporta al total su precio
+      // redondo: dos promos de C$500 son C$1000.00, no C$999.99.
       const d = desglosarIva(netoEsc, ivaBps);
       baseEsc = d.base;
       ivaEsc = d.iva;
+      // En el modo global TODO viene con IVA y el recibo lo muestra como
+      // siempre; lo que se separa es lo incluido en una carta que suma el IVA.
+      if (l.ivaIncluido && !preciosIncluyenIva) ivaIncluidoEsc += ivaEsc;
     } else {
       baseEsc = netoEsc;
       ivaEsc = aplicarBpsEscalado(netoEsc, ivaBps);
@@ -224,6 +234,12 @@ export function calcularTotales(
     ),
     baseExenta: aCentavosDesdeEscala(baseExentaEsc),
     iva: aCentavosDesdeEscala(ivaProductosEsc + ivaEnvioEsc + ivaEmpaqueEsc),
+    ivaIncluido: aCentavosDesdeEscala(ivaIncluidoEsc),
+    // Restado de los ya redondeados, no redondeado aparte: asi
+    // subtotal - descuentos + IVA agregado + ... cuadra con el TOTAL al centavo.
+    ivaAgregado:
+      aCentavosDesdeEscala(ivaProductosEsc + ivaEnvioEsc + ivaEmpaqueEsc) -
+      aCentavosDesdeEscala(ivaIncluidoEsc),
     ivaPct: ivaBps / 100,
     propina: aCentavosDesdeEscala(propinaEsc),
     total,

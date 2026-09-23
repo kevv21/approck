@@ -29,6 +29,11 @@ export interface FilaOrden {
     cantidad: number;
     precio_snapshot: number;
     neto: number;
+    /**
+     * Neto SIN IVA. En casi todo es igual a `neto`; en una promo con IVA
+     * incluido no: su neto (50000) ya trae el IVA adentro y su base es 43478.
+     */
+    base?: number | null;
     /** IVA que aporta esta línea. 0 en productos exentos. */
     iva?: number | null;
     /** Extras de la pizza (bacon, borde de queso...). Precio por unidad. */
@@ -180,9 +185,14 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
 
   for (const o of pagadas) {
     for (const it of o.items) {
+      // El Subtotal es la BASE, no el neto: en una promo con IVA incluido el
+      // neto ya trae el IVA, y como la columna Total es Subtotal + IVA, la
+      // fila salía a C$565.22 en vez de C$500. En lo demás base y neto son
+      // iguales. `|| neto` cubre líneas viejas sin base guardada.
+      const sinIva = it.base || it.neto;
       const extras = it.modificadores ?? [];
       if (extras.length === 0) {
-        acumular(it.nombre_snapshot, it.cantidad, it.precio_snapshot, it.neto, it.iva ?? 0);
+        acumular(it.nombre_snapshot, it.cantidad, it.precio_snapshot, sinIva, it.iva ?? 0);
         continue;
       }
       // Una pizza con extras se parte en su fila y una por extra. Sin esto,
@@ -198,7 +208,7 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
         it.precio_snapshot * it.cantidad,
         ...extras.map((e) => e.precio * it.cantidad),
       ];
-      const netos = repartirProporcional(it.neto, pesos);
+      const netos = repartirProporcional(sinIva, pesos);
       const ivas  = repartirProporcional(it.iva ?? 0, pesos);
       acumular(it.nombre_snapshot, it.cantidad, it.precio_snapshot, netos[0], ivas[0]);
       extras.forEach((e, k) =>

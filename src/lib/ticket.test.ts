@@ -318,3 +318,38 @@ describe("extras en el recibo", () => {
     expect(txt()).toMatch(/Subtotal\s+C\$\s+890\.00/);
   });
 });
+
+// Promociones — 2026-09-23. El dueño: «que a la promoción no salga como
+// subtotal y luego el IVA, que salga de un solo 500».
+describe("promociones en el recibo", () => {
+  const promo: LineaOrden = {
+    id: "p", productoId: "p", nombre: "Promo 2 Hawaianas",
+    precioUnit: centavos(500), cantidad: 1, grupo: "otro", ivaIncluido: true,
+  };
+  const gaseosa: LineaOrden = {
+    id: "g", productoId: "g", nombre: "Gaseosa",
+    precioUnit: centavos(40), cantidad: 1, grupo: "bebida",
+  };
+  const recibo = (lineas: LineaOrden[]) => previsualizarTicket(datos({
+    tipo: "mesa", totales: calcularTotales(lineas, [], CONFIG_DEFAULT),
+  }));
+
+  it("la promo sale a C$500, no a su base", () => {
+    const t = recibo([promo]);
+    expect(t).toMatch(/Promo 2 Hawaianas\s+500\.00/);
+    expect(t).not.toContain("434.78");
+  });
+
+  it("sola, no lleva línea de IVA: de un solo C$500", () => {
+    const t = recibo([promo]);
+    expect(t).not.toMatch(/IVA \d+%/);
+    expect(t).toMatch(/TOTAL\s+C\$\s+500\.00/);
+  });
+
+  it("con una gaseosa, el IVA que se ve es solo el de la gaseosa", () => {
+    const t = recibo([promo, gaseosa]);
+    expect(t).toMatch(/Subtotal\s+C\$\s+540\.00/);
+    expect(t).toMatch(/IVA 15%\s+C\$\s+6\.00/);
+    expect(t).toMatch(/TOTAL\s+C\$\s+546\.00/);
+  });
+});

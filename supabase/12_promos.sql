@@ -4,31 +4,28 @@
 -- Se puede repetir sin romper nada (`on conflict (nombre) do nothing`).
 -- ===========================================================================
 --
--- EL PRECIO. El dueno las fijo en C$500 que el cliente PAGA, con las cajas y
--- el IVA ya adentro. La columna `precio` guarda la BASE sin IVA, asi que aqui
--- NO van 50000: si fueran 50000, el motor les sumaria el 15% y el cliente
--- terminaria pagando C$575.
+-- EL PRECIO. C$500 que el cliente PAGA, con cajas e IVA adentro. Se guarda
+-- 50000 con `precio_incluye_iva = true`: el motor saca el IVA de adentro en
+-- vez de sumarlo, asi que el recibo muestra la promo a C$500 y la linea «IVA»
+-- lleva solo el IVA de lo demas. Dos promos son C$1000.00 exactos.
 --
---   50000 / 1.15 = 43478.26 centavos  ->  se guarda 43478
---   43478 + 15%  = C$500.00 exactos en el ticket
---
--- Con dos promas en la misma linea da C$999.99 y no C$1000.00: 500/1.15 no
--- cae en centavos enteros. Esta fijado con una prueba a proposito; ver
--- `pricing.test.ts` > "dos promos dan C$999.99".
+-- (Una version anterior guardaba la base, 43478, y le sumaba el 15%. El total
+-- daba igual, pero el recibo mostraba la promo a C$434.78 y parecia que se
+-- le cobraba IVA. Ver 14_iva_incluido.sql, que tambien corrige las ya
+-- cargadas.)
 --
 -- EL GRUPO es 'otro' y no 'pizza', y no es un descuido:
---   1. El empaque se cobra por PIZZA, y la promo ya trae sus cajas. Con
---      'pizza' se le sumarian C$30 encima de un precio que ya los incluye.
---   2. Un descuento de categoria "pizzas" no deberia caerle a una promo, que
---      ya es el descuento.
---   3. No aparece en el selector de mitad y mitad, que es lo correcto: una
---      promo de dos pizzas enteras no se parte.
+--   1. El empaque se cobra por PIZZA, y la promo ya trae sus cajas.
+--   2. Un descuento de categoria "pizzas" no deberia caerle a una promo.
+--   3. No aparece en el selector de mitad y mitad: dos pizzas enteras no se
+--      parten.
 --
--- CAMBIAR EL PRECIO: es un solo numero por fila. Para C$550 finales seria
--- round(55000 / 1.15) = 47826.
+-- CAMBIAR EL PRECIO: es el precio final, tal cual. Para C$550, 55000.
 
-insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, activo, orden) values
-('Promo Jamón + Pepperoni', 'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 10),
-('Promo Jamón + Hawaiana',  'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 20),
-('Promo 2 Hawaianas',       'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 30)
+alter table producto add column if not exists precio_incluye_iva boolean not null default false;
+
+insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, precio_incluye_iva, activo, orden) values
+('Promo Jamón + Pepperoni', 'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 50000, true, true, 10),
+('Promo Jamón + Hawaiana',  'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 50000, true, true, 20),
+('Promo 2 Hawaianas',       'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 50000, true, true, 30)
 on conflict (nombre) do nothing;

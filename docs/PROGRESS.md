@@ -601,6 +601,63 @@ antes del instalador -> «Primero corre 00_INSTALAR.sql completo…».
 
 **223 pruebas.**
 
+## Promociones con IVA incluido — 2026-09-23
+
+Pedido: que la promo salga «de un solo 500» y que el IVA se cobre solo a lo
+demas (gaseosa, pizzas, bebidas), no a la promo.
+
+**Al cliente ya se le cobraba eso**: promo + gaseosa daba C$546 = 500 + 40 +
+6. Lo que estaba mal era COMO se mostraba: la promo se guardaba a su base
+(C$434.78) y el motor le sumaba el 15%, asi que el recibo ponia la promo a
+434.78 y metia sus C$65.22 en la linea «IVA» (con una gaseosa: «IVA 71.22»).
+Parecia que a la promo le habian cobrado IVA. Y dos promos daban C$999.99.
+
+**Arreglo de raiz, no de maquillaje:** el producto se marca «precio con IVA
+incluido» (`producto.precio_incluye_iva`). La promo guarda C$500 de verdad y
+el motor le saca el IVA de adentro en vez de sumarlo, igual que el modo global
+que ya existia pero por linea. `desglosarIva` da base + IVA = precio exacto,
+asi que dos promos son **C$1000.00** justos. Los totales separan `ivaIncluido`
+(el de adentro) de `ivaAgregado` (el que se suma); el recibo y la caja
+muestran en «IVA» solo el agregado.
+
+    1  Promo 2 Hawaianas      500.00
+    1  Gaseosa                 40.00
+    1  Jamón                  260.00
+    Subtotal               C$ 800.00
+    IVA 15%                C$  45.00      <- solo Jamón + gaseosa
+    TOTAL                  C$ 845.00
+
+Promo sola: `Subtotal 500 / TOTAL 500`, sin linea de IVA.
+
+**El IVA de adentro se sigue declarando en el cierre** (C$65.22 por promo),
+porque el dueno dijo que la promo incluye el IVA. Si el contador dice que es
+exenta: `update producto set aplica_iva = false where categoria =
+'Promociones'`, y el cliente paga exactamente lo mismo.
+
+Dos cosas que se habrian roto sin cuidarlas:
+- **Reimprimir.** Si la linea no guarda que traia el IVA incluido, la
+  reimpresion recalcula la promo como base + 15%: C$575. Se guarda en cada
+  linea (`orden_item.iva_incluido_snapshot`), como `aplica_iva_snapshot`. La
+  prueba del instalador lo atrapo: sin la columna en `00_INSTALAR.sql`,
+  NINGUN cobro se habria guardado. Tambien quedo en Estado.
+- **El Excel.** La columna Subtotal usaba el neto, que en una promo ya trae el
+  IVA: la fila salia 500 + 65.22 = 565.22 e inflaba consumibles. Ahora usa la
+  base.
+
+La tarjeta del menu ya no necesita calcular nada (se quito el caso especial de
+Promociones): el precio guardado es el que paga el cliente.
+
+Verificado contra Postgres 16.13 con el camino EXACTO del dueno: una base
+armada con el instalador de `12c4244` (57 productos, sin `oculta_at`), luego
+el instalador nuevo (69 productos, promos a 50000 con IVA incluido), luego
+BLINDAR (`BLINDAR aplicado completo`). Una base con las promos viejas a 43478
+se corrige sola, sin pisar un precio que ya se haya cambiado. Un cobro con
+promo se guarda como `anon` con BLINDAR aplicado. En un Android de 360px:
+promo sola 500 sin IVA; + gaseosa 540 / IVA 6 / 546; + Jamón 800 / IVA 45 /
+845.
+
+**230 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

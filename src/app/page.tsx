@@ -8,7 +8,7 @@ import { useAvisos } from "@/components/Avisos";
 import Plegable from "@/components/Plegable";
 import UltimasOrdenes from "@/components/UltimasOrdenes";
 import MitadYMitad from "@/components/MitadYMitad";
-import { aplicarBps, centavos, fmt, fmtC } from "@/lib/money";
+import { centavos, fmt, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import { cargarMenu, encolar, reimprimir, turnoAbierto } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
@@ -136,24 +136,6 @@ export default function Caja() {
     [menu]
   );
 
-  /**
-   * El precio que se ve en la tarjeta del menú.
-   *
-   * El resto de la carta se muestra en BASE, sin IVA, porque es lo que dice
-   * el menú impreso que el personal tiene a la vista: la Jamón dice C$260 en
-   * los dos lados, aunque el cliente pague C$299.
-   *
-   * Las promos no funcionan así: se anuncian y se cotizan como un número
-   * redondo con todo adentro. Su base es C$434.78, un número que no significa
-   * nada para nadie y que alguien puede terminar diciendo por teléfono.
-   * Aquí se muestra lo que el cliente paga, que es lo que hay que cotizar.
-   */
-  const precioEnTarjeta = (p: Producto): number =>
-    p.categoria === "Promociones" &&
-    !config.preciosIncluyenIva &&
-    p.aplica_iva !== false
-      ? p.precio + aplicarBps(p.precio, config.ivaBps)
-      : p.precio;
 
   // Solo las pizzas pueden partirse: una mitad de cerveza no existe.
   // Son 26 repartidas en cinco categorias, asi que el selector las ofrece
@@ -227,6 +209,7 @@ export default function Caja() {
         id: crypto.randomUUID(), productoId: p.id, nombre: p.nombre,
         precioUnit: p.precio, cantidad: 1, grupo: p.grupo_descuento,
         aplicaIva: p.aplica_iva !== false,
+        ivaIncluido: p.precio_incluye_iva === true,
       }];
     });
   };
@@ -579,7 +562,9 @@ export default function Caja() {
               {t.empaque > 0 && (
                 <Fila k={`Empaque ×${t.pizzasEmpacadas}`} v={fmtC(t.empaque)} />
               )}
-                <Fila k="IVA 15%" v={fmtC(t.iva)} />
+                {/* El que se suma, igual que el recibo: una promo trae el
+                    suyo adentro y no tiene por qué verse cobrado otra vez. */}
+                {t.ivaAgregado > 0 && <Fila k="IVA 15%" v={fmtC(t.ivaAgregado)} />}
                 {t.propina > 0 && <Fila k={`Propina ${propinaPct}%`} v={fmtC(t.propina)} />}
                 <div className="my-2 border-t" style={{ borderColor: "var(--borde)" }} />
                 <div className="flex justify-between text-xl font-black">
@@ -800,7 +785,7 @@ export default function Caja() {
                 )}
                 <div className="mono mt-auto pt-2 text-sm font-bold"
                      style={{ color: "var(--acc)" }}>
-                  {fmtC(precioEnTarjeta(p))}
+                  {fmtC(p.precio)}
                 </div>
               </button>
             );

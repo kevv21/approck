@@ -705,16 +705,30 @@ create index if not exists idx_orden_oculta on orden (oculta_at)
 alter type accion_auditoria add value if not exists 'exclusion';
 alter type accion_auditoria add value if not exists 'restauracion';
 
+-- ------------------------------------------------ precio con IVA incluido ---
+-- Las promos se cobran a un precio redondo con todo adentro. El motor les
+-- saca el IVA de adentro en vez de sumarlo, y el recibo solo muestra en
+-- «IVA» el que se suma. El IVA de adentro se sigue declarando en el cierre.
+-- Ver 14_iva_incluido.sql.
+alter table producto   add column if not exists precio_incluye_iva    boolean not null default false;
+alter table orden_item add column if not exists iva_incluido_snapshot boolean not null default false;
+
 -- ----------------------------------------------------- promociones --------
--- Dos pizzas 14" por C$500 que el cliente PAGA: cajas e IVA adentro. Por eso
--- se guarda la BASE (43478) y no 50000, y por eso el grupo es 'otro' y no
--- 'pizza' —la promo ya trae sus cajas, no se le suma empaque—. Ver
--- 12_promos.sql para la cuenta completa.
-insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, activo, orden) values
-('Promo Jamón + Pepperoni', 'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 10),
-('Promo Jamón + Hawaiana',  'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 20),
-('Promo 2 Hawaianas',       'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 30)
+-- Dos pizzas 14" por C$500 que el cliente PAGA: cajas e IVA adentro. Se
+-- guardan con `precio_incluye_iva`, asi que el 50000 es el precio real y no
+-- se le suma nada. El grupo es 'otro' y no 'pizza': la promo ya trae sus
+-- cajas, no se le suma empaque. Ver 12_promos.sql.
+insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, precio_incluye_iva, activo, orden) values
+('Promo Jamón + Pepperoni', 'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 50000, true, true, 10),
+('Promo Jamón + Hawaiana',  'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 50000, true, true, 20),
+('Promo 2 Hawaianas',       'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 50000, true, true, 30)
 on conflict (nombre) do nothing;
+
+-- Bases instaladas con la version anterior, que guardaba la base (43478):
+-- pasan a C$500 con IVA incluido. Si alguien ya cambio el precio, no se pisa.
+update producto
+   set precio = 50000, precio_incluye_iva = true
+ where categoria = 'Promociones' and precio = 43478;
 
 -- --------------------------------------------------------- extras ---------
 -- Se agregan DENTRO de una pizza, no se venden sueltos. Van en `producto`

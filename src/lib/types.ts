@@ -38,6 +38,12 @@ export interface Producto {
   grupo_descuento: GrupoDescuento;
   precio: number; // centavos; base o con IVA segun ConfigCobro
   aplica_iva: boolean;
+  /**
+   * El precio ya trae el IVA adentro (las promociones: C$500 que el cliente
+   * paga, punto). El IVA se desglosa hacia atrás en vez de sumarse encima.
+   * Falta en bases viejas: se lee como false.
+   */
+  precio_incluye_iva?: boolean;
   activo: boolean;
   orden: number;
 }
@@ -59,6 +65,12 @@ export interface LineaOrden {
   notas?: string;
   /** Productos exentos de IVA. Por defecto true (gravado). */
   aplicaIva?: boolean;
+  /**
+   * Esta línea trae el IVA DENTRO de su precio (promociones). Paga IVA igual
+   * —no es exenta—, pero no se le suma: se saca de adentro. Por eso en el
+   * recibo sale a su precio redondo y su IVA no aparece en la línea «IVA».
+   */
+  ivaIncluido?: boolean;
   /** Modificadores elegidos, con su recargo en centavos. */
   modificadores?: { nombre: string; precio: number }[];
   /**
@@ -228,7 +240,16 @@ export interface Totales {
   baseGravable: number;
   /** Parte de la base que NO paga IVA (productos exentos) */
   baseExenta: number;
+  /** TODO el IVA de la venta, el incluido y el agregado. Es el que se declara. */
   iva: number;
+  /** IVA que ya venía dentro de los precios con IVA incluido (promociones). */
+  ivaIncluido: number;
+  /**
+   * IVA que se SUMA encima: el que se muestra en el recibo y en la caja.
+   * `iva - ivaIncluido`. Sin esta separación, una promo con una gaseosa
+   * mostraba «IVA C$71.22» y parecía que a la promo se le había cobrado.
+   */
+  ivaAgregado: number;
   /** Porcentaje de IVA aplicado, para la etiqueta del recibo (15) */
   ivaPct: number;
   propina: number;
