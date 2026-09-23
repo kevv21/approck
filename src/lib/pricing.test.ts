@@ -474,6 +474,38 @@ describe("promos de dos pizzas", () => {
     expect(t.empaque).toBe(centavos(30));
   });
 
+  // Extras en una promo. La promo trae su IVA ADENTRO, pero el extra tiene
+  // precio SIN IVA, como toda la carta. Si la línea entera se desglosara
+  // hacia atrás, un bacon de C$60 cobraría C$60 en vez de C$69.
+  describe("con extras", () => {
+    const BACON = { nombre: "Extra Bacon", precio: centavos(60) };
+    const conBacon = (cantidad = 1): LineaOrden => ({ ...promo(cantidad), modificadores: [BACON] });
+
+    it("la promo sigue a C$500 y el bacon paga su IVA encima: C$569", () => {
+      const t = calcularTotales([conBacon()], [], CONFIG_DEFAULT);
+      expect(t.total).toBe(centavos(569));
+      expect(t.ivaAgregado).toBe(centavos(9));
+      expect(t.ivaIncluido).toBe(centavos(65.22));
+    });
+
+    it("dos promos con bacon: C$1138, al centavo", () => {
+      expect(calcularTotales([conBacon(2)], [], CONFIG_DEFAULT).total).toBe(centavos(1138));
+    });
+
+    it("el recibo cuadra: subtotal 560 + IVA 9 = 569", () => {
+      const t = calcularTotales([conBacon()], [], CONFIG_DEFAULT);
+      expect(t.subtotalBruto).toBe(centavos(560));
+      expect(t.subtotalBruto + t.ivaAgregado).toBe(t.total);
+    });
+
+    it("un 10% general se lo lleva parejo: 10% de la promo y 10% del bacon", () => {
+      const t = calcularTotales([conBacon()],
+        [{ alcance: "general", tipo: "porcentaje", valor: 1000 }], CONFIG_DEFAULT);
+      // 450 (promo con IVA adentro) + 54 de bacon + 15% de 54
+      expect(t.total).toBe(centavos(450 + 54 + 8.1));
+    });
+  });
+
   it("sin la marca, el mismo número se trata como base y paga IVA encima", () => {
     // Es lo que evita la marca: un 50000 sin `ivaIncluido` serían C$575.
     const t = calcularTotales([{ ...promo(), ivaIncluido: false }], [], CONFIG_DEFAULT);

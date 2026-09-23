@@ -130,7 +130,15 @@ export default function Caja() {
     if (categorias.length > 0 && !categorias.includes(cat)) setCat(categorias[0]);
   }, [categorias, cat]);
 
-  /** Bacon, borde de queso... Se agregan dentro de una pizza. */
+  /**
+   * La línea es una promoción. Se mira la categoría en el menú porque el
+   * grupo de la promo es "otro" a propósito —ya trae sus cajas y no debe
+   * pagar empaque—, así que el grupo no alcanza para saber que lleva pizzas.
+   */
+  const esPromo = (l: LineaOrden) =>
+    menu.some((p) => p.id === l.productoId && p.categoria === "Promociones");
+
+  /** Bacon, borde de queso... Se agregan dentro de una pizza o una promo. */
   const extras = useMemo(
     () => menu.filter((p) => p.categoria === CATEGORIA_EXTRAS),
     [menu]
@@ -441,11 +449,19 @@ export default function Caja() {
                       </div>
                     )}
 
-                    {/* Selector de extras. Solo en pizzas: una promo ya trae lo
-                        suyo, y un extra de bacon sobre una cerveza no existe. */}
+                    {/* Selector de extras. En pizzas y en promociones de pizza;
+                        un extra de bacon sobre una cerveza no existe. */}
                     {extrasAbierto === l.id && (
                       <div className="mt-2 rounded-lg p-2" style={{ background: "var(--panel-3)" }}>
-                        {l.cantidad > 1 && (
+                        {esPromo(l) ? (
+                          // Una promo son DOS pizzas y el extra se cobra una vez:
+                          // va en una sola. La cocina tiene que saber en cuál.
+                          <p className="mb-2 text-[11px]" style={{ color: "var(--txt-2)" }}>
+                            Cada extra va en una de las dos pizzas: anota en cuál
+                            con «+ Nota».
+                            {l.cantidad > 1 && ` Se cobra en cada una de las ${l.cantidad} promos.`}
+                          </p>
+                        ) : l.cantidad > 1 && (
                           <p className="mb-2 text-[11px]" style={{ color: "var(--txt-2)" }}>
                             Se aplica a las {l.cantidad} pizzas de esta línea. Para
                             ponérselo a una sola, baja la cantidad y agrega otra.
@@ -489,7 +505,7 @@ export default function Caja() {
                           + Nota
                         </button>
                       )}
-                      {l.grupo === "pizza" && extras.length > 0 && (
+                      {(l.grupo === "pizza" || esPromo(l)) && extras.length > 0 && (
                         <button className="text-xs font-semibold"
                                 aria-expanded={extrasAbierto === l.id}
                                 style={{ color: (l.modificadores?.length ?? 0) > 0 ? "var(--acc-2)" : "var(--txt-3)",

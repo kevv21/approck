@@ -346,6 +346,15 @@ describe("promociones en el recibo", () => {
     expect(t).toMatch(/TOTAL\s+C\$\s+500\.00/);
   });
 
+  it("con un extra, la promo sigue a 500 y el IVA es solo el del extra", () => {
+    const t = recibo([{ ...promo, modificadores: [{ nombre: "Extra Bacon", precio: centavos(60) }] }]);
+    expect(t).toMatch(/Promo 2 Hawaianas\s+500\.00/);
+    expect(t).toMatch(/\+ Extra Bacon\s+60\.00/);
+    expect(t).toMatch(/Subtotal\s+C\$\s+560\.00/);
+    expect(t).toMatch(/IVA 15%\s+C\$\s+9\.00/);
+    expect(t).toMatch(/TOTAL\s+C\$\s+569\.00/);
+  });
+
   it("con una gaseosa, el IVA que se ve es solo el de la gaseosa", () => {
     const t = recibo([promo, gaseosa]);
     expect(t).toMatch(/Subtotal\s+C\$\s+540\.00/);

@@ -272,3 +272,30 @@ describe("promociones en consumibles", () => {
     expect((fila[2] as number) + (fila[3] as number)).toBeCloseTo(500, 2);
   });
 });
+
+// Extras sobre una promo con IVA incluido. La línea se guarda con la promo
+// (IVA adentro) y el bacon (IVA encima) juntos: base 43478 + 6000, IVA
+// 6522 + 900. Repartiendo por precio (500 contra 60) la promo se quedaba con
+// base de más y el bacon con base de menos.
+describe("extras sobre una promo", () => {
+  const promoConBacon = orden(21, "efectivo", 569, {
+    iva: 7422, iva_bps: 1500,
+    items: [{
+      nombre_snapshot: "Promo 2 Hawaianas", cantidad: 1, precio_snapshot: centavos(500),
+      neto: centavos(560), base: 49478, iva: 7422, iva_incluido_snapshot: true,
+      modificadores: [{ nombre: "Extra Bacon", precio: centavos(60) }],
+    }],
+  });
+
+  it("cada fila se queda con SU base y SU IVA", async () => {
+    const ws = await abrir(await generarCierreExcel({ ...base, ordenes: [promoConBacon] }));
+    const filas: Record<string, number[]> = {};
+    ws.eachRow((r) => {
+      const n = r.getCell(2).value;
+      if (n === "Promo 2 Hawaianas" || n === "Extra Bacon")
+        filas[n as string] = [1, 3, 4, 5].map((c) => r.getCell(c).value as number);
+    });
+    expect(filas["Promo 2 Hawaianas"]).toEqual([1, 500, 434.78, 65.22]);
+    expect(filas["Extra Bacon"]).toEqual([1, 60, 60, 9]);
+  });
+});

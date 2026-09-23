@@ -135,16 +135,30 @@ export function calcularTotales(
     if (!gravada) {
       baseEsc = netoEsc;
       ivaEsc = 0;
-    } else if (preciosIncluyenIva || l.ivaIncluido) {
-      // El precio ya trae el IVA dentro: se desglosa hacia atras. Base + IVA
-      // da EXACTAMENTE el neto, asi que la linea aporta al total su precio
-      // redondo: dos promos de C$500 son C$1000.00, no C$999.99.
+    } else if (l.ivaIncluido && !preciosIncluyenIva) {
+      // Precio con IVA incluido (promos) en una carta que SUMA el IVA. Sus
+      // extras, en cambio, tienen precio sin IVA como el resto de la carta:
+      // desglosar la linea entera cobraba un bacon de C$60 a C$60 y no a
+      // C$69. Se parte en dos: la promo se desglosa hacia atras y los extras
+      // pagan su IVA encima. El neto (ya con descuentos) se reparte entre las
+      // dos partes en proporcion a su bruto, asi que un 10% cae parejo.
+      const recargos = (l.modificadores ?? []).reduce((a, m) => a + m.precio, 0);
+      const [netoProd, netoExtras] = repartirProporcional(netoEsc, [
+        aEscala(l.precioUnit * l.cantidad),
+        aEscala(recargos * l.cantidad),
+      ]);
+      // Base + IVA da EXACTAMENTE su neto: dos promos son C$1000.00 justos.
+      const d = desglosarIva(netoProd, ivaBps);
+      const ivaExtras = aplicarBpsEscalado(netoExtras, ivaBps);
+      baseEsc = d.base + netoExtras;
+      ivaEsc = d.iva + ivaExtras;
+      ivaIncluidoEsc += d.iva;
+    } else if (preciosIncluyenIva) {
+      // Modo global: TODO trae el IVA dentro, extras incluidos. Se desglosa
+      // hacia atras y el recibo lo muestra como siempre.
       const d = desglosarIva(netoEsc, ivaBps);
       baseEsc = d.base;
       ivaEsc = d.iva;
-      // En el modo global TODO viene con IVA y el recibo lo muestra como
-      // siempre; lo que se separa es lo incluido en una carta que suma el IVA.
-      if (l.ivaIncluido && !preciosIncluyenIva) ivaIncluidoEsc += ivaEsc;
     } else {
       baseEsc = netoEsc;
       ivaEsc = aplicarBpsEscalado(netoEsc, ivaBps);

@@ -2,7 +2,7 @@
 
 // ExcelJS pesa ~250 kB. Se carga solo cuando alguien exporta.
 import type ExcelJSTypes from "exceljs";
-import { aCordobas, repartirProporcional } from "./money";
+import { aCordobas, desglosarIva, repartirProporcional } from "./money";
 import { METODOS_PAGO, TIPOS_ORDEN, etiquetaPago, type MetodoPago, type TipoOrden } from "./types";
 
 export interface FilaOrden {
@@ -24,6 +24,8 @@ export interface FilaOrden {
   iva: number;
   propina: number;
   total: number;
+  /** Tasa de IVA con que se cobró la orden. Falta en filas viejas: 15%. */
+  iva_bps?: number | null;
   items: {
     nombre_snapshot: string;
     cantidad: number;
@@ -38,6 +40,8 @@ export interface FilaOrden {
     iva?: number | null;
     /** Extras de la pizza (bacon, borde de queso...). Precio por unidad. */
     modificadores?: { nombre: string; precio: number }[] | null;
+    /** El precio de la línea traía el IVA adentro (promociones). */
+    iva_incluido_snapshot?: boolean | null;
   }[];
 }
 
@@ -204,8 +208,13 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
       // y no el precio suelto: `repartirProporcional` topa en el total de los
       // pesos, y con precios unitarios dos Diablas con bacon quedaban a la
       // mitad.
+      //
+      // En una promo con IVA incluido el peso de la promo es su precio SIN
+      // IVA: se reparte una base, y 500 con IVA adentro contra 60 sin IVA le
+      // daba a la promo base de más y al extra base de menos.
+      const bruto = it.precio_snapshot * it.cantidad;
       const pesos = [
-        it.precio_snapshot * it.cantidad,
+        it.iva_incluido_snapshot ? desglosarIva(bruto, o.iva_bps ?? 1500).base : bruto,
         ...extras.map((e) => e.precio * it.cantidad),
       ];
       const netos = repartirProporcional(sinIva, pesos);

@@ -658,6 +658,38 @@ promo sola 500 sin IVA; + gaseosa 540 / IVA 6 / 546; + Jamón 800 / IVA 45 /
 
 **230 pruebas.**
 
+## Extras en las promociones — 2026-09-23
+
+Las promos ofrecen «+ Extras» igual que las pizzas. Como una promo son DOS
+pizzas y el extra se cobra una vez, va en una sola: el selector lo dice y pide
+anotar en cual con «+ Nota».
+
+El problema de plata que habia que resolver antes de la interfaz: la promo
+trae su IVA ADENTRO, pero el extra tiene precio SIN IVA como toda la carta.
+Desglosando la linea entera, un bacon de C$60 sobre una promo se cobraba a
+C$60 y no a C$69. Ahora el motor parte esa linea: la promo se desglosa hacia
+atras y los extras pagan su IVA encima; el neto (ya con descuentos) se reparte
+entre las dos en proporcion a su bruto, asi que un 10% cae parejo.
+
+    1  Promo 2 Hawaianas      500.00
+       + Extra Bacon           60.00
+    Subtotal               C$ 560.00
+    IVA 15%                C$   9.00      <- solo el del bacon
+    TOTAL                  C$ 569.00
+
+El Excel reparte la base de esa linea entre la promo y el bacon pesando la
+promo por su precio SIN IVA: por precio (500 contra 60) la promo se quedaba
+con base de mas. Promo 434.78 + 65.22, bacon 60 + 9.
+
+**Limite conocido:** para poner el mismo extra en LAS DOS pizzas de la promo
+no hay forma todavia (cada extra se pone o se quita una vez).
+
+Sin SQL nuevo. Verificado en un Android de 360px: la promo ofrece extras, el
+aviso de la pizza aparece, promo + bacon = 560 / IVA 9 / 569, sin
+desbordamiento.
+
+**236 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a
