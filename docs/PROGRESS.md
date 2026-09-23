@@ -558,6 +558,49 @@ promo no ofrece extras. Instalador: tres corridas, **12 / 69 / 59**.
 
 **220 pruebas.**
 
+## BLINDAR cortado y una base atrasada — 2026-09-23
+
+El dueno pego `BLINDAR.sql` y Supabase respondio `unterminated dollar-quoted
+string ... LINE 46: do $$`. El texto que llego terminaba EXACTAMENTE en la
+linea 100 de 216: se copio de la vista normal de GitHub, que en archivos
+largos solo carga un trozo. Reproducido: las primeras 100 lineas dan ese
+mismo error, el archivo entero corre limpio. No se aplico nada (antes de la
+linea 46 solo hay comentarios, y un error de sintaxis frena todo).
+
+Revisando la base REAL con la clave publica, en solo lectura, salio algo peor:
+la app en produccion ya era la version nueva, pero la base seguia en la de
+antes — con `orden.empaque`, sin `orden.oculta_at`, sin promos ni extras
+(57 productos en vez de 69). En ese estado **la pantalla de Cierres y «Ultimas
+ordenes» fallaban** con `column orden.oculta_at does not exist`, y `BLINDAR`
+habria fallado aunque se pegara completo, porque da permisos sobre esa columna.
+
+Cuatro arreglos:
+1. **`BLINDAR.sql` termina con una comprobacion**: tiene que mostrar
+   `BLINDAR aplicado completo`. Hacia falta porque un corte que cae ENTRE dos
+   sentencias no da ningun error: comprobado en una base limpia, cortado al
+   final del bloque de permisos el editor dice «Success» y queda la politica
+   abierta del instalador y SIN la regla que impide reabrir un turno cerrado.
+2. **`BLINDAR.sql` se niega a correr antes del instalador**, con un mensaje
+   que dice que correr primero, en vez de un «column does not exist».
+3. **Estado no veia las columnas nuevas**: su lista no tenia `empaque`,
+   `oculta_at` ni `conteo_item.pedido`, asi que con la base real de ese dia
+   decia «estan todas las columnas» mientras Cierres fallaba. Es el mismo
+   fallo que `precio_mitades`, otra vez.
+4. **«Ultimas ordenes» decia «Sin conexion» ante cualquier error**, con el
+   telefono en linea. Ahora, igual que Cierres, dice que la base esta
+   desactualizada y que correr.
+
+README: `BLINDAR.sql` tambien se copia del Raw (solo se advertia para el
+instalador), con enlace directo, el orden (despues del instalador) y que
+resultado tiene que verse.
+
+Verificado contra Postgres 16.13 real, los cuatro casos: completo (y dos
+veces seguidas) -> `BLINDAR aplicado completo`; cortado en la linea 100 -> el
+mismo error del dueno; cortado entre sentencias -> sin tabla de confirmacion;
+antes del instalador -> «Primero corre 00_INSTALAR.sql completo…».
+
+**223 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

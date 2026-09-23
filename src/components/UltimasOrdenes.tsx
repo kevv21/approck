@@ -5,6 +5,8 @@ import { useAvisos } from "./Avisos";
 import { fmtC } from "@/lib/money";
 import { reimprimir, ultimasOrdenes, type OrdenBreve } from "@/lib/repo";
 import { TIPOS_ORDEN } from "@/lib/types";
+import { BASE_DESACTUALIZADA, noExisteColumna } from "@/lib/diagnostico";
+import { hayInternet } from "@/lib/offline/conexion";
 
 /**
  * REIMPRIMIR SIN REHACER EL PEDIDO
@@ -27,12 +29,19 @@ export default function UltimasOrdenes({ refresco }: { refresco: number }) {
   const [ordenes, setOrdenes] = useState<OrdenBreve[]>([]);
   const [abierto, setAbierto] = useState(false);
   const [enviando, setEnviando] = useState<string | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
     ultimasOrdenes(10)
-      .then((o) => { setOrdenes(o); setError(false); })
-      .catch(() => setError(true));
+      .then((o) => { setOrdenes(o); setError(null); })
+      // Antes todo error decía «Sin conexión». Con la app más nueva que la
+      // base, el cajero leía que no tenía internet teniéndolo.
+      .catch(async (e) => {
+        if (noExisteColumna(e)) setError(BASE_DESACTUALIZADA);
+        else if (!(await hayInternet()))
+          setError("Sin conexión no se pueden listar las órdenes para reimprimir.");
+        else setError(`No se pudieron cargar las órdenes: ${(e as Error).message}`);
+      });
   }, []);
 
   useEffect(() => { cargar(); }, [cargar, refresco]);
@@ -56,7 +65,7 @@ export default function UltimasOrdenes({ refresco }: { refresco: number }) {
   if (error) {
     return (
       <div className="panel p-3 text-sm" style={{ color: "var(--txt-2)" }}>
-        Sin conexión no se pueden listar las órdenes para reimprimir.
+        {error}
       </div>
     );
   }

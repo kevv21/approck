@@ -10,6 +10,7 @@ import {
 import { listarAuditoria, type FilaAuditoria } from "@/lib/auth/auditoria";
 import { hayConfig, supabase } from "@/lib/supabase";
 import { hayInternet } from "@/lib/offline/conexion";
+import { BASE_DESACTUALIZADA, noExisteColumna } from "@/lib/diagnostico";
 import { METODOS_PAGO, TIPOS_ORDEN } from "@/lib/types";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
@@ -70,7 +71,9 @@ export default function Cierre() {
         })) as unknown as FilaOrden[]
       );
     } catch (e) {
-      setAviso(`Error: ${(e as Error).message}`);
+      setAviso(noExisteColumna(e as { code?: string; message?: string })
+        ? BASE_DESACTUALIZADA
+        : `Error: ${(e as Error).message}`);
     } finally {
       setCargando(false);
     }

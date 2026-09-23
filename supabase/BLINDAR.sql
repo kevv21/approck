@@ -43,6 +43,23 @@
 -- Para comprobarlo, pega despues VERIFICAR_BLINDAJE.sql.
 -- ===========================================================================
 
+-- ---------------------------------------------------------------------------
+-- ANTES QUE NADA: este archivo da permisos sobre columnas que crea
+-- 00_INSTALAR.sql (por ejemplo `orden.oculta_at`, de «Quitar del historial»).
+-- Corrido antes que el instalador fallaba con un «column does not exist» que
+-- no dice que hacer. Esto lo dice.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'orden' and column_name = 'oculta_at'
+  ) then
+    raise exception 'Primero corre 00_INSTALAR.sql completo y despues este archivo. '
+      'A la base le falta la columna orden.oculta_at. No se aplico nada.';
+  end if;
+end $$;
+
 do $$
 declare
   r text;
@@ -214,3 +231,34 @@ create policy pago_sel on pago for select using (true);
 
 -- audit_log: ya estaba bien. Solo insertar y leer; ni modificar ni borrar.
 -- Una bitacora que el cajero puede editar no sirve de nada.
+
+-- ===========================================================================
+-- COMPROBACION FINAL. Tiene que aparecer una tabla con
+--
+--     resultado
+--     BLINDAR aplicado completo
+--
+-- Si en vez de eso el editor dice solo «Success. No rows returned», el
+-- archivo NO llego entero: se corto en algun punto y se aplico una parte.
+-- Casi siempre es por copiarlo de la vista normal de GitHub, que en archivos
+-- largos solo carga un trozo. Copialo del Raw y pegalo otra vez: se puede
+-- repetir sin romper nada.
+--
+-- Por que hace falta: un corte que cae ENTRE dos sentencias no da ningun
+-- error. Comprobado: cortado en la linea donde termina el bloque de permisos,
+-- el editor responde «Success» y la politica que impide reabrir un turno
+-- cerrado no existe.
+-- ===========================================================================
+select case
+  when not exists (select 1 from pg_roles where rolname = 'authenticated')
+    then 'Sin el rol authenticated: esto no parece Supabase'
+  when has_table_privilege('authenticated', 'public.orden', 'DELETE')
+    then 'INCOMPLETO: todavia se pueden borrar ordenes'
+  when not has_column_privilege('authenticated', 'public.orden', 'oculta_at', 'UPDATE')
+    then 'INCOMPLETO: falta el permiso de quitar del historial'
+  when exists (select 1 from pg_policies where tablename = 'orden' and policyname = 'p_orden')
+    then 'INCOMPLETO: sigue la politica abierta del instalador'
+  when not exists (select 1 from pg_policies where tablename = 'turno' and policyname = 'turno_upd')
+    then 'INCOMPLETO: falta la politica que impide reabrir un turno cerrado'
+  else 'BLINDAR aplicado completo'
+end as resultado;

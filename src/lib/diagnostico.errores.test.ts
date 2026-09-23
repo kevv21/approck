@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diagnosticar } from "./diagnostico";
+import { BASE_DESACTUALIZADA, diagnosticar, noExisteColumna } from "./diagnostico";
 
 /**
  * Reconocer "esa tabla no existe" es lo que separa "te falta instalar" de
@@ -34,5 +34,30 @@ describe("respuestas reales de PostgREST", () => {
   it("el mensaje tampoco dice «does not exist»", () => {
     // Por eso no basta con mirar el texto del error de Postgres.
     expect(tablaAusente.message).toContain("Could not find the table");
+  });
+});
+
+// Copiado de la base real del local el 2026-09-23: la app ya estaba en la
+// versión nueva y el SQL todavía no se había corrido. Cierres y «Últimas
+// órdenes» fallaban con esto, y Estado no lo veía porque `oculta_at` no
+// estaba en su lista de columnas.
+describe("app más nueva que la base", () => {
+  const columnaAusente = {
+    code: "42703", details: null, hint: null,
+    message: "column orden.oculta_at does not exist",
+  };
+
+  it("se reconoce como columna faltante, no como falta de conexión", () => {
+    expect(noExisteColumna(columnaAusente)).toBe(true);
+  });
+
+  it("el mensaje dice qué correr, no el error crudo de Postgres", () => {
+    expect(BASE_DESACTUALIZADA).toContain("00_INSTALAR.sql");
+    expect(BASE_DESACTUALIZADA).not.toContain("does not exist");
+  });
+
+  it("un error cualquiera no se confunde con columna faltante", () => {
+    expect(noExisteColumna({ code: "42501", message: "permission denied for table orden" })).toBe(false);
+    expect(noExisteColumna(null)).toBe(false);
   });
 });

@@ -42,6 +42,12 @@ const COLUMNAS: { tabla: string; columna: string; para: string }[] = [
   { tabla: "orden_item", columna: "aplica_iva_snapshot", para: "los productos exentos de IVA" },
   { tabla: "turno",      columna: "ventas_pedidosya", para: "cerrar la caja" },
   { tabla: "orden",      columna: "id_local",         para: "no duplicar órdenes al sincronizar" },
+  // Faltaban, y la base real del local estaba justo en ese estado: con
+  // `empaque` pero sin `oculta_at`. Estado decía «están todas las columnas»
+  // mientras Cierres fallaba con «column orden.oculta_at does not exist».
+  { tabla: "orden",      columna: "empaque",          para: "guardar cualquier orden" },
+  { tabla: "orden",      columna: "oculta_at",        para: "abrir Cierres y las últimas órdenes" },
+  { tabla: "conteo_item", columna: "pedido",          para: "el pedido del inventario" },
 ];
 
 /**
@@ -58,7 +64,7 @@ const noExisteTabla = (e: { code?: string; message?: string } | null) =>
           /could not find the table|does not exist/i.test(e.message ?? ""));
 
 /** Lo mismo para una columna: `42703` de Postgres, `PGRST204` de PostgREST. */
-const noExisteColumna = (e: { code?: string; message?: string } | null) =>
+export const noExisteColumna = (e: { code?: string; message?: string } | null) =>
   !!e && (e.code === "42703" || e.code === "PGRST204" ||
           /column .* does not exist|could not find the .* column/i.test(e.message ?? ""));
 
@@ -393,3 +399,12 @@ export async function diagnosticar(): Promise<Prueba[]> {
 /** true si todo lo indispensable está listo (los avisos no bloquean). */
 export const estaListo = (pruebas: Prueba[]) =>
   pruebas.length > 0 && pruebas.every((p) => p.estado !== "mal");
+
+/**
+ * Lo que se le dice a quien está en la caja cuando la app es más nueva que la
+ * base: pasa cada vez que se despliega un cambio y el SQL todavía no se corrió.
+ * Sin esto, «Últimas órdenes» decía «Sin conexión» con el teléfono en línea.
+ */
+export const BASE_DESACTUALIZADA =
+  "A la base le faltan columnas de la versión nueva: hay que correr " +
+  "00_INSTALAR.sql (copiado del Raw). La pantalla Estado dice cuáles faltan.";

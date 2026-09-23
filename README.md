@@ -150,7 +150,22 @@ Pon `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` desde
 
 ### 2b. Blindar la base
 
-Pega **`supabase/BLINDAR.sql`**. Acota lo que se puede hacer con la clave
+**Después** del instalador, nunca antes: da permisos sobre columnas que crea
+`00_INSTALAR.sql`. Si lo corres primero, se niega y te lo dice.
+
+Pega **`supabase/BLINDAR.sql`**, también **del Raw**
+([enlace directo](https://raw.githubusercontent.com/kevv21/approck/main/supabase/BLINDAR.sql)).
+Tiene que terminar mostrando una tabla con **`BLINDAR aplicado completo`**.
+
+> **Si el editor solo dice «Success. No rows returned», no quedó.** El archivo
+> llegó cortado y se aplicó una parte. Es el caso más traicionero: un corte que
+> cae entre dos sentencias no da ningún error, y comprobado contra Postgres,
+> cortado a la altura del bloque de permisos deja la base sin la regla que
+> impide reabrir un turno cerrado. Si el corte cae dentro de un bloque verás
+> `unterminated dollar-quoted string` y no se aplica nada. En los dos casos:
+> copiar del Raw y pegar otra vez; se puede repetir sin romper nada.
+
+Acota lo que se puede hacer con la clave
 pública a lo que la app de verdad necesita: **nadie puede borrar nada** en
 ninguna tabla, una orden cobrada solo admite que se la anule, sus líneas son
 inmutables, un turno cerrado no se reabre, el fondo inicial no cambia y el
