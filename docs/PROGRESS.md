@@ -450,6 +450,56 @@ a `oculta_at=not.is.null`, 3 filas contra 1.
 
 **204 pruebas.**
 
+## Promociones de dos pizzas — 2026-09-23
+
+Tres promos nuevas, cada una de **dos pizzas 14" enteras**:
+`Promo Jamón + Pepperoni`, `Promo Jamón + Hawaiana` y `Promo 2 Hawaianas`.
+
+**El precio son C$500 que el cliente PAGA**, con las cajas y el IVA adentro
+(lo confirmo el dueno). Eso obliga a guardar la BASE y no los 500: la columna
+`producto.precio` es sin IVA, asi que guardar 50000 haria que el motor les
+sumara el 15% y el cliente pagara C$575.
+
+    50000 / 1.15 = 43478.26 centavos  ->  se guarda 43478
+    43478 + 15%  = C$500.00 exactos
+
+**Defecto conocido y a proposito:** dos promas en la misma linea dan
+**C$999.99**, no C$1000.00, porque 500/1.15 no cae en centavos enteros. Esta
+fijado con una prueba para que nadie lo "arregle" de las dos formas malas:
+marcar la promo exenta de IVA le mentiria al contador (el IVA del cierre
+saldria por debajo), y redondear cada linea rompe «redondeo solo en el total
+final», que afecta a toda la carta. Un centavo sobre C$1000, donde no circulan
+monedas de ese tamano, cuesta menos que cualquiera de las dos.
+
+**`grupo_descuento` es `otro`, no `pizza`**, y no es descuido:
+1. El empaque se cobra por PIZZA y la promo ya trae sus cajas; con `pizza` se
+   le sumarian C$30 encima de un precio que ya los incluye.
+2. Un descuento de categoria «pizzas» no deberia caerle a una promo, que ya
+   es el descuento.
+3. No sale en el selector de mitad y mitad, que es lo correcto: dos pizzas
+   enteras no se parten.
+
+Dos cosas que salieron al verlo en pantalla, no leyendo el codigo:
+- **«Promociones» quedaba al fondo**, entre Bar y Postres, porque el orden de
+  categorias pone primero las de grupo `pizza` y la promo es `otro`. Una
+  promocion que hay que ir a buscar no se vende. Ahora va primero, a mano.
+- **La tarjeta mostraba C$434.78**, la base. Es el numero que alguien termina
+  diciendo por telefono. Solo en Promociones la tarjeta muestra ahora el
+  precio CON IVA (C$500), que es como se cotiza una promo; el resto de la
+  carta sigue en base porque es lo que dice el menu impreso que el personal
+  tiene al lado. Hay una prueba que fija que ese numero y el total del cobro
+  sean el mismo.
+
+**SQL nuevo:** `supabase/12_promos.sql` (ya incluido en `00_INSTALAR.sql`).
+El instalador pasa de 57 a **60 productos**; su consulta final y el README
+dicen `12 / 60 / 59`. Verificado con tres corridas seguidas contra Postgres
+16.13 real: 12 / 60 / 59 estable.
+
+Cambiar el precio es un solo numero por fila: para C$550 finales seria
+`round(55000 / 1.15) = 47826`.
+
+**210 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

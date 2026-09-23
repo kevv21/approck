@@ -8,7 +8,7 @@ import { useAvisos } from "@/components/Avisos";
 import Plegable from "@/components/Plegable";
 import UltimasOrdenes from "@/components/UltimasOrdenes";
 import MitadYMitad from "@/components/MitadYMitad";
-import { centavos, fmtC } from "@/lib/money";
+import { aplicarBps, centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import { cargarMenu, encolar, reimprimir, turnoAbierto } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
@@ -86,14 +86,45 @@ export default function Caja() {
     turnoAbierto().then((t) => setTurno(t)).catch(() => {});
   }, []);
 
-  // Pizzas primero: son la mayoría de lo que se vende, y en una fila que se
-  // desliza lo que queda fuera de pantalla cuesta un gesto más.
+  // Promociones primero, después las pizzas: son la mayoría de lo que se
+  // vende, y en una fila que se desliza lo que queda fuera de pantalla cuesta
+  // un gesto más.
+  //
+  // Las promos van delante a mano y no por su grupo: su `grupo_descuento` es
+  // "otro" —porque ya traen sus cajas y no deben pagar empaque— y sin esta
+  // línea el orden las mandaba al fondo, entre Bar y Postres. Una promoción
+  // que hay que ir a buscar no se vende.
   const categorias = useMemo(() => {
     const vistas = [...new Set(menu.map((p) => p.categoria))];
+    const esPromo = (c: string) => c === "Promociones";
     const esPizza = (c: string) =>
+      !esPromo(c) &&
       menu.some((p) => p.categoria === c && p.grupo_descuento === "pizza");
-    return [...vistas.filter(esPizza), ...vistas.filter((c) => !esPizza(c))];
+    return [
+      ...vistas.filter(esPromo),
+      ...vistas.filter(esPizza),
+      ...vistas.filter((c) => !esPromo(c) && !esPizza(c)),
+    ];
   }, [menu]);
+
+  /**
+   * El precio que se ve en la tarjeta del menú.
+   *
+   * El resto de la carta se muestra en BASE, sin IVA, porque es lo que dice
+   * el menú impreso que el personal tiene a la vista: la Jamón dice C$260 en
+   * los dos lados, aunque el cliente pague C$299.
+   *
+   * Las promos no funcionan así: se anuncian y se cotizan como un número
+   * redondo con todo adentro. Su base es C$434.78, un número que no significa
+   * nada para nadie y que alguien puede terminar diciendo por teléfono.
+   * Aquí se muestra lo que el cliente paga, que es lo que hay que cotizar.
+   */
+  const precioEnTarjeta = (p: Producto): number =>
+    p.categoria === "Promociones" &&
+    !config.preciosIncluyenIva &&
+    p.aplica_iva !== false
+      ? p.precio + aplicarBps(p.precio, config.ivaBps)
+      : p.precio;
 
   // Solo las pizzas pueden partirse: una mitad de cerveza no existe.
   // Son 26 repartidas en cinco categorias, asi que el selector las ofrece
@@ -656,7 +687,7 @@ export default function Caja() {
                 )}
                 <div className="mono mt-auto pt-2 text-sm font-bold"
                      style={{ color: "var(--acc)" }}>
-                  {fmtC(p.precio)}
+                  {fmtC(precioEnTarjeta(p))}
                 </div>
               </button>
             );

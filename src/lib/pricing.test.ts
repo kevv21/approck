@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularTotales } from "./pricing";
-import { centavos, repartirProporcional } from "./money";
+import { aplicarBps, centavos, repartirProporcional } from "./money";
 import { CONFIG_DEFAULT, type Descuento, type LineaOrden } from "./types";
 
 const linea = (
@@ -385,5 +385,84 @@ describe("empaque por pizza", () => {
     const t = calcularTotales([pizza("Criolla", 250)], [],
       { ...conEmpaque, empaquePorPizza: 0 });
     expect(t.empaque).toBe(0);
+  });
+});
+
+// Promos de dos pizzas — 2026-09-23
+//
+// El dueño las fijó en C$500 que el cliente PAGA, con las cajas y el IVA ya
+// adentro. Eso obliga a guardar la BASE, no los C$500: si se guardaran 500 y
+// el motor les sumara el 15%, el cliente pagaría C$575.
+//
+// 50000 / 1.15 = 43478.26 centavos, y la columna es entera. Se guarda 43478,
+// que al sumarle el IVA da exactamente C$500.00.
+describe("promos de dos pizzas", () => {
+  const PROMO_BASE = 43478;
+  const promo = (cantidad = 1): LineaOrden => ({
+    id: "p", productoId: "p", nombre: "Promo 2 Hawaianas",
+    precioUnit: PROMO_BASE, cantidad,
+    // "otro" y no "pizza": la promo ya trae las cajas, así que el empaque
+    // por pizza NO se le suma encima.
+    grupo: "otro",
+  });
+
+  it("una promo le cuesta al cliente exactamente C$500.00", () => {
+    const t = calcularTotales([promo()], [], CONFIG_DEFAULT);
+    expect(t.total).toBe(centavos(500));
+  });
+
+  it("el IVA sale desglosado, no escondido: la promo no es exenta", () => {
+    const t = calcularTotales([promo()], [], CONFIG_DEFAULT);
+    expect(t.iva).toBe(centavos(65.22));
+    expect(t.baseGravable).toBe(centavos(434.78));
+    expect(t.baseExenta).toBe(0);
+  });
+
+  it("no se le cobra empaque aunque la orden salga del local", () => {
+    const t = calcularTotales([promo()], [],
+      { ...CONFIG_DEFAULT, cobrarEmpaque: true });
+    expect(t.empaque).toBe(0);
+    expect(t.pizzasEmpacadas).toBe(0);
+    expect(t.total).toBe(centavos(500));
+  });
+
+  // Esta prueba fija un DEFECTO conocido, para que nadie lo "arregle" de la
+  // forma equivocada. 50000 / 1.15 no cae en centavos enteros, así que dos
+  // promos dan C$999.99 y no C$1000.00.
+  //
+  // Las dos salidas obvias son peores:
+  //  - Marcar la promo como exenta de IVA daría totales redondos, pero le
+  //    miente al contador: el IVA del cierre saldría por debajo.
+  //  - Redondear el total de cada línea rompe "redondeo solo en el total
+  //    final", que es la regla del spec y afecta a toda la carta.
+  // Un centavo sobre C$1000, en un país donde no circulan monedas de ese
+  // tamaño, cuesta menos que cualquiera de las dos.
+  it("dos promos dan C$999.99, y es a propósito", () => {
+    const t = calcularTotales([promo(2)], [], CONFIG_DEFAULT);
+    expect(t.total).toBe(centavos(999.99));
+    expect(t.baseExenta).toBe(0);
+  });
+
+  // La tarjeta del menú muestra el precio CON IVA solo para las promos, para
+  // que nadie cotice los C$434.78 por teléfono. Esta prueba fija que ese
+  // número y el total del cobro sean el mismo: si un día se cambia el precio
+  // de la promo y solo cuadra uno de los dos, la caja discute con la tarjeta.
+  it("lo que muestra la tarjeta es lo que termina cobrando", () => {
+    const enTarjeta = PROMO_BASE + aplicarBps(PROMO_BASE, CONFIG_DEFAULT.ivaBps);
+    const t = calcularTotales([promo()], [], CONFIG_DEFAULT);
+    expect(enTarjeta).toBe(t.total);
+    expect(enTarjeta).toBe(centavos(500));
+  });
+
+  it("una pizza suelta en la misma orden SÍ paga su caja", () => {
+    const suelta: LineaOrden = {
+      id: "s", productoId: "s", nombre: "Diabla",
+      precioUnit: centavos(300), cantidad: 1, grupo: "pizza",
+    };
+    const t = calcularTotales([promo(), suelta], [],
+      { ...CONFIG_DEFAULT, cobrarEmpaque: true });
+    // Una sola caja: la de la Diabla. Las dos de la promo ya están pagadas.
+    expect(t.pizzasEmpacadas).toBe(1);
+    expect(t.empaque).toBe(centavos(30));
   });
 });

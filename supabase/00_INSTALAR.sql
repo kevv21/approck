@@ -8,7 +8,7 @@
 -- Se puede volver a ejecutar sin romper nada: los tipos, las políticas y los
 -- índices están protegidos contra duplicados.
 --
--- Al terminar deberías ver 57 productos en la tabla `producto` y 59 insumos
+-- Al terminar deberías ver 60 productos en la tabla `producto` y 59 insumos
 -- en `insumo`.
 --
 -- OJO CON EL PEGADO. Son unos 34 KB. Si se corta a la mitad, Postgres
@@ -705,6 +705,18 @@ create index if not exists idx_orden_oculta on orden (oculta_at)
 alter type accion_auditoria add value if not exists 'exclusion';
 alter type accion_auditoria add value if not exists 'restauracion';
 
+-- ----------------------------------------------------- promociones --------
+-- Dos pizzas 14" por C$500 que el cliente PAGA: cajas e IVA adentro. Por eso
+-- se guarda la BASE (43478) y no 50000, y por eso el grupo es 'otro' y no
+-- 'pizza' —la promo ya trae sus cajas, no se le suma empaque—. Ver
+-- 12_promos.sql para la cuenta completa.
+insert into producto (nombre, descripcion, categoria, grupo_descuento, precio, activo, orden) values
+('Promo Jamón + Pepperoni', 'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 10),
+('Promo Jamón + Hawaiana',  'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 20),
+('Promo 2 Hawaianas',       'Dos pizzas 14", cajas e IVA incluidos.', 'Promociones', 'otro', 43478, true, 30)
+on conflict (nombre) do nothing;
+
+
 
 -- La tarifa vigente, que es la que propone la pantalla al tomar una orden.
 alter table settings add column if not exists empaque_por_pizza integer not null default 3000;
@@ -724,7 +736,7 @@ alter table conteo_item add column if not exists pedido numeric(12,3);
 -- 501 deshace TAMBIEN las 500 anteriores y la base queda vacia, sin una sola
 -- tabla. Es facil creer que "solo fallo el insert de los insumos".
 --
--- Si ves esta tabla con 12 / 57 / 59, la instalacion quedo completa.
+-- Si ves esta tabla con 12 / 60 / 59, la instalacion quedo completa.
 -- ===========================================================================
 select
   (select count(*) from information_schema.tables
@@ -732,5 +744,5 @@ select
       and table_name in ('producto','orden','orden_item','pago','turno',
                          'settings','print_job','puente_latido','insumo',
                          'conteo','conteo_item','audit_log')) as tablas_de_12,
-  (select count(*) from producto) as productos_de_57,
+  (select count(*) from producto) as productos_de_60,
   (select count(*) from insumo)   as insumos_de_59;
