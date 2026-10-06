@@ -13,3 +13,6 @@ certificates/
 bridge/node_modules/
 bridge/salida/
 bridge/.env
+
+# mapa de Graphify: se regenera, no se versiona
+graphify-out/
