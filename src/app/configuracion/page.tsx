@@ -37,7 +37,7 @@ export default function Configuracion() {
   return (
     <div className="mx-auto max-w-2xl space-y-3 p-3">
       <div className="panel p-4">
-        <h1 className="text-lg font-bold">Estado de la instalación</h1>
+        <h1 className="display text-3xl">Estado de la instalación</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
           Revisa que la base de datos esté conectada y completa. Si algo falla
           acá, falla al cobrar.
@@ -69,7 +69,7 @@ export default function Configuracion() {
           <div className="flex items-start gap-3">
             <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center
                              rounded-full text-sm font-black"
-                  style={{ background: COLOR[p.estado], color: "#0b0d12" }}
+                  style={{ background: COLOR[p.estado], color: "var(--bg)" }}
                   aria-hidden="true">
               {ICONO[p.estado]}
             </span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Segmentado } from "@/components/Controles";
 import { centavos, fmtC } from "@/lib/money";
 import { bpsAPct, pctABps } from "@/lib/pricing";
 import type { AlcanceDescuento, Descuento, TipoDescuento } from "@/lib/types";
@@ -40,7 +41,7 @@ function FilaDescuento({
     : tipo === "porcentaje" ? String(bpsAPct(valor.valor)) : String(valor.valor / 100);
 
   return (
-    <div className="rounded-lg p-3" style={{ background: "var(--panel-2)" }}>
+    <div className="rounded-xl p-3" style={{ background: "var(--panel-2)" }}>
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div>
           <div className="font-semibold">{titulo}</div>
@@ -54,18 +55,12 @@ function FilaDescuento({
       </div>
 
       <div className="flex gap-2">
-        <div className="flex overflow-hidden rounded-lg" style={{ border: "1px solid var(--borde)" }}>
-          {(["porcentaje", "monto"] as TipoDescuento[]).map((t) => (
-            <button key={t} type="button" onClick={() => setTipo(t)}
-              className="px-3 text-sm font-semibold"
-              style={{
-                background: tipo === t ? "var(--acc)" : "transparent",
-                color: tipo === t ? "#1a0d04" : "var(--txt-2)",
-              }}>
-              {t === "porcentaje" ? "%" : "C$"}
-            </button>
-          ))}
-        </div>
+        <Segmentado<TipoDescuento>
+          etiqueta={`Descuento ${titulo}: porcentaje o monto`}
+          className="w-28 shrink-0"
+          valor={tipo} onCambio={setTipo}
+          opciones={[{ valor: "porcentaje", etiqueta: "%" }, { valor: "monto", etiqueta: "C$" }]}
+        />
 
         <input
           className="input flex-1" inputMode="decimal" placeholder="0"
@@ -74,7 +69,7 @@ function FilaDescuento({
         />
 
         {activo && (
-          <button type="button" className="btn btn-ghost px-3"
+          <button type="button" className="btn btn-ghost px-3" aria-label={`Quitar descuento ${titulo}`}
                   onClick={() => onChange(undefined)}>✕</button>
         )}
       </div>
@@ -117,7 +112,7 @@ export default function PanelDescuentos({
 
       {hayApilado && (
         <p className="rounded-lg p-2 text-xs leading-snug"
-           style={{ background: "#3a2a0a", color: "var(--acc-2)" }}>
+           style={{ background: "var(--acc-fondo)", color: "var(--acc-2)" }}>
           Ojo: el descuento general se aplica sobre lo que ya quedó descontado.
           10% a pizzas + 10% general es 19% efectivo, no 20%.
         </p>

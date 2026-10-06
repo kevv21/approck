@@ -1,5 +1,6 @@
 "use client";
 
+import { Interruptor, Segmentado } from "@/components/Controles";
 import { useEffect, useRef, useState } from "react";
 import { AdaptadorBluetooth, AdaptadorSerial, esIOS } from "@/lib/printer";
 import type { PrinterAdapter } from "@/lib/printer";
@@ -113,7 +114,7 @@ export default function Prueba() {
     <div className="mb-2 flex items-center gap-2">
       <span className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
             style={{ background: activo ? "var(--acc)" : "var(--panel-2)",
-                     color: activo ? "#1a0d04" : "var(--txt-2)" }}>{n}</span>
+                     color: activo ? "var(--sobre-acc)" : "var(--txt-2)" }}>{n}</span>
       <h2 className="font-bold">{txt}</h2>
     </div>
   );
@@ -121,7 +122,7 @@ export default function Prueba() {
   return (
     <div className="mx-auto max-w-lg space-y-3 p-3">
       <div className="panel p-4">
-        <h1 className="text-lg font-bold">Probar la impresora</h1>
+        <h1 className="display text-3xl">Probar la impresora</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
           Esta pantalla no usa la base de datos. Sirve para verificar el
           teléfono contra la impresora antes de configurar nada.
@@ -181,43 +182,30 @@ export default function Prueba() {
           Imprimir hoja de acentos
         </button>
 
+        <Segmentado etiqueta="Juego de caracteres" valor={codepage}
+                    className="mt-3 !grid-flow-row"
+                    onCambio={(n) => { setCodepage(n); guardarCodepage(n); }}
+                    opciones={CODEPAGES.map((c) => ({ valor: c.n, etiqueta: `Opción ${c.n} — ${c.nombre}` }))} />
+
         <div className="mt-3 space-y-2">
-          {CODEPAGES.map((c) => (
-            <button key={c.n}
-                    onClick={() => { setCodepage(c.n); guardarCodepage(c.n); }}
-                    className={`chip w-full text-left ${codepage === c.n ? "chip-on" : ""}`}>
-              Opción {c.n} — {c.nombre}
-            </button>
-          ))}
+          <Interruptor activo={transliterar}
+                       onCambio={(v) => { setTransliterar(v); guardarTransliterar(v); }}
+                       detalle="Si ninguna opción sacó bien la ñ: Toña → Tona">
+            Quitar acentos
+          </Interruptor>
+          <Interruptor activo={modoImagen} onCambio={setModoImagen}
+                       detalle={`Dibuja el ticket como imagen. Sirve en cualquier impresora, pero pesa ${(peso / 1024).toFixed(0)} kB en vez de ~1 kB: por Bluetooth tarda cerca de ${Math.round(peso / 20 * 0.025)} s.`}>
+            Modo imagen
+          </Interruptor>
         </div>
-
-        <label className="mt-3 flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={transliterar}
-                 onChange={(e) => { setTransliterar(e.target.checked); guardarTransliterar(e.target.checked); }} />
-          Ninguno funcionó: quitar acentos (Toña → Tona)
-        </label>
-
-        <label className="mt-2 flex items-start gap-2 text-sm">
-          <input type="checkbox" checked={modoImagen} className="mt-1"
-                 onChange={(e) => setModoImagen(e.target.checked)} />
-          <span>
-            <b>Modo imagen</b> — dibuja el ticket y lo manda como mapa de bits.
-            Funciona en cualquier impresora sin importar el firmware, pero pesa{" "}
-            <b>{(peso / 1024).toFixed(0)} kB</b> en vez de ~1 kB, así que por
-            Bluetooth tarda cerca de {Math.round(peso / 20 * 0.025)} segundos.
-          </span>
-        </label>
       </div>
 
       {/* 3. recibo */}
       <div className="panel p-4">
         <Titulo n={3} txt="Imprimir un recibo real" activo={paso === "recibo"} />
-        <div className="mb-3 flex gap-2">
-          {([58, 80] as AnchoPapel[]).map((a) => (
-            <button key={a} onClick={() => setAncho(a)}
-                    className={`chip flex-1 ${ancho === a ? "chip-on" : ""}`}>{a} mm</button>
-          ))}
-        </div>
+        <Segmentado<AnchoPapel> etiqueta="Ancho del papel" valor={ancho} onCambio={setAncho}
+                                className="mb-3"
+                                opciones={([58, 80] as AnchoPapel[]).map((a) => ({ valor: a, etiqueta: `${a} mm` }))} />
         <button className="btn btn-ok w-full" disabled={!conectada} onClick={imprimirRecibo}>
           Imprimir recibo de ejemplo
         </button>

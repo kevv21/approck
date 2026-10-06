@@ -70,6 +70,11 @@ export const noExisteColumna = (e: { code?: string; message?: string } | null) =
   !!e && (e.code === "42703" || e.code === "PGRST204" ||
           /column .* does not exist|could not find the .* column/i.test(e.message ?? ""));
 
+/** Una función de la base que la app llama y no está: `PGRST202` o `42883`. */
+export const noExisteFuncion = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "PGRST202" || e.code === "42883" ||
+          /could not find the function|function .* does not exist/i.test(e.message ?? ""));
+
 const PEGA_EL_SQL =
   "Abre tu proyecto en supabase.com → SQL Editor → New query, pega TODO " +
   "supabase/00_INSTALAR.sql y dale Run. Se puede volver a correr sin romper " +
@@ -333,6 +338,13 @@ export async function diagnosticar(): Promise<Prueba[]> {
       const { error } = await sonda(c.tabla, c.columna);
       if (noExisteColumna(error)) viejas.push(`${c.tabla}.${c.columna} (${c.para})`);
     }
+    // La función de editar órdenes. Se llama con una orden que no existe: si
+    // está instalada responde «La orden no existe»; si no, PostgREST dice que
+    // no la encuentra. No escribe nada en ningún caso.
+    const { error: eFn } = await supabase.rpc("editar_orden", {
+      p_id: "00000000-0000-0000-0000-000000000000", p_orden: {}, p_items: [], p_motivo: null,
+    });
+    if (noExisteFuncion(eFn)) viejas.push("función editar_orden (editar órdenes guardadas)");
     pruebas.push(
       viejas.length
         ? {
@@ -408,5 +420,5 @@ export const estaListo = (pruebas: Prueba[]) =>
  * Sin esto, «Últimas órdenes» decía «Sin conexión» con el teléfono en línea.
  */
 export const BASE_DESACTUALIZADA =
-  "A la base le faltan columnas de la versión nueva: hay que correr " +
+  "A la base le faltan partes de la versión nueva: hay que correr " +
   "00_INSTALAR.sql (copiado del Raw). La pantalla Estado dice cuáles faltan.";

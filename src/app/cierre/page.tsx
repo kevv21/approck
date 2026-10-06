@@ -103,6 +103,10 @@ export default function Cierre() {
   const turnoAbiertoAhora = turno != null && !turno.cerrado_at;
 
   const pagadas = ordenes.filter((o) => o.estado === "pagada");
+  // Guardadas sin cobrar: no son ventas todavía y no cuentan aquí. Si se
+  // cierra la caja con alguna, esa plata queda fuera del arqueo sin que nadie
+  // lo note, así que se avisa.
+  const sinCobrar = ordenes.filter((o) => o.estado === "abierta");
   const sumar = (f: (o: FilaOrden) => number) => pagadas.reduce((a, o) => a + f(o), 0);
 
   const exportar = async () => {
@@ -114,11 +118,80 @@ export default function Cierre() {
     descargarBlob(blob, nombreArchivoCierre(new Date(), turno?.numero));
   };
 
+  /** Lo que se puede hacer con una orden. Una vez, para la tabla y las tarjetas. */
+  const acciones = (o: FilaOrden) => (
+    <>
+      <button className="btn btn-ghost btn-chico"
+              onClick={() => reimprimir((o as unknown as { id: string }).id)}>
+        Reimprimir
+      </button>
+
+      {/* Quitar del historial: la orden sale del cierre SIN quedar
+          como anulada. No borra la fila; ver `ocultarOrden`. */}
+      {verOcultas ? (
+        <button className="btn btn-ghost btn-chico" style={{ color: "var(--ok)" }}
+                onClick={async () => {
+                  try {
+                    await restaurarOrden((o as unknown as { id: string }).id);
+                    setAviso(`Orden #${o.numero} devuelta al historial.`);
+                    buscar();
+                  } catch (e) {
+                    setAviso(`Error: ${(e as Error).message}`);
+                  }
+                }}>
+          Devolver
+        </button>
+      ) : (
+        <button className="btn btn-ghost btn-chico" style={{ color: "var(--txt-2)" }}
+                onClick={async () => {
+                  // Se pide por qué, y se guarda solo en la bitácora.
+                  // En el cierre no aparece nada: ni la orden ni un
+                  // hueco donde estaba. Pero si un día falta plata,
+                  // esto es lo único que dice qué se sacó y quién.
+                  const motivo = prompt(
+                    `¿Por qué se quita la orden #${o.numero} del historial?\n` +
+                    `Deja de contar en el cierre. No dirá "anulada".`,
+                    "Prueba"
+                  );
+                  if (!motivo?.trim()) return;
+                  try {
+                    await ocultarOrden((o as unknown as { id: string }).id, motivo);
+                    setAviso(`Orden #${o.numero} quitada del historial.`);
+                    buscar();
+                  } catch (e) {
+                    setAviso(`Error: ${(e as Error).message}`);
+                  }
+                }}>
+          Quitar
+        </button>
+      )}
+
+      {!verOcultas && (o.estado === "pagada" || o.estado === "abierta") && (
+        <button className="btn btn-mal-suave btn-chico"
+                onClick={async () => {
+                  // Motivo obligatorio: una anulación sin motivo es
+                  // el agujero por donde se va la plata.
+                  const motivo = prompt(`Motivo de la anulación de la orden #${o.numero}:`);
+                  if (!motivo?.trim()) return;
+                  try {
+                    await anularOrden((o as unknown as { id: string }).id, motivo);
+                    setAviso(`Orden #${o.numero} anulada.`);
+                    buscar();
+                  } catch (e) {
+                    setAviso(`Error: ${(e as Error).message}`);
+                  }
+                }}>
+          Anular
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-3 p-3">
       {/* turno */}
       <div className="panel p-4">
-        <h2 className="mb-2 font-bold">Turno de caja</h2>
+        <h1 className="display mb-3 text-3xl">Turno de caja</h1>
         {turnoAbiertoAhora ? (
           <div className="space-y-2">
             <p className="text-sm" style={{ color: "var(--txt-2)" }}>
@@ -201,8 +274,7 @@ export default function Cierre() {
                 disabled={ordenes.length === 0 || verOcultas}>
           Descargar Excel
         </button>
-        <button className={`chip ${verOcultas ? "chip-on" : ""}`}
-                style={{ minHeight: "40px" }}
+        <button className={`chip ${verOcultas ? "chip-on" : ""}`} aria-pressed={verOcultas}
                 onClick={() => setVerOcultas((v) => !v)}>
           {verOcultas ? "Ver el cierre" : "Ver quitadas"}
         </button>
@@ -217,6 +289,17 @@ export default function Cierre() {
       )}
 
       {aviso && <div className="panel p-3 text-sm">{aviso}</div>}
+
+      {!verOcultas && sinCobrar.length > 0 && (
+        <div role="status" className="panel p-3 text-sm leading-snug"
+             style={{ borderColor: "var(--acc)", background: "var(--acc-fondo)", color: "var(--acc-2)" }}>
+          <b style={{ color: "var(--acc)" }}>
+            {sinCobrar.length === 1 ? "1 orden sin cobrar" : `${sinCobrar.length} órdenes sin cobrar`}{" "}
+            por {fmtC(sinCobrar.reduce((a, o) => a + o.total, 0))}.
+          </b>{" "}
+          No cuentan en este cierre. Cóbralas desde la Caja (Órdenes guardadas) o anúlalas antes de cerrar.
+        </div>
+      )}
 
       {/* resumen */}
       <div className="panel grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
@@ -310,8 +393,47 @@ export default function Cierre() {
         )}
       </div>
 
-      {/* listado */}
-      <div className="panel overflow-x-auto p-1">
+      {/* listado. En teléfono, tarjetas: la tabla dejaba filas de 130px con
+          los botones apretados en una columna que se salía de la pantalla. */}
+      <div className="space-y-2 md:hidden">
+        {ordenes.map((o) => (
+          <div key={o.numero} className="panel p-3">
+            <div className="flex items-baseline gap-2">
+              <span className="mono text-sm" style={{ color: "var(--txt-3)" }}>#{o.numero}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold">
+                {o.mesa ? `Mesa ${o.mesa}` : o.cliente ?? TIPOS_ORDEN.find((t) => t.valor === o.tipo)?.etiqueta}
+              </span>
+              <span className="mono font-bold">{fmtC(o.total)}</span>
+            </div>
+            <div className="mono mt-0.5 text-xs" style={{ color: "var(--txt-3)" }}>
+              {new Date(o.created_at).toLocaleTimeString("es-NI", { hour: "2-digit", minute: "2-digit", hour12: false })}
+              {" · "}{TIPOS_ORDEN.find((t) => t.valor === o.tipo)?.etiqueta}
+              {o.desc_total > 0 && <span style={{ color: "var(--acc-2)" }}> · desc. −{fmtC(o.desc_total)}</span>}
+            </div>
+            {o.estado !== "pagada" && (
+              <span className="mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    style={o.estado === "abierta"
+                      ? { background: "var(--acc-fondo)", color: "var(--acc)" }
+                      : { background: "var(--mal-fondo)", color: "var(--mal)" }}>
+                {o.estado === "abierta" ? "sin cobrar" : o.estado}
+              </span>
+            )}
+            {/* Solo aquí: en el cierre normal no hay nada que decir
+                porque la orden quitada ni aparece. */}
+            {verOcultas && o.oculta_por && (
+              <div className="text-[11px]" style={{ color: "var(--txt-3)" }}>
+                Quitada por {o.oculta_por}
+                {o.oculta_motivo ? ` · ${o.oculta_motivo}` : ""}
+              </div>
+            )}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {acciones(o)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="panel hidden overflow-x-auto p-1 md:block">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ color: "var(--txt-2)" }}>
@@ -332,6 +454,14 @@ export default function Cierre() {
                 </td>
                 <td className="px-3 py-2">
                   {o.cliente ?? o.mesa ?? "—"}
+                  {o.estado !== "pagada" && (
+                    <span className="ml-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                          style={o.estado === "abierta"
+                            ? { background: "var(--acc-fondo)", color: "var(--acc)" }
+                            : { background: "var(--mal-fondo)", color: "var(--mal)" }}>
+                      {o.estado === "abierta" ? "sin cobrar" : o.estado}
+                    </span>
+                  )}
                   {/* Solo aquí: en el cierre normal no hay nada que decir
                       porque la orden quitada ni aparece. */}
                   {verOcultas && o.oculta_por && (
@@ -346,80 +476,18 @@ export default function Cierre() {
                 </td>
                 <td className="mono px-3 py-2 font-bold">{fmtC(o.total)}</td>
                 <td className="flex flex-wrap gap-1 px-3 py-2">
-                  <button className="chip"
-                          onClick={() => reimprimir((o as unknown as { id: string }).id)}>
-                    Reimprimir
-                  </button>
-
-                  {/* Quitar del historial: la orden sale del cierre SIN quedar
-                      como anulada. No borra la fila; ver `ocultarOrden`. */}
-                  {verOcultas ? (
-                    <button className="chip" style={{ color: "var(--ok)" }}
-                            onClick={async () => {
-                              try {
-                                await restaurarOrden((o as unknown as { id: string }).id);
-                                setAviso(`Orden #${o.numero} devuelta al historial.`);
-                                buscar();
-                              } catch (e) {
-                                setAviso(`Error: ${(e as Error).message}`);
-                              }
-                            }}>
-                      Devolver
-                    </button>
-                  ) : (
-                    <button className="chip" style={{ color: "var(--txt-2)" }}
-                            onClick={async () => {
-                              // Se pide por qué, y se guarda solo en la bitácora.
-                              // En el cierre no aparece nada: ni la orden ni un
-                              // hueco donde estaba. Pero si un día falta plata,
-                              // esto es lo único que dice qué se sacó y quién.
-                              const motivo = prompt(
-                                `¿Por qué se quita la orden #${o.numero} del historial?\n` +
-                                `Deja de contar en el cierre. No dirá "anulada".`,
-                                "Prueba"
-                              );
-                              if (!motivo?.trim()) return;
-                              try {
-                                await ocultarOrden((o as unknown as { id: string }).id, motivo);
-                                setAviso(`Orden #${o.numero} quitada del historial.`);
-                                buscar();
-                              } catch (e) {
-                                setAviso(`Error: ${(e as Error).message}`);
-                              }
-                            }}>
-                      Quitar
-                    </button>
-                  )}
-
-                  {!verOcultas && o.estado === "pagada" && (
-                    <button className="chip" style={{ color: "var(--mal)" }}
-                            onClick={async () => {
-                              // Motivo obligatorio: una anulación sin motivo es
-                              // el agujero por donde se va la plata.
-                              const motivo = prompt(`Motivo de la anulación de la orden #${o.numero}:`);
-                              if (!motivo?.trim()) return;
-                              try {
-                                await anularOrden((o as unknown as { id: string }).id, motivo);
-                                setAviso(`Orden #${o.numero} anulada.`);
-                                buscar();
-                              } catch (e) {
-                                setAviso(`Error: ${(e as Error).message}`);
-                              }
-                            }}>
-                      Anular
-                    </button>
-                  )}
+                  {acciones(o)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {ordenes.length === 0 && !cargando && (
-          <p className="p-6 text-center text-sm" style={{ color: "var(--txt-2)" }}>
-            No hay órdenes en este rango.
-          </p>
-        )}
       </div>
+      {ordenes.length === 0 && !cargando && (
+        <p className="panel p-6 text-center text-sm" style={{ color: "var(--txt-2)" }}>
+          No hay órdenes en este rango.
+        </p>
+      )}
     </div>
   );
 }

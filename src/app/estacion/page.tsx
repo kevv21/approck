@@ -1,5 +1,6 @@
 "use client";
 
+import { Interruptor, Segmentado } from "@/components/Controles";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AdaptadorPuente, PLAY_RAWBT, adaptadoresSugeridos, crearAdaptador,
@@ -183,7 +184,7 @@ export default function Estacion() {
   return (
     <div className="mx-auto max-w-2xl space-y-3 p-3">
       <div className="panel p-4">
-        <h1 className="text-lg font-bold">Estación de impresión</h1>
+        <h1 className="display text-3xl">Estación de impresión</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
           En modo puente, quien imprime es el servicio de la PC de caja y esta
           pantalla solo muestra el estado. En los otros modos, imprime este
@@ -195,18 +196,13 @@ export default function Estacion() {
       <div className="panel p-4">
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wide"
             style={{ color: "var(--txt-2)" }}>Modo de impresión</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {sugeridos.current.map((t) => (
-            <button key={t} onClick={() => cambiarModo(t)}
-                    className={`chip ${modo === t ? "chip-on" : ""}`}>
-              {ETIQUETA[t]}
-            </button>
-          ))}
-        </div>
+        <Segmentado etiqueta="Modo de impresión" valor={modo} onCambio={cambiarModo}
+                    className="!grid-flow-row grid-cols-2"
+                    opciones={sugeridos.current.map((t) => ({ valor: t, etiqueta: ETIQUETA[t] }))} />
 
         {faltaRawbt && (
           <div className="rounded-lg p-3 text-sm"
-               style={{ background: "#3a2a0a", color: "var(--acc-2)" }}>
+               style={{ background: "var(--acc-fondo)", color: "var(--acc-2)" }}>
             <b>RawBT no está instalada.</b> Es lo que permite hablarle a una
             impresora de Bluetooth Clásico, que es la que pide PIN al vincularla.{" "}
             <a href={PLAY_RAWBT} target="_blank" rel="noopener"
@@ -243,7 +239,7 @@ export default function Estacion() {
 
         {noDisponible && (
           <p className="mt-3 rounded-lg p-2 text-sm"
-             style={{ background: "#3a1010", color: "#fca5a5" }}>{noDisponible}</p>
+             style={{ background: "var(--mal-fondo)", color: "var(--mal)" }}>{noDisponible}</p>
         )}
       </div>
 
@@ -267,10 +263,12 @@ export default function Estacion() {
 
           {modo !== "puente" && (
             <div className="flex flex-wrap items-center gap-2">
-              <button onClick={() => setAuto((v) => !v)}
-                      className={`chip ${auto ? "chip-on" : ""}`}>
-                {auto ? "Automático ON" : "Automático OFF"}
-              </button>
+              <div className="w-full">
+                <Interruptor activo={auto} onCambio={setAuto}
+                             detalle="Imprime lo que llegue a la cola sin tocar nada">
+                  Imprimir solo
+                </Interruptor>
+              </div>
               <button className="btn btn-ghost !min-h-0 !py-2 text-sm"
                       onClick={procesar} disabled={!conectada}>Imprimir cola ahora</button>
             </div>
@@ -279,17 +277,17 @@ export default function Estacion() {
           <div className="rounded-lg p-3" style={{ background: "var(--panel-2)" }}>
             <div className="mb-2 text-sm font-semibold">Prueba de impresión</div>
             <p className="mb-2 text-xs" style={{ color: "var(--txt-2)" }}>
-              Si los acentos y la ñ salen como signos raros, probá otro codepage
+              Si los acentos y la ñ salen como signos raros, prueba otra página de códigos
               hasta que &quot;Toña&quot; y &quot;Jamón&quot; se lean bien.
             </p>
             <div className="flex flex-wrap gap-2">
-              <select className="input !w-auto flex-1" value={codepage}
+              <select className="input min-w-0 basis-full" value={codepage}
                       onChange={(e) => setCodepage(Number(e.target.value))}>
                 {CODEPAGES.map((c) => (
                   <option key={c.n} value={c.n}>{c.nombre}</option>
                 ))}
               </select>
-              <select className="input !w-auto" value={ancho}
+              <select className="input !w-auto flex-1" value={ancho}
                       onChange={(e) => setAncho(Number(e.target.value) as AnchoPapel)}>
                 <option value={58}>58 mm</option>
                 <option value={80}>80 mm</option>

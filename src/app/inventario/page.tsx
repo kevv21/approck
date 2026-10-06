@@ -114,7 +114,7 @@ export default function Inventario() {
     <div className="mx-auto max-w-3xl space-y-3 p-3">
       <div className="panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-lg font-bold">Inventario</h1>
+          <h1 className="display text-3xl">Inventario</h1>
           <span className="mono text-sm" style={{ color: "var(--txt-2)" }}>
             {contados} / {insumos.length} contados
           </span>
@@ -162,7 +162,7 @@ export default function Inventario() {
       <div className="panel flex flex-wrap items-center gap-2 p-3">
         <input className="input !w-auto flex-1" placeholder="Buscar insumo…"
                value={filtro} onChange={(e) => setFiltro(e.target.value)} />
-        <button onClick={() => setSoloSinContar((v) => !v)}
+        <button onClick={() => setSoloSinContar((v) => !v)} aria-pressed={soloSinContar}
                 className={`chip ${soloSinContar ? "chip-on" : ""}`}>
           Solo sin contar
         </button>
@@ -207,7 +207,7 @@ export default function Inventario() {
       </div>
 
       <div className="panel space-y-2 p-3">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-2 min-[400px]:grid-cols-2">
           <button className="btn btn-ghost" disabled={!conteo || guardando}
                   onClick={guardar}>
             {guardando ? "Guardando…" : "Guardar avance"}

@@ -24,6 +24,10 @@ do $$ begin
   grant usage on schema public to anon;
   grant all on all tables    in schema public to anon;
   grant all on all sequences in schema public to anon;
+  -- Editar una orden guardada pasa por esta funcion (15_editar_orden.sql).
+  if exists (select 1 from pg_proc where proname = 'editar_orden') then
+    grant execute on function editar_orden(uuid, jsonb, jsonb, text) to anon;
+  end if;
 
   raise notice 'Hecho. Ahora corre BLINDAR.sql para volver a acotar los permisos.';
 end $$;

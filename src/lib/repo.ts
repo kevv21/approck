@@ -7,7 +7,7 @@ import { calcularTotales } from "./pricing";
 import { construirTicket, type DatosTicket } from "./ticket";
 import { previsualizarTicket } from "./ticket";
 import type {
-  ConfigCobro, Descuento, LineaOrden, MetodoPago, Producto, TipoOrden,
+  ConfigCobro, Descuento, LineaOrden, MetodoPago, Producto, TipoOrden, Totales,
 } from "./types";
 
 export async function cargarMenu(): Promise<Producto[]> {
@@ -106,6 +106,8 @@ const b64 = (bytes: Uint8Array): string => {
 export const desdeB64 = (s: string): Uint8Array =>
   Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
+export type EstadoGuardado = "abierta" | "pagada";
+
 export interface DatosGuardarOrden {
   lineas: LineaOrden[];
   descuentos: Descuento[];
@@ -121,6 +123,14 @@ export interface DatosGuardarOrden {
   recibido?: number;
   motivoDescuento?: string;
   turnoId?: string | null;
+  /**
+   * "pagada" (por defecto) cobra e imprime. "abierta" la guarda SIN cobrar:
+   * no cuenta en el cierre, no imprime, y se cobra despues editandola.
+   *
+   * Antes no existia: «Guardar sin cobrar» escribia la orden como PAGADA en
+   * efectivo, asi que el cierre contaba plata que nunca entro a la caja.
+   */
+  estado?: EstadoGuardado;
   /** Encolar tambien el ticket de cocina */
   imprimirCocina?: boolean;
   /**
@@ -156,13 +166,42 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
   }
 
   const t = calcularTotales(d.lineas, d.descuentos, d.config);
-  const buscar = (a: Descuento["alcance"]) => d.descuentos.find((x) => x.alcance === a);
-  const dg = buscar("general"), dp = buscar("pizza"), db = buscar("bebida");
 
   const { data: orden, error } = await supabase.from("orden").insert({
+    // Solo al crear. La politica del dia (IVA, mitades, tipo de cambio) queda
+    // congelada en la orden y editarla no la cambia.
     id_local: d.idLocal ?? null,
     creada_offline: d.creadaOffline ?? false,
     tomada_at: d.tomadaAt ?? new Date().toISOString(),
+    iva_bps: d.config.ivaBps,
+    precios_incluyen_iva: d.config.preciosIncluyenIva,
+    precio_mitades: d.config.precioMitades,
+    tipo_cambio: d.config.tipoCambio,
+    ...columnasOrden(d, t),
+  }).select().single();
+  if (error) throw error;
+
+  const { error: eItems } = await supabase.from("orden_item").insert(filasItems(t, orden.id));
+  if (eItems) throw eItems;
+
+  if (orden.estado === "pagada") await alCobrar(d, t, orden);
+
+  return { orden, totales: t, yaExistia: false };
+}
+
+/**
+ * Columnas de `orden` que se escriben al CREAR y al EDITAR. Una sola lista
+ * para los dos caminos: si se separan, tarde o temprano una columna nueva se
+ * guarda al crear y se pierde al editar.
+ *
+ * @escribe orden
+ */
+function columnasOrden(d: DatosGuardarOrden, t: Totales) {
+  const pagada = (d.estado ?? "pagada") === "pagada";
+  const buscar = (a: Descuento["alcance"]) => d.descuentos.find((x) => x.alcance === a);
+  const dg = buscar("general"), dp = buscar("pizza"), db = buscar("bebida");
+  const recibido = pagada ? d.recibido ?? null : null;
+  return {
     turno_id: d.turnoId ?? null,
     tipo: d.tipo,
     mesa: d.mesa || null,
@@ -173,15 +212,11 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     atendio: d.atendio || null,
     mesero: d.atendio || sesionActual()?.nombre || null,
     cajero: sesionActual()?.nombre || null,
-    iva_bps: d.config.ivaBps,
-    precios_incluyen_iva: d.config.preciosIncluyenIva,
-    precio_mitades: d.config.precioMitades,
     // Tarifa usada, no la vigente: congela el calculo para las reimpresiones.
     empaque_por_pizza: d.config.cobrarEmpaque ? d.config.empaquePorPizza : 0,
     empaque_gravado: d.config.empaqueGravado,
     empaque: t.empaque,
     envio_gravado: d.config.envioGravado,
-    tipo_cambio: d.config.tipoCambio,
     propina_bps: d.config.propinaBps,
     propina_sobre: d.config.propinaSobre,
     desc_general_tipo: dg?.tipo ?? null, desc_general_valor: dg?.valor ?? 0,
@@ -196,41 +231,50 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
     base_gravable: t.baseGravable, base_exenta: t.baseExenta,
     iva: t.iva, propina: t.propina, total: t.total, total_usd: t.totalUsd,
     metodo_pago: d.metodoPago,
-    recibido: d.recibido ?? null,
-    cambio: d.recibido != null ? Math.max(0, d.recibido - t.total) : null,
-    estado: "pagada",
-    cerrada_at: new Date().toISOString(),
-  }).select().single();
-  if (error) throw error;
+    recibido,
+    cambio: recibido != null ? Math.max(0, recibido - t.total) : null,
+    estado: pagada ? "pagada" : "abierta",
+    cerrada_at: pagada ? new Date().toISOString() : null,
+  };
+}
 
-  const { error: eItems } = await supabase.from("orden_item").insert(
-    t.lineas.map((l) => ({
-      orden_id: orden.id,
-      producto_id: refProducto(l.productoId),
-      nombre_snapshot: l.nombre,
-      precio_snapshot: l.precioUnit,
-      grupo_snapshot: l.grupo,
-      aplica_iva_snapshot: l.aplicaIva !== false,
-      // Sin esto, reimprimir una promo la recalculaba como base + 15%: C$575.
-      iva_incluido_snapshot: l.ivaIncluido === true,
-      cantidad: l.cantidad,
-      notas: l.notas || null,
-      modificadores: l.modificadores ?? null,
-      mitades: l.mitades ?? null,
-      desc_linea_tipo: l.descuentoLinea?.tipo ?? null,
-      desc_linea_valor: l.descuentoLinea?.valor ?? 0,
-      bruto: l.bruto,
-      desc_linea: l.descLinea,
-      desc_categoria: l.descCategoria,
-      desc_general: l.descGeneral,
-      desc_total: l.descTotal,
-      neto: l.neto,
-      base: l.base,
-      iva: l.iva,
-    }))
-  );
-  if (eItems) throw eItems;
+/**
+ * Lineas de `orden_item`, con SNAPSHOT de nombre y precio.
+ *
+ * @escribe orden_item
+ */
+function filasItems(t: Totales, ordenId: string) {
+  return t.lineas.map((l) => ({
+    orden_id: ordenId,
+    producto_id: refProducto(l.productoId),
+    nombre_snapshot: l.nombre,
+    precio_snapshot: l.precioUnit,
+    grupo_snapshot: l.grupo,
+    aplica_iva_snapshot: l.aplicaIva !== false,
+    // Sin esto, reimprimir una promo la recalculaba como base + 15%: C$575.
+    iva_incluido_snapshot: l.ivaIncluido === true,
+    cantidad: l.cantidad,
+    notas: l.notas || null,
+    modificadores: l.modificadores ?? null,
+    mitades: l.mitades ?? null,
+    desc_linea_tipo: l.descuentoLinea?.tipo ?? null,
+    desc_linea_valor: l.descuentoLinea?.valor ?? 0,
+    bruto: l.bruto,
+    desc_linea: l.descLinea,
+    desc_categoria: l.descCategoria,
+    desc_general: l.descGeneral,
+    desc_total: l.descTotal,
+    neto: l.neto,
+    base: l.base,
+    iva: l.iva,
+  }));
+}
 
+/** Lo que pasa cuando una orden queda cobrada: ticket y bitacora. */
+async function alCobrar(
+  d: DatosGuardarOrden, t: Totales,
+  orden: { id: string; numero: number; created_at: string },
+) {
   const base: DatosTicket = {
     numero: orden.numero, tipo: d.tipo, mesa: d.mesa, cliente: d.cliente,
     telefonoCliente: d.telefonoCliente, direccion: d.direccion, notas: d.notas,
@@ -264,8 +308,49 @@ export async function guardarYEncolar(d: DatosGuardarOrden) {
       },
     });
   }
+}
 
-  return { orden, totales: t, yaExistia: false };
+/**
+ * EDITAR UNA ORDEN YA GUARDADA, sin rehacerla.
+ *
+ * Pasa por la funcion `editar_orden` de la base (15_editar_orden.sql), no
+ * por un update: BLINDAR congela el total y las lineas de una orden, y eso
+ * sigue asi. La funcion es el unico camino, y reemplaza todo junto o nada.
+ *
+ * - Abierta -> abierta: se corrige el pedido. Sin bitacora: no es plata aun.
+ * - Abierta -> pagada: se cobra. Imprime la hoja de consumo.
+ * - Pagada  -> pagada: corrige un cobro. Exige motivo, queda en la bitacora
+ *   con el antes y el despues, y reimprime la hoja corregida. La base se
+ *   niega si el turno de esa orden ya se cerro.
+ */
+export async function editarOrden(
+  id: string, d: DatosGuardarOrden, opciones: { motivo?: string; estabaPagada: boolean },
+) {
+  const t = calcularTotales(d.lineas, d.descuentos, d.config);
+  const { data, error } = await supabase.rpc("editar_orden", {
+    p_id: id,
+    p_orden: columnasOrden(d, t),
+    p_items: filasItems(t, id),
+    p_motivo: opciones.motivo?.trim() || null,
+  });
+  if (error) throw error;
+  const orden = data as { id: string; numero: number; created_at: string; estado: string };
+
+  if (orden.estado === "pagada") {
+    if (opciones.estabaPagada) {
+      // El descuento ya se registro al cobrar; el cambio queda en la
+      // bitacora como «edicion». Solo se imprime la hoja corregida.
+      await encolar(id, "cliente", {
+        numero: orden.numero, tipo: d.tipo, mesa: d.mesa, cliente: d.cliente,
+        telefonoCliente: d.telefonoCliente, direccion: d.direccion, notas: d.notas,
+        metodoPago: d.metodoPago, recibido: d.recibido, atendio: d.atendio,
+        fecha: new Date(orden.created_at), totales: t,
+      });
+    } else {
+      await alCobrar(d, t, orden);
+    }
+  }
+  return { orden, totales: t };
 }
 
 /**
@@ -420,7 +505,7 @@ export async function ultimasOrdenes(limite = 10): Promise<OrdenBreve[]> {
   const { data, error } = await supabase
     .from("orden")
     .select("id, numero, tipo, mesa, cliente, total, estado, created_at")
-    .neq("estado", "anulada")
+    .eq("estado", "pagada")
     .is("oculta_at", null)
     .order("created_at", { ascending: false })
     .limit(limite);
@@ -428,8 +513,12 @@ export async function ultimasOrdenes(limite = 10): Promise<OrdenBreve[]> {
   return (data ?? []) as OrdenBreve[];
 }
 
-/** Reimprime una orden ya cerrada. */
-export async function reimprimir(ordenId: string, cocina = false) {
+/**
+ * Una orden guardada, reconstruida como la tenia la caja: lineas,
+ * descuentos y la configuracion CONGELADA de ese dia. Sirve para reimprimir
+ * (tiene que dar exactamente el mismo total) y para editar.
+ */
+export async function cargarOrden(ordenId: string) {
   const { data: o, error } = await supabase
     .from("orden").select("*, orden_item(*)").eq("id", ordenId).single();
   if (error) throw error;
@@ -456,9 +545,8 @@ export async function reimprimir(ordenId: string, cocina = false) {
   if (o.desc_pizza_valor > 0)   descuentos.push({ alcance: "pizza",   tipo: o.desc_pizza_tipo,   valor: o.desc_pizza_valor });
   if (o.desc_bebida_valor > 0)  descuentos.push({ alcance: "bebida",  tipo: o.desc_bebida_tipo,  valor: o.desc_bebida_valor });
 
-  // Se recalcula con el SNAPSHOT de politica de la orden, no con los ajustes
-  // de hoy: una reimpresion tiene que dar exactamente el mismo total.
-  const t = calcularTotales(lineas, descuentos, {
+  // El SNAPSHOT de politica de la orden, no los ajustes de hoy.
+  const config: ConfigCobro = {
     ivaBps: o.iva_bps,
     preciosIncluyenIva: o.precios_incluyen_iva ?? false,
     propinaBps: o.propina_bps,
@@ -473,7 +561,32 @@ export async function reimprimir(ordenId: string, cocina = false) {
     empaquePorPizza: o.empaque_por_pizza ?? 0,
     cobrarEmpaque: (o.empaque_por_pizza ?? 0) > 0,
     empaqueGravado: o.empaque_gravado ?? true,
-  });
+  };
+
+  return { o, lineas, descuentos, config };
+}
+
+/**
+ * Las ordenes guardadas SIN cobrar. Van aparte de «Ultimas ordenes» porque
+ * son trabajo pendiente: una mesa que todavia no paga no puede quedar
+ * enterrada debajo de diez cobros.
+ */
+export async function ordenesAbiertas(): Promise<OrdenBreve[]> {
+  const { data, error } = await supabase
+    .from("orden")
+    .select("id, numero, tipo, mesa, cliente, total, estado, created_at")
+    .eq("estado", "abierta")
+    .is("oculta_at", null)
+    .order("created_at", { ascending: true })
+    .limit(40);
+  if (error) throw error;
+  return (data ?? []) as OrdenBreve[];
+}
+
+/** Reimprime una orden ya cerrada. */
+export async function reimprimir(ordenId: string, cocina = false) {
+  const { o, lineas, descuentos, config } = await cargarOrden(ordenId);
+  const t = calcularTotales(lineas, descuentos, config);
 
   await registrar({
     accion: "reimpresion",

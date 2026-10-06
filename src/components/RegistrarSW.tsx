@@ -57,7 +57,12 @@ export default function RegistrarSW() {
     navigator.serviceWorker.register("/sw.js").then((reg) => {
       // El nuevo ya no se mete solo: avisa y espera. Meterse en medio de un
       // pedido es lo que dejaba la pantalla en blanco.
-      const mirar = () => { if (reg.waiting) setHayVersionNueva(true); };
+      // Solo si YA había una versión controlando la página. En la primera
+      // instalación el worker también pasa un instante por «waiting», y el
+      // aviso salía en un teléfono recién estrenado, sin nada que actualizar.
+      const mirar = () => {
+        if (reg.waiting && navigator.serviceWorker.controller) setHayVersionNueva(true);
+      };
       mirar();
       reg.addEventListener("updatefound", () => {
         reg.installing?.addEventListener("statechange", mirar);
@@ -87,7 +92,7 @@ export default function RegistrarSW() {
           Termina el pedido y recarga.
         </span>
       </span>
-      <button className="btn btn-acc shrink-0 !min-h-10 !rounded-lg !px-3 text-sm"
+      <button className="btn btn-acc btn-chico shrink-0"
               onClick={async () => {
                 const reg = await navigator.serviceWorker.getRegistration();
                 reg?.waiting?.postMessage("activar-ya");

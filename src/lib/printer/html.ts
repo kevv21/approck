@@ -36,7 +36,7 @@ export function ticketHtml(d: DatosTicket): string {
   .acciones { text-align:center; margin:16px; }
   button {
     font:inherit; padding:10px 18px; margin:0 4px; border:0; border-radius:8px;
-    background:#ff6b1a; color:#1a0d04; font-weight:700; cursor:pointer;
+    background:#ffc83d; color:#231803; font-weight:700; cursor:pointer;
   }
   @media print {
     body { background:#fff; }

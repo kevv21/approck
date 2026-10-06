@@ -10,9 +10,10 @@ import { useEffect } from "react";
  * pedido vive en su columna y esto no se monta.
  */
 export default function HojaPedido({
-  abierta, onCerrar, pie, children,
+  abierta, onCerrar, pie, titulo = "Pedido", children,
 }: {
   abierta: boolean;
+  titulo?: string;
   onCerrar: () => void;
   /** Total y cobrar. Clavados abajo: con tres ítems ya se salían de la
    *  pantalla, y son lo que se busca al abrir esto. */
@@ -41,20 +42,22 @@ export default function HojaPedido({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end lg:hidden"
-         role="dialog" aria-modal="true" aria-label="Pedido"
-         style={{ background: "rgb(10 7 5 / .7)" }}
+         role="dialog" aria-modal="true" aria-label={titulo}
+         style={{ background: "var(--velo)" }}
          onClick={onCerrar}>
-      <div className="surgir flex max-h-[88vh] flex-col overflow-hidden rounded-t-2xl"
+      <div className="subir flex max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl"
            style={{ background: "var(--bg)", borderTop: "1px solid var(--borde-2)",
                     boxShadow: "var(--sombra-alta)" }}
            onClick={(e) => e.stopPropagation()}>
-        <div className="flex shrink-0 items-center gap-3 px-4 pb-2 pt-3">
-          <span aria-hidden="true" className="h-1 w-10 rounded-full"
+        <div className="relative flex shrink-0 items-center gap-3 px-4 pb-2 pt-4">
+          <span aria-hidden="true" className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full"
                 style={{ background: "var(--borde-2)" }} />
-          <h2 className="flex-1 text-center text-sm font-bold uppercase tracking-wide"
-              style={{ color: "var(--txt-2)" }}>Pedido</h2>
-          <button className="btn btn-ghost !min-h-10 !rounded-lg !px-3 !py-0 text-sm"
-                  onClick={onCerrar} aria-label="Cerrar">Seguir</button>
+          <h2 className="display flex-1 text-2xl">{titulo}</h2>
+          {/* «Seguir agregando» y no «Cerrar»: cerrar suena a descartar el
+              pedido, y lo que se hace es volver al menú con todo intacto. */}
+          <button className="btn btn-ghost btn-chico" onClick={onCerrar}>
+            Seguir agregando
+          </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
         {pie && (

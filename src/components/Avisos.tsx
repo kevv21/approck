@@ -84,10 +84,10 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
           aria-live="polite"
           key={aviso.id}
           className="surgir pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-3"
-          // Por encima de lo que haya abajo. La hoja del pedido sube este
-          // valor mientras está abierta, porque su pie —total y cobrar— es
-          // justo lo que no se puede tapar con un aviso.
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + var(--aviso-abajo, 84px))" }}
+          // Encima de la barra de navegación y, en la caja, de la barra del
+          // pedido. La hoja del pedido fija su propio --aviso-abajo, porque
+          // su pie —total y cobrar— es lo que no se puede tapar.
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + var(--aviso-abajo, calc(var(--nav-alto) + var(--barra-alto, 0px) + 12px)))" }}
         >
           <div className="pointer-events-auto flex w-full max-w-md items-center gap-3
                           rounded-xl px-3.5 py-3"
@@ -99,7 +99,7 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
             <div className="min-w-0 flex-1 leading-tight">
               <div className="text-sm font-semibold">{aviso.texto}</div>
               {aviso.detalle && (
-                <div className="truncate text-xs" style={{ color: "var(--txt-2)" }}>
+                <div className="line-clamp-2 text-xs" style={{ color: "var(--txt-2)" }}>
                   {aviso.detalle}
                 </div>
               )}

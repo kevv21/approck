@@ -1,51 +1,73 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   APPROCK — sistema visual
+   APPROCK — sistema visual (v3, «cartel de serigrafía»)
    ===========================================================================
 
-   De dónde sale: del mundo del local. Una cocina de noche y una tira de papel
-   térmico. El fondo anterior era un gris azulado de panel de control
-   (#0b0d12) que no decía nada de una pizzería; ahora es carbón CÁLIDO, y el
-   texto tiene el tono del papel del recibo en vez de blanco azulado.
+   De dónde sale: Rock Munchies es rock y pizza. Los carteles de conciertos se
+   imprimen en serigrafía con dos o tres tintas sobre papel oscuro, y el queso
+   derretido es amarillo mostaza. De ahí sale todo:
 
-   El naranja de la marca no se toca. Lo que cambia es todo lo que estaba a su
-   alrededor, que no estaba elegido.
+   - Fondo de tinta violeta casi negra. No es negro puro, que en una pantalla
+     OLED barata hace "smear" al desplazar, y tampoco es el gris azulado de un
+     panel de control.
+   - Una sola tinta fuerte, el amarillo queso, reservada para lo que se toca:
+     la acción principal, lo seleccionado, el precio. Si todo es amarillo,
+     nada lo es.
+   - Texto color papel, no blanco azulado.
 
-   Cuatro superficies, no dos: sin profundidad todo pesaba lo mismo y la
-   pantalla se leía como un muro de cajas.
+   Por qué amarillo y no rojo: en una caja, rojo es "peligro" (cancelar,
+   anular, sin conexión). Si la marca es roja, el botón de cobrar y el de
+   cancelar la orden se parecen, y eso se paga.
+
+   Contrastes medidos (WCAG) sobre --panel: texto 15.4, texto-2 8.3,
+   texto-3 5.2, amarillo 11.3, error 6.3. Todo por encima de AA con margen,
+   porque esta pantalla se lee con brillo bajo, de lado y con prisa.
    =========================================================================== */
 
 :root {
   /* superficies, de más honda a más cerca */
-  --bg:      #17120f;   /* la sala, apagada */
-  --panel:   #1f1915;   /* paneles */
-  --panel-2: #2a221c;   /* tarjetas y campos, un escalón más cerca */
-  --panel-3: #362b23;   /* algo levantado: hoja, aviso */
-  --borde:   #3d3128;   /* líneas cálidas, no azules */
-  --borde-2: #4d3e32;   /* líneas cuando algo está activo */
+  --bg:      #121016;   /* la sala con las luces bajas */
+  --panel:   #1b1820;   /* paneles */
+  --panel-2: #25212c;   /* tarjetas y campos */
+  --panel-3: #302b39;   /* algo levantado: hoja, aviso, menú */
+  --borde:   #38323f;
+  --borde-2: #4a4254;   /* bordes cuando algo está activo o en foco */
 
   /* tinta */
-  --txt:   #f3ece2;     /* color del papel térmico */
-  --txt-2: #a89a8c;
-  --txt-3: #7a6e63;     /* apoyos y unidades */
+  --txt:   #f5f0e6;     /* papel */
+  --txt-2: #b8afc2;
+  --txt-3: #968ca1;     /* apoyos y unidades */
 
-  --acc:   #ff6b1a;     /* la marca */
-  --acc-2: #ffa04d;
-  /* Tinta sobre el naranja. Marrón muy oscuro, no negro: sobre este naranja
-     el negro puro vibra. */
-  --sobre-acc: #2b1103;
+  --acc:   #ffc83d;     /* queso: la marca y la acción */
+  --acc-2: #ffe08a;     /* el mismo, más suave: descuentos, extras, avisos */
+  --acc-fondo: #3a2f12; /* banda de aviso sobre fondo oscuro */
+  --sobre-acc: #231803; /* tinta sobre amarillo: marrón muy oscuro, no negro */
 
-  /* Segunda mitad de una pizza partida. Azul y no otro naranja a propósito:
-     dos tonos del mismo color se confunden en una pantalla sucia y con
-     prisa, y confundir las mitades cuesta una pizza rehecha. */
-  --mitad-b: #4cc2f5;
+  /* Segunda mitad de una pizza partida. Cian contra amarillo: dos colores que
+     no se confunden ni con la pantalla sucia. Confundir las mitades cuesta
+     una pizza rehecha. */
+  --mitad-b: #5cd0f2;
+  --sobre-mitad-b: #03161d;
 
-  --ok:  #4ade80;
-  --mal: #f87171;
+  --ok:  #4fe0a0;
+  --sobre-ok: #05261a;
+  --mal: #ff6b5e;
+  --sobre-mal: #2e0806;
+  --mal-fondo: #3a1512;
 
-  --sombra: 0 1px 2px rgb(0 0 0 / .4), 0 4px 16px rgb(0 0 0 / .3);
-  --sombra-alta: 0 -2px 24px rgb(0 0 0 / .55);
+  --velo: rgb(8 6 12 / .72);   /* detrás de hojas y diálogos */
+
+  --sombra: 0 1px 2px rgb(0 0 0 / .45), 0 6px 18px rgb(0 0 0 / .32);
+  --sombra-alta: 0 -4px 28px rgb(0 0 0 / .6);
+
+  /* Alto de la barra de navegación de abajo. En PC no existe (0). Lo leen la
+     barra del pedido y los avisos para no quedar tapados. */
+  --nav-alto: 64px;
+  --header-alto: 52px;
+}
+@media (min-width: 1024px) {
+  :root { --nav-alto: 0px; --header-alto: 56px; }
 }
 
 html, body {
@@ -54,27 +76,77 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
 }
+html { scroll-padding-top: calc(var(--header-alto) + 56px); }
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--f-texto), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   /* El dinero es lo que más se lee en una caja. Cifras de ancho fijo para que
      los precios no bailen de una fila a otra al cambiar una cantidad. */
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+   Todas las clases propias van en la capa `components`. Fuera de una capa,
+   Tailwind 4 les da MÁS prioridad que a sus utilidades, y entonces
+   `btn hidden lg:flex` no se ocultaba nunca: `.btn` ponía display:flex por
+   encima de `hidden`. Así salía el botón de cobrar repetido en la hoja del
+   teléfono, uno encima del otro.
+*/
+@layer components {
+/* Títulos de cartel: condensada y en mayúsculas. Solo en títulos, la marca y
+   el TOTAL; en texto corrido cansa. */
+.display {
+  font-family: var(--f-display), "Arial Narrow", sans-serif;
+  font-weight: 800;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  line-height: .95;
+}
+
+.mono {
+  font-family: var(--f-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Etiqueta de sección: pequeña, en versalitas, separada. Se usa para decir
+   "esto es un grupo" sin dibujar otra caja alrededor. */
+.rotulo {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--txt-3);
 }
 
 /* --- botones ------------------------------------------------------------ */
-/* Grandes: se usa con los dedos, a veces grasosos, a veces apurado. */
+/* Grandes: se usa con los dedos, a veces grasosos, a veces con prisa. */
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 font-semibold
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 font-bold
          transition select-none;
   min-height: 48px;
   transition-duration: 120ms;
+  -webkit-user-select: none;
 }
 .btn:active { transform: scale(.97); }
 .btn-acc   { background: var(--acc); color: var(--sobre-acc); box-shadow: var(--sombra); }
 .btn-ghost { background: var(--panel-2); color: var(--txt); border: 1px solid var(--borde); }
-.btn-ok    { background: var(--ok); color: #06240f; }
-.btn-mal   { background: var(--mal); color: #2e0707; }
+.btn-ok    { background: var(--ok); color: var(--sobre-ok); }
+.btn-mal   { background: var(--mal); color: var(--sobre-mal); }
+/* Peligro sin gritar: para «Cancelar orden» dentro de un menú, donde un
+   botón rojo lleno pesa más que la acción principal. */
+.btn-mal-suave { background: transparent; color: var(--mal); border: 1px solid var(--mal-fondo); }
+.btn-chico { min-height: 40px; padding-inline: .75rem; font-size: .875rem; border-radius: .7rem; }
 .btn:disabled { opacity: .35; pointer-events: none; box-shadow: none; }
+
+/* Botón de texto: acciones secundarias dentro de una tarjeta (+ Nota,
+   Extras, Editar). 40px de alto aunque se vea pequeño. */
+.btn-texto {
+  @apply inline-flex items-center gap-1 rounded-lg px-2 text-sm font-semibold transition;
+  min-height: 40px;
+  color: var(--txt-2);
+  transition-duration: 120ms;
+}
+.btn-texto:active { background: var(--panel-3); }
 
 .panel {
   background: var(--panel);
@@ -92,23 +164,101 @@ body {
 .input::placeholder { color: var(--txt-3); }
 .input:focus { border-color: var(--acc); background: var(--panel-3); }
 
-/* 40px de alto: Android pide 48dp y WCAG 44px. Estaban en 34, y el tipo de
-   orden se toca en CADA pedido, con las manos grasosas y de pie. */
+/* --- filtros (categorías) ------------------------------------------------ */
+/* Solo para la fila de categorías y filtros. Para elegir UNA opción de un
+   grupo fijo se usa .seg; para prender/apagar, .interruptor. */
 .chip {
   @apply inline-flex items-center justify-center rounded-full px-4 text-sm
-         font-medium border transition;
+         font-semibold border transition whitespace-nowrap;
   min-height: 40px;
   transition-duration: 120ms;
   border-color: var(--borde); background: var(--panel-2); color: var(--txt-2);
 }
 .chip-on {
-  background: var(--acc); color: var(--sobre-acc); border-color: var(--acc);
+  background: var(--txt); color: var(--bg); border-color: var(--txt);
+}
+
+/* --- selección única: control segmentado -------------------------------- */
+/*
+   Antes cada opción era un chip suelto, y "elegido" se distinguía de "no
+   elegido" solo por el color. Agrupadas en un riel se lee como lo que es:
+   una sola opción de varias. La elegida además lleva peso y relleno, no
+   solo color, para quien no distingue bien el amarillo con la luz del local.
+*/
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: .9rem;
+  background: var(--bg);
+  border: 1px solid var(--borde);
+}
+.seg > button {
+  @apply rounded-[.7rem] px-2 text-sm font-semibold transition;
+  min-height: 42px;
+  color: var(--txt-2);
+  transition-duration: 120ms;
+  line-height: 1.1;
+}
+.seg > button[aria-checked="true"] {
+  background: var(--acc); color: var(--sobre-acc); font-weight: 800;
   box-shadow: var(--sombra);
 }
 
-.mono {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
+/* --- prender / apagar: interruptor -------------------------------------- */
+.interruptor {
+  @apply flex w-full items-center gap-3 rounded-xl px-3 text-left transition;
+  min-height: 52px;
+  background: var(--panel-2);
+  border: 1px solid var(--borde);
+  transition-duration: 120ms;
+}
+.interruptor .pista {
+  position: relative; flex-shrink: 0;
+  width: 46px; height: 28px; border-radius: 999px;
+  background: var(--borde-2);
+  transition: background 160ms;
+}
+.interruptor .pista::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 22px; height: 22px; border-radius: 999px;
+  background: var(--txt-2);
+  transition: transform 160ms cubic-bezier(.2,.8,.2,1), background 160ms;
+}
+.interruptor[aria-checked="true"] { border-color: var(--borde-2); }
+.interruptor[aria-checked="true"] .pista { background: var(--acc); }
+.interruptor[aria-checked="true"] .pista::after {
+  transform: translateX(18px); background: var(--sobre-acc);
+}
+
+/* --- varias a la vez: casilla ------------------------------------------- */
+/*
+   Para los extras. Lo marcado lleva una palomita además del color: con
+   nueve opciones en pantalla y prisa, el color solo no alcanza para ver de
+   un vistazo cuáles van.
+*/
+.casilla {
+  @apply flex items-center gap-2.5 rounded-xl px-3 text-left transition;
+  min-height: 48px;
+  background: var(--panel-2);
+  border: 1px solid var(--borde);
+  transition-duration: 120ms;
+}
+.casilla .marca {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 7px;
+  border: 2px solid var(--borde-2);
+  color: transparent;
+  transition: background 120ms, border-color 120ms;
+}
+.casilla[aria-checked="true"] { border-color: var(--acc); background: var(--acc-fondo); }
+.casilla[aria-checked="true"] .marca {
+  background: var(--acc); border-color: var(--acc); color: var(--sobre-acc);
+}
+.casilla:active, .interruptor:active { transform: scale(.98); }
+
 }
 
 /* --- la firma: el pedido se lee como el ticket que va a ser -------------- */
@@ -142,11 +292,16 @@ body {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to   { opacity: 1; transform: none; }
 }
+@keyframes subir {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
 @keyframes latido {
   0%, 100% { transform: scale(1); }
   40%      { transform: scale(1.12); }
 }
 .surgir { animation: surgir 160ms cubic-bezier(.2,.8,.2,1); }
+.subir  { animation: subir 220ms cubic-bezier(.2,.8,.2,1); }
 .latido { animation: latido 280ms ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -154,7 +309,7 @@ body {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
-  .btn:active { transform: none; }
+  .btn:active, .casilla:active, .interruptor:active { transform: none; }
 }
 
 /* Foco visible para quien usa teclado en la PC de caja. */
@@ -163,6 +318,18 @@ body {
   outline-offset: 2px;
 }
 
-/* Barras de desplazamiento discretas en las filas que se deslizan. */
+/* Filas que se deslizan de lado: sin barra, y con un difuminado en los bordes
+   que dice "hay más" sin flechas. */
 .sin-barra { scrollbar-width: none; }
 .sin-barra::-webkit-scrollbar { display: none; }
+.desliza {
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.desliza::-webkit-scrollbar { display: none; }
+
+/* Espacio para la barra de navegación de abajo, en teléfono. */
+.con-nav { padding-bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom, 0px)); }

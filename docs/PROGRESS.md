@@ -690,6 +690,148 @@ desbordamiento.
 
 **236 pruebas.**
 
+## Interfaz nueva y editar órdenes — 2026-10-06
+
+Pedido: mejorar toda la interfaz, limpiarla, cambiar la paleta, el sistema de
+desplazarse y el de marcar casillas, y poder **editar un pedido ya agregado
+sin rehacerlo**.
+
+**Un fallo de plata encontrado antes de empezar.** «Guardar sin cobrar»
+escribía la orden como **PAGADA en efectivo** (`estado: "pagada"`, con
+`cerrada_at`). El cierre la contaba como plata que nunca entró a la caja, y
+además imprimía la hoja de consumo. Ahora guarda `estado = 'abierta'`: no
+cuenta en el cierre, no imprime, y se cobra después abriéndola. Las órdenes
+ya guardadas así en la base siguen como pagadas; no se tocan.
+
+**Editar una orden guardada.** En la Caja, «Órdenes guardadas» muestra
+primero las **sin cobrar** (botón «Abrir») y debajo las últimas cobradas
+(«Editar» y «Reimprimir»). Abrir carga la orden en la caja tal como se
+guardó —líneas, extras, mitades, notas, descuentos, tipo, cliente—, se
+cambia lo que haga falta y se guarda **sobre la misma orden, con el mismo
+número**.
+- Sin cobrar → «Guardar cambios» (sigue abierta) o «Cobrar» (pasa a pagada e
+  imprime). Sin bitácora: todavía no es plata.
+- Cobrada → «Guardar corrección e imprimir». Muestra cuánto cambia
+  (`Cobrar C$ X más` / `Devolver C$ X`), **exige motivo** y reimprime la hoja
+  corregida.
+
+Pasa por una función de la base, `editar_orden` (`15_editar_orden.sql`, ya
+dentro de `00_INSTALAR.sql`), **no por permisos nuevos**: BLINDAR sigue
+negando cambiar el total o las líneas con un update. La función reemplaza
+todo junto o nada, y se niega a: tocar una orden anulada; devolver una
+cobrada a «sin cobrar»; corregir una cobrada sin motivo; dejar una orden sin
+líneas; y **corregir una cobrada de un turno ya cerrado** (ese efectivo ya se
+contó y se firmó: se anula y se vuelve a cargar). Cada corrección de una
+cobrada queda en la bitácora como `edicion`, con total, método y líneas de
+ANTES y DESPUÉS y la diferencia. Bajar el total de una venta en efectivo
+después de cobrarla es la forma clásica de quedarse con la diferencia: se
+puede, pero queda escrito quién y cuánto.
+Ejecutable por `authenticated` siempre y por `anon` solo si la base está en
+modo sin cuenta: correr el instalador no reabre lo que cerró
+`EXIGIR_CUENTA.sql`, y `PERMITIR_ANONIMO.sql` la vuelve a conceder.
+
+Verificado contra Postgres 16 con BLINDAR aplicado, como `anon` y con el
+contenido EXACTO que arma la app (capturado de `repo.ts`, no escrito a mano):
+crear abierta 851.00 → cobrar con 3 pizzas 1207.50 y cambio 292.50 ✓;
+volver a abierta ✗; corregir sin motivo ✗; corregir con motivo ✓ y bitácora
+con antes/después/diferencia ✓; sin líneas ✗; turno cerrado ✗; anulada ✗;
+`update orden set total = 0` y `delete from orden_item` siguen denegados ✓.
+Permiso de `anon`: con cuenta exigida no, reinstalando con cuenta exigida
+sigue que no, tras PERMITIR_ANONIMO + BLINDAR sí ✓.
+
+Nueva guarda en `instalador.test.ts`: la lista de columnas que la app
+escribe es UNA sola función (`columnasOrden` / `filasItems`, compartida por
+crear y editar), y la prueba exige que `editar_orden` actualice cada una.
+Quitando `empaque` de la función, falla nombrándola: es el mismo fallo
+silencioso que `precio_mitades`, ahora en editar.
+
+Estado detecta si falta la función, y la caja dice «a la base le faltan
+partes de la versión nueva» en vez del error crudo de PostgREST.
+
+**Paleta: «cartel de serigrafía».** Tinta violeta casi negra, texto color
+papel y una sola tinta fuerte, **amarillo queso** (`#ffc83d`), reservada a
+lo que se toca. No es rojo a propósito: en una caja el rojo es peligro
+(cancelar, anular, sin conexión) y el botón de cobrar no puede parecerse al
+de cancelar. La segunda mitad de la pizza pasa a cian, que no se confunde
+con el amarillo. Contrastes medidos: texto 15.4:1, secundario 8.3:1, el más
+tenue 5.2:1, amarillo 11.3:1 — todo AA con margen. Ya no queda un color
+escrito a mano fuera de `globals.css`; la barra de Android y el ícono usan
+los mismos.
+
+**Tipografía.** Atkinson Hyperlegible (la diseñó el Braille Institute para
+que I, l y 1, o 0 y O no se confundan) para el texto y su versión mono para
+los montos; Big Shoulders, condensada de cartel, solo en títulos y el TOTAL.
+Se descargan al compilar: funcionan sin internet.
+
+**Navegación.** Las seis pestañas de arriba —dos fuera de la pantalla a
+360px y lejos del pulgar— pasan a una **barra abajo**: Caja, Cierres,
+Inventario y «Más» (Estación, Probar impresora, Estado). En PC siguen arriba.
+
+**Desplazamiento del menú.** Ya no es una categoría a la vez: todo el menú
+es una lista continua y la fila de categorías queda **pegada arriba,
+siguiendo sola** dónde se está. Tocar una categoría salta a ella. Y hay
+**buscador** (lo pedía el spec): «pina» encuentra «Piña», sin tildes.
+
+**Casillas y selección.** Antes todo era un chip y elegir, prender y marcar
+se veían igual. Ahora tres controles, uno por tipo de decisión:
+**segmentado** para una opción de varias (tipo de orden, forma de pago,
+propina, %/C$), **interruptor** para sí/no (propina, empaque, opciones de la
+impresora) y **casilla con palomita** para varias a la vez (extras). La
+casilla nativa del empaque, de 13px, desapareció. Los tres anuncian su
+estado al lector de pantalla.
+
+**Limpieza.**
+- `page.tsx` de la caja: el bloque de tipo de orden y datos del cliente
+  estaba DUPLICADO (teléfono y PC). Ahora es uno, y va dentro del pedido.
+  La línea del pedido y el menú son componentes propios.
+- En Cierres, los botones de cada orden estaban escritos una vez; las
+  tarjetas para teléfono los reusan en vez de copiarlos.
+- `reimprimir` y editar comparten `cargarOrden`; crear y editar comparten
+  `columnasOrden`.
+- La línea del pedido: arriba qué y cuánto, abajo Nota · Extras · Mitades y
+  la cantidad. Bajar desde 1 muestra el tacho y quita la línea (con
+  deshacer).
+- El tipo de orden en UNA fila con nombres cortos (Mesa · Llevar · Delivery
+  · Retiro): en dos ocupaba media hoja antes de llegar al pedido.
+- En Cierres, en teléfono, las órdenes son tarjetas; la tabla dejaba filas
+  de 130px con los botones saliéndose de la pantalla. Las sin cobrar se
+  marcan, se pueden anular, y un aviso arriba dice cuántas hay y cuánto
+  suman antes de cerrar.
+
+**Tres fallos que salieron mirando la pantalla, no el código:**
+1. **El botón de cobrar salía DOS veces en la hoja del teléfono.** Las
+   clases propias estaban fuera de una capa de CSS, y en Tailwind 4 eso les
+   gana a las utilidades: `btn hidden lg:flex` nunca se ocultaba. Ahora
+   viven en `@layer components`.
+2. **«Hay una versión nueva» salía en un teléfono recién estrenado.** El
+   service worker pasa un instante por «waiting» también en la primera
+   instalación. Ahora solo avisa si ya había una versión controlando.
+3. **Corregir sin motivo parecía no hacer nada**: el aviso quedaba abajo,
+   fuera de la pantalla, y el campo arriba. Ahora lleva la vista al campo.
+4. **Corregir una orden cobrada en efectivo que subió de total quedaba
+   bloqueada en silencio**: trae el «recibido» de entonces (C$700), el
+   nuevo total es C$1,104, y el «recibido menor que el total» se escribía
+   en el mismo lugar invisible. Ahora todo error del cobro sale como aviso
+   flotante y lleva la vista al campo que hay que corregir.
+
+Además: el texto de los extras se montaba sobre el precio a 360px
+(«Aceitunas+60»); un `<select>` de la Estación ensanchaba la página a 382px;
+quedaba un «probá» en la Estación; y cada carga daba un 404 por
+`/favicon.ico`, que no existía (ahora se declara el ícono SVG).
+
+Verificado en un Android de 360px y en PC de 1366px contra un PostgREST
+simulado con el menú real: cero desbordamiento en las seis pantallas, flujo
+completo agregar → guardar sin cobrar → abrir → cobrar → editar cobrada →
+sin motivo (bloquea) → recibido insuficiente (bloquea, a la vista) →
+corregido (guarda y reimprime), y los totales
+(Diabla + Piña + gaseosa para llevar = 494.50; Diabla + promo = 845.00).
+
+**SQL nuevo:** `supabase/15_editar_orden.sql`, ya dentro de `00_INSTALAR.sql`.
+Sin él, la app sigue cobrando normal; lo que falla es abrir una orden
+guardada, y Estado lo dice.
+
+**241 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

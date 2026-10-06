@@ -10,7 +10,7 @@ export type AccionAuditoria =
   // figura como anulada en ninguna pantalla. Aqui SI queda, porque es lo
   // unico que separa "sacar una orden de prueba" de "hacer desaparecer una
   // venta cobrada en efectivo".
-  | "exclusion" | "restauracion";
+  | "exclusion" | "restauracion" | "edicion";
 
 export interface EntradaAuditoria {
   accion: AccionAuditoria;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASE_DESACTUALIZADA, diagnosticar, noExisteColumna } from "./diagnostico";
+import { BASE_DESACTUALIZADA, diagnosticar, noExisteColumna, noExisteFuncion } from "./diagnostico";
 
 /**
  * Reconocer "esa tabla no existe" es lo que separa "te falta instalar" de
@@ -59,5 +59,26 @@ describe("app más nueva que la base", () => {
   it("un error cualquiera no se confunde con columna faltante", () => {
     expect(noExisteColumna({ code: "42501", message: "permission denied for table orden" })).toBe(false);
     expect(noExisteColumna(null)).toBe(false);
+  });
+});
+
+// Editar una orden pasa por la función `editar_orden`. Con la app nueva y la
+// base sin correr 15_editar_orden.sql, PostgREST responde esto.
+describe("falta la función de editar órdenes", () => {
+  const funcionAusente = {
+    code: "PGRST202", details: null, hint: null,
+    message: "Could not find the function public.editar_orden(p_id, p_items, p_motivo, p_orden) in the schema cache",
+  };
+
+  it("se reconoce como base atrasada", () => {
+    expect(noExisteFuncion(funcionAusente)).toBe(true);
+    expect(noExisteFuncion({ code: "42883", message: "function editar_orden(uuid) does not exist" })).toBe(true);
+  });
+
+  // La sonda de Estado llama a la función con una orden que no existe. Que
+  // la función responda eso es la prueba de que está instalada.
+  it("la respuesta de la función instalada no cuenta como faltante", () => {
+    expect(noExisteFuncion({ code: "P0001", message: "La orden no existe." })).toBe(false);
+    expect(noExisteFuncion(null)).toBe(false);
   });
 });

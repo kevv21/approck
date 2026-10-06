@@ -20,10 +20,10 @@ import {
  */
 const COLOR = { a: "var(--acc)", b: "var(--mitad-b)" } as const;
 /**
- * Tinta sobre cada fondo: marron oscuro sobre el naranja, casi negro sobre el
- * azul. Un solo color no contrasta bien contra los dos.
+ * Tinta sobre cada fondo: marron oscuro sobre el amarillo, casi negro sobre
+ * el cian. Un solo color no contrasta bien contra los dos.
  */
-const TINTA = { a: "#1a0d04", b: "#04121c" } as const;
+const TINTA = { a: "var(--sobre-acc)", b: "var(--sobre-mitad-b)" } as const;
 
 /**
  * Una de las dos mitades. Vive FUERA del componente a proposito: definida
@@ -128,7 +128,7 @@ export default function MitadYMitad({
   return (
     <div role="dialog" aria-modal="true" aria-label="Pizza mitad y mitad"
          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
-         style={{ background: "rgba(0,0,0,.65)" }} onClick={onCancelar}>
+         style={{ background: "var(--velo)" }} onClick={onCancelar}>
       <div className="panel flex max-h-[92vh] w-full max-w-lg flex-col gap-3 p-4"
            style={{ borderRadius: "16px 16px 0 0" }}
            onClick={(e) => e.stopPropagation()}>
