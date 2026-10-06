@@ -16,3 +16,7 @@ bridge/.env
 
 # mapa de Graphify: se regenera, no se versiona
 graphify-out/
+
+# playwright-cli: capturas de cada sesion y config local del navegador
+.playwright-cli/
+.playwright/cli.config.json
