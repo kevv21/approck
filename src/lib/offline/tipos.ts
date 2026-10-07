@@ -22,6 +22,8 @@ export interface OrdenLocal {
   creadaAt: string;
   intentos: number;
   error?: string;
+  /** Cuando empezo la ultima subida. Si lleva mucho, la subida murio. */
+  subiendoAt?: string;
   /** Rellenados al sincronizar. */
   idRemoto?: string;
   numeroReal?: number;

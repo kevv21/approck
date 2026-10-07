@@ -4,7 +4,7 @@ import { guardarYEncolar, type DatosGuardarOrden } from "../repo";
 import type { Producto } from "../types";
 import {
   actualizarOrdenLocal, contarPorEstado, encolarOrdenLocal, leerMenuLocal,
-  ordenesPendientes, purgarSincronizadas, siguienteNumeroTemp,
+  leerOrdenLocal, ordenesPendientes, purgarSincronizadas, siguienteNumeroTemp,
 } from "./db";
 import { hayInternet } from "./conexion";
 import { sincronizar, type PuertoSync } from "./sync";
@@ -34,6 +34,13 @@ export interface ResultadoGuardar {
   idLocal?: string;
   /** Id en la base. Solo existe si subio; hace falta para reimprimir. */
   id?: string;
+  /**
+   * Era un reintento de una orden que ya estaba guardada: no se creo otra.
+   * Si el pedido cambio entre un intento y otro, lo nuevo no entro.
+   */
+  yaExistia?: boolean;
+  /** false si se guardo pero el ticket no llego a la cola de impresion. */
+  impreso?: boolean;
 }
 
 /**
@@ -43,15 +50,30 @@ export interface ResultadoGuardar {
  * numero temporal, y se sube sola al volver la senal. El numero REAL lo
  * asigna siempre la secuencia de Postgres, asi que dos meseros offline no
  * pueden generar el mismo correlativo.
+ *
+ * `d.idLocal` lo pone la caja y es EL MISMO en todos los intentos de la misma
+ * orden. Antes se inventaba aqui uno nuevo por intento, y un reintento tras
+ * una respuesta perdida creaba una segunda orden: la venta salia dos veces.
  */
 export async function guardarOrden(
   d: DatosGuardarOrden
 ): Promise<ResultadoGuardar> {
-  const idLocal = crypto.randomUUID();
+  const idLocal = d.idLocal ?? crypto.randomUUID();
 
   if (await hayInternet()) {
-    const { orden } = await guardarYEncolar({ ...d, idLocal });
-    return { offline: false, numero: orden.numero, idLocal, id: orden.id };
+    const r = await guardarYEncolar({ ...d, idLocal });
+    return {
+      offline: false, numero: r.orden.numero, idLocal, id: r.orden.id,
+      yaExistia: r.yaExistia, impreso: r.impreso,
+    };
+  }
+
+  // Reintento sin conexion de una orden que ya esta en la cola: se actualiza
+  // la misma, con su numero temporal, en vez de encolar otra.
+  const previa = await leerOrdenLocal(idLocal);
+  if (previa && previa.estado !== "sincronizada") {
+    await actualizarOrdenLocal(idLocal, { payload: { ...d, idLocal } });
+    return { offline: true, numero: previa.numeroTemp, idLocal };
   }
 
   const numeroTemp = await siguienteNumeroTemp();
@@ -59,7 +81,7 @@ export async function guardarOrden(
     idLocal,
     numeroTemp,
     estado: "pendiente",
-    payload: d,
+    payload: { ...d, idLocal },
     creadaAt: new Date().toISOString(),
     intentos: 0,
   });

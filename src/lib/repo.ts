@@ -5,6 +5,7 @@ import { registrar } from "./auth/auditoria";
 import { sesionActual } from "./auth/sesion";
 import { calcularTotales } from "./pricing";
 import { construirTicket, type DatosTicket } from "./ticket";
+import { noExisteFuncion } from "./diagnostico";
 import { previsualizarTicket } from "./ticket";
 import type {
   ConfigCobro, Descuento, LineaOrden, MetodoPago, Producto, TipoOrden, Totales,
@@ -145,48 +146,101 @@ export interface DatosGuardarOrden {
   tomadaAt?: string;
 }
 
+/** Resultado de guardar: la orden, y lo que paso alrededor de ella. */
+export interface OrdenGuardada {
+  orden: { id: string; numero: number; created_at: string; estado: string };
+  totales: Totales;
+  /**
+   * La orden ya estaba en la base: un reintento cuya primera respuesta se
+   * perdio. NO se creo otra. Si el pedido cambio entre intentos, lo nuevo no
+   * entro: hay que abrir la orden y corregirla.
+   */
+  yaExistia: boolean;
+  /** false si se guardo pero el ticket no llego a la cola de impresion. */
+  impreso: boolean;
+}
+
 /**
- * Guarda la orden con SNAPSHOT de nombres y precios y encola los tickets.
+ * Guarda la orden con SNAPSHOT de nombres y precios y encola el ticket.
  * Ningun dispositivo imprime directo: todos escriben en print_job y la
  * estacion de caja es la unica que habla con la PT-210.
+ *
+ * Orden y lineas entran JUNTAS, por la funcion `crear_orden` de la base
+ * (16_crear_orden.sql): todo o nada, e idempotente respecto de `idLocal`.
+ * Llamarla dos veces con el mismo `idLocal` devuelve la misma orden.
+ *
+ * Lo que pasa DESPUES de guardar —encolar el ticket, la bitacora— nunca hace
+ * fallar el guardado. Antes, si la impresion fallaba, la caja decia «no se
+ * pudo guardar» de una orden que SI estaba guardada, y el cajero la volvia a
+ * cobrar.
  */
-export async function guardarYEncolar(d: DatosGuardarOrden) {
-  // Idempotencia: si esta orden ya subio en un intento anterior cuya
-  // respuesta se perdio, se devuelve la que existe en vez de crear otra.
-  if (d.idLocal) {
-    const { data: previa } = await supabase
-      .from("orden").select("*").eq("id_local", d.idLocal).maybeSingle();
-    if (previa) {
-      return {
-        orden: previa,
-        totales: calcularTotales(d.lineas, d.descuentos, d.config),
-        yaExistia: true,
-      };
-    }
+export async function guardarYEncolar(d: DatosGuardarOrden): Promise<OrdenGuardada> {
+  const t = calcularTotales(d.lineas, d.descuentos, d.config);
+  const idLocal = d.idLocal ?? crypto.randomUUID();
+  const fila = { ...columnasCreacion({ ...d, idLocal }), ...columnasOrden(d, t) };
+  const items = filasItems(t, null);
+
+  const { data, error } = await supabase.rpc("crear_orden", { p_orden: fila, p_items: items });
+
+  let orden: OrdenGuardada["orden"];
+  let yaExistia: boolean;
+  if (error && noExisteFuncion(error)) {
+    // La base todavia no tiene la funcion (falta correr el instalador). Se
+    // guarda por el camino viejo, en dos pasos, para no dejar la caja parada.
+    ({ orden, yaExistia } = await guardarEnDosPasos(idLocal, fila, items));
+  } else if (error) {
+    throw error;
+  } else {
+    const r = data as { orden: OrdenGuardada["orden"]; ya_existia: boolean };
+    orden = r.orden;
+    yaExistia = r.ya_existia;
   }
 
-  const t = calcularTotales(d.lineas, d.descuentos, d.config);
+  let impreso = true;
+  if (orden.estado === "pagada") {
+    impreso = yaExistia
+      ? await asegurarTicket(d, t, orden)
+      : await alCobrar(d, t, orden);
+  }
+  return { orden, totales: t, yaExistia, impreso };
+}
 
-  const { data: orden, error } = await supabase.from("orden").insert({
-    // Solo al crear. La politica del dia (IVA, mitades, tipo de cambio) queda
-    // congelada en la orden y editarla no la cambia.
-    id_local: d.idLocal ?? null,
+/**
+ * El camino anterior a `crear_orden`. Solo para una base sin actualizar: no
+ * es atomico, y por eso existe la funcion.
+ */
+async function guardarEnDosPasos(
+  idLocal: string, fila: Record<string, unknown>, items: Record<string, unknown>[],
+) {
+  const { data: previa } = await supabase
+    .from("orden").select("*").eq("id_local", idLocal).maybeSingle();
+  if (previa) return { orden: previa, yaExistia: true };
+
+  const { data: orden, error } = await supabase.from("orden").insert(fila).select().single();
+  if (error) throw error;
+  const { error: eItems } = await supabase.from("orden_item")
+    .insert(items.map((i) => ({ ...i, orden_id: orden.id })));
+  if (eItems) throw eItems;
+  return { orden, yaExistia: false };
+}
+
+/**
+ * Columnas que solo se escriben al CREAR: la identidad de la orden y la
+ * politica del dia (IVA, mitades, tipo de cambio), que queda congelada.
+ * `editar_orden` no las toca a proposito.
+ *
+ * @escribe orden:creacion
+ */
+function columnasCreacion(d: DatosGuardarOrden & { idLocal: string }) {
+  return {
+    id_local: d.idLocal,
     creada_offline: d.creadaOffline ?? false,
     tomada_at: d.tomadaAt ?? new Date().toISOString(),
     iva_bps: d.config.ivaBps,
     precios_incluyen_iva: d.config.preciosIncluyenIva,
     precio_mitades: d.config.precioMitades,
     tipo_cambio: d.config.tipoCambio,
-    ...columnasOrden(d, t),
-  }).select().single();
-  if (error) throw error;
-
-  const { error: eItems } = await supabase.from("orden_item").insert(filasItems(t, orden.id));
-  if (eItems) throw eItems;
-
-  if (orden.estado === "pagada") await alCobrar(d, t, orden);
-
-  return { orden, totales: t, yaExistia: false };
+  };
 }
 
 /**
@@ -243,7 +297,7 @@ function columnasOrden(d: DatosGuardarOrden, t: Totales) {
  *
  * @escribe orden_item
  */
-function filasItems(t: Totales, ordenId: string) {
+function filasItems(t: Totales, ordenId: string | null) {
   return t.lineas.map((l) => ({
     orden_id: ordenId,
     producto_id: refProducto(l.productoId),
@@ -270,25 +324,62 @@ function filasItems(t: Totales, ordenId: string) {
   }));
 }
 
-/** Lo que pasa cuando una orden queda cobrada: ticket y bitacora. */
+/** El ticket de una orden, tal como sale del cobro. */
+const ticketDe = (
+  d: DatosGuardarOrden, t: Totales, orden: { numero: number; created_at: string },
+): DatosTicket => ({
+  numero: orden.numero, tipo: d.tipo, mesa: d.mesa, cliente: d.cliente,
+  telefonoCliente: d.telefonoCliente, direccion: d.direccion, notas: d.notas,
+  metodoPago: d.metodoPago, recibido: d.recibido, atendio: d.atendio,
+  fecha: new Date(orden.created_at), totales: t,
+});
+
+/** Encola sin lanzar: devuelve si llego a la cola. */
+async function encolarSinFallar(ordenId: string, datos: DatosTicket): Promise<boolean> {
+  try {
+    await encolar(ordenId, "cliente", datos);
+    return true;
+  } catch (e) {
+    const { reportarError } = await import("./observabilidad");
+    reportarError(e, { contexto: "encolar ticket", ordenId });
+    return false;
+  }
+}
+
+/**
+ * Reintento de una orden que ya estaba cobrada: si su ticket nunca llego a
+ * la cola (la primera vez fallo justo ahi), se encola ahora. Si ya estaba, no
+ * se imprime otro: dos tickets de la misma venta confunden al cliente.
+ */
+async function asegurarTicket(
+  d: DatosGuardarOrden, t: Totales,
+  orden: { id: string; numero: number; created_at: string },
+): Promise<boolean> {
+  const { count, error } = await supabase.from("print_job")
+    .select("id", { count: "exact", head: true })
+    .eq("orden_id", orden.id).eq("tipo", "cliente");
+  if (!error && (count ?? 0) > 0) return true;
+  return encolarSinFallar(orden.id, ticketDe(d, t, orden));
+}
+
+/**
+ * Lo que pasa cuando una orden queda cobrada: ticket y bitacora. Nunca lanza:
+ * la orden ya esta guardada, y un fallo aqui no puede parecer que no.
+ */
 async function alCobrar(
   d: DatosGuardarOrden, t: Totales,
   orden: { id: string; numero: number; created_at: string },
-) {
-  const base: DatosTicket = {
-    numero: orden.numero, tipo: d.tipo, mesa: d.mesa, cliente: d.cliente,
-    telefonoCliente: d.telefonoCliente, direccion: d.direccion, notas: d.notas,
-    metodoPago: d.metodoPago, recibido: d.recibido, atendio: d.atendio,
-    fecha: new Date(orden.created_at), totales: t,
-  };
-
-  await encolar(orden.id, "cliente", base);
+): Promise<boolean> {
+  const base = ticketDe(d, t, orden);
+  const impreso = await encolarSinFallar(orden.id, base);
   // Hoy NADIE la enciende: el dueño pidió que del cobro salga solo la hoja de
   // consumo. El camino se queda para volver a activarla con una línea, y
   // `reimprimir(id, true)` sigue sacando la comanda a pedido. Único borde:
   // una orden que quedó en la cola local ANTES de este cambio conserva
   // `imprimirCocina: true` en su payload y sacará comanda al sincronizar.
-  if (d.imprimirCocina) await encolar(orden.id, "cocina", { ...base, documento: "cocina" });
+  if (d.imprimirCocina) {
+    await encolar(orden.id, "cocina", { ...base, documento: "cocina" }).catch(() => {});
+  }
 
   // El spec exige que todo descuento quede registrado con usuario, hora y
   // motivo. Se hace despues de guardar para no bloquear el cobro si falla.
@@ -308,6 +399,7 @@ async function alCobrar(
       },
     });
   }
+  return impreso;
 }
 
 /**
@@ -336,21 +428,15 @@ export async function editarOrden(
   if (error) throw error;
   const orden = data as { id: string; numero: number; created_at: string; estado: string };
 
+  let impreso = true;
   if (orden.estado === "pagada") {
-    if (opciones.estabaPagada) {
-      // El descuento ya se registro al cobrar; el cambio queda en la
-      // bitacora como «edicion». Solo se imprime la hoja corregida.
-      await encolar(id, "cliente", {
-        numero: orden.numero, tipo: d.tipo, mesa: d.mesa, cliente: d.cliente,
-        telefonoCliente: d.telefonoCliente, direccion: d.direccion, notas: d.notas,
-        metodoPago: d.metodoPago, recibido: d.recibido, atendio: d.atendio,
-        fecha: new Date(orden.created_at), totales: t,
-      });
-    } else {
-      await alCobrar(d, t, orden);
-    }
+    // Ya cobrada: el descuento se registro al cobrar y el cambio queda en la
+    // bitacora como «edicion». Solo se imprime la hoja corregida.
+    impreso = opciones.estabaPagada
+      ? await encolarSinFallar(id, ticketDe(d, t, orden))
+      : await alCobrar(d, t, orden);
   }
-  return { orden, totales: t };
+  return { orden, totales: t, impreso };
 }
 
 /**

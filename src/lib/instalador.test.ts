@@ -76,10 +76,14 @@ function clavesDe(cuerpo: string): string[] {
     .map((k) => k[1]).filter((k) => !NO_SON_COLUMNAS.has(k));
 }
 
-/** [tabla, literal devuelto] de cada funcion marcada con `@escribe tabla`. */
-function cuerposMarcados(src: string): [string, string][] {
-  const salida: [string, string][] = [];
-  for (const m of src.matchAll(/@escribe (\w+)/g)) {
+/**
+ * [tabla, literal devuelto, variante] de cada funcion marcada con
+ * `@escribe tabla` o `@escribe tabla:variante` (p. ej. `orden:creacion`, las
+ * columnas que solo se escriben al crear).
+ */
+function cuerposMarcados(src: string): [string, string, string?][] {
+  const salida: [string, string, string?][] = [];
+  for (const m of src.matchAll(/@escribe (\w+)(?::(\w+))?/g)) {
     const desde = m.index! + m[0].length;
     const ret = /return\s+(?:[\w.]+\.map\(\([^)]*\)\s*=>\s*\()?\{/g;
     ret.lastIndex = desde;
@@ -91,7 +95,7 @@ function cuerposMarcados(src: string): [string, string][] {
       if (src[j] === "{") prof++;
       else if (src[j] === "}" && --prof === 0) { fin = j; break; }
     }
-    salida.push([m[1], src.slice(ini, fin)]);
+    salida.push([m[1], src.slice(ini, fin), m[2]]);
   }
   return salida;
 }
@@ -135,11 +139,27 @@ describe("00_INSTALAR.sql cubre todo lo que el codigo escribe", () => {
   });
 });
 
+const REPO = readFileSync(join(RAIZ, "src", "lib", "repo.ts"), "utf8");
+
+/** Cuerpo de una funcion del instalador, hasta su `$$;` de cierre. */
+const cuerpoDe = (nombre: string) => {
+  const desde = SQL.slice(SQL.indexOf(`create or replace function ${nombre}(`));
+  return desde.slice(0, desde.indexOf("$$;"));
+};
+
+/** Las columnas de un `insert into <tabla> (...)` dentro de un texto. */
+const listaInsert = (texto: string, tabla: string) => {
+  const i = texto.indexOf(`insert into ${tabla} (`);
+  return i < 0 ? "" : texto.slice(i, texto.indexOf(")", i));
+};
+
 describe("editar_orden no pierde columnas al editar", () => {
-  const REPO = readFileSync(join(RAIZ, "src", "lib", "repo.ts"), "utf8");
-  const marcados = new Map(cuerposMarcados(REPO));
-  const funcion = SQL.slice(SQL.indexOf("create or replace function editar_orden"));
-  const cuerpoFn = funcion.slice(0, funcion.indexOf("end $$;"));
+  // Solo las que se escriben al crear Y al editar; las de `orden:creacion`
+  // (id_local, politica del dia) editar_orden no las toca a proposito.
+  const marcados = new Map(
+    cuerposMarcados(REPO).filter(([, , variante]) => !variante).map(([t, c]) => [t, c]),
+  );
+  const cuerpoFn = cuerpoDe("editar_orden");
 
   it("encuentra las dos listas", () => {
     expect(marcados.get("orden")).toBeDefined();
@@ -162,5 +182,35 @@ describe("editar_orden no pierde columnas al editar", () => {
     const faltan = clavesDe(marcados.get("orden_item") ?? "")
       .filter((c) => !new RegExp(`\\b${c}\\b`).test(lista));
     expect(faltan, `faltan en el insert de editar_orden: ${faltan.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("crear_orden guarda todo lo que la app manda", () => {
+  const ordenEnApp = cuerposMarcados(REPO)
+    .filter(([t]) => t === "orden").flatMap(([, c]) => clavesDe(c));
+  const itemsEnApp = cuerposMarcados(REPO)
+    .filter(([t]) => t === "orden_item").flatMap(([, c]) => clavesDe(c));
+
+  it("encuentra la funcion y las listas", () => {
+    expect(cuerpoDe("crear_orden").length).toBeGreaterThan(500);
+    expect(ordenEnApp).toContain("id_local");
+    expect(ordenEnApp).toContain("total");
+    expect(itemsEnApp).toContain("iva_incluido_snapshot");
+  });
+
+  // Una columna que la app manda y la funcion no inserta se pierde EN
+  // SILENCIO: jsonb_populate_record la lee y nadie la usa.
+  it("cada columna de orden entra en el insert", () => {
+    const lista = listaInsert(cuerpoDe("crear_orden"), "orden");
+    const faltan = ordenEnApp.filter((c) => !new RegExp(`\\b${c}\\b`).test(lista));
+    expect(faltan, `faltan en crear_orden: ${faltan.join(", ")}`).toEqual([]);
+  });
+
+  it("cada columna de orden_item entra en las lineas", () => {
+    const lista = listaInsert(cuerpoDe("crear_orden_lineas"), "orden_item");
+    const faltan = itemsEnApp
+      .filter((c) => c !== "orden_id")
+      .filter((c) => !new RegExp(`\\b${c}\\b`).test(lista));
+    expect(faltan, `faltan en crear_orden_lineas: ${faltan.join(", ")}`).toEqual([]);
   });
 });

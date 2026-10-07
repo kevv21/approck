@@ -28,6 +28,10 @@ do $$ begin
   if exists (select 1 from pg_proc where proname = 'editar_orden') then
     grant execute on function editar_orden(uuid, jsonb, jsonb, text) to anon;
   end if;
+  -- Y guardar una orden nueva, por 16_crear_orden.sql.
+  if exists (select 1 from pg_proc where proname = 'crear_orden') then
+    grant execute on function crear_orden(jsonb, jsonb) to anon;
+  end if;
 
   raise notice 'Hecho. Ahora corre BLINDAR.sql para volver a acotar los permisos.';
 end $$;

@@ -832,6 +832,55 @@ guardada, y Estado lo dice.
 
 **241 pruebas.**
 
+## Fase 2 (demo unificada) — 2026-10-08
+
+Rama `demo-unificada`. Decisiones: backend Supabase (confirmado), demo para
+el dueño en ~2 meses con la base preparada para varios restaurantes, y las
+promos son SOLO las tres del POS (Jamón + Pepperoni, Jamón + Hawaiana,
+2 Hawaianas); el «elige tus 2 pizzas» del sitio viejo desaparece.
+
+### F2.1 — Doble cobro, orden sin líneas y orden atascada
+
+Tres fallos de plata que ya afectaban a Rock Munchies:
+
+1. **Doble cobro.** Cada toque en «Cobrar» inventaba un `id_local` nuevo:
+   si la orden entraba pero la respuesta se perdía, el segundo toque creaba
+   OTRA orden. Y si la impresión fallaba después de guardar, la caja decía
+   «no se pudo guardar» de una orden que SÍ estaba guardada.
+   Ahora la caja guarda un identificador por pedido, el mismo en todos los
+   intentos, y se renueva solo al terminar o cancelar. El reintento devuelve
+   la misma orden («ya estaba guardada, no se cobró dos veces»), y un fallo
+   de impresión se dice como lo que es: «cobrada, sin ticket», con
+   Reimprimir. Si el primer intento guardó pero no encoló el ticket, el
+   reintento lo encola; si ya estaba, no imprime otro.
+2. **Orden sin líneas.** Orden y líneas iban en dos pedidos separados.
+   Ahora van juntas por `crear_orden` (`16_crear_orden.sql`, ya en el
+   instalador): todo o nada, idempotente por `id_local`, y si encuentra una
+   orden vieja que quedó sin líneas, se las completa. Si la base todavía no
+   tiene la función, la app guarda por el camino viejo en vez de pararse.
+3. **Orden atascada sin internet.** Una subida que moría a la mitad dejaba
+   la orden en «subiendo» para siempre: ni se reintentaba ni se contaba en
+   el indicador. Ahora se reintenta pasado un minuto y cuenta como
+   pendiente. Reintentar es seguro por lo anterior.
+
+Verificado contra Postgres 16, como `anon` con BLINDAR y con el contenido
+EXACTO que arma la app: guardar ✓; reintento → misma orden, 1 sola ✓; una
+línea inválida → no queda la orden a medias ✓; estado anulada, sin
+`id_local` y sin líneas → rechazados ✓; la función interna de líneas no se
+puede llamar directo ✓; orden huérfana reparada ✓; **dos guardados
+simultáneos del mismo pedido → una orden** (el segundo esperó al primero y
+devolvió «ya existía») ✓. Permisos según el modo de cuenta, igual que
+`editar_orden` ✓. En pantalla (360px, cola de impresión caída a propósito):
+«Orden #151 cobrada, sin ticket» con Reimprimir, pedido limpio, una sola
+llamada a la base.
+
+Pruebas nuevas: `repo.guardar.test.ts` (10), `offline/servicio.test.ts` (6),
+6 más en `sync.test.ts` y 3 en `instalador.test.ts`. Comprobadas al revés:
+con un `id_local` nuevo por intento fallan 5; con el error de impresión
+propagado fallan 2; quitando una columna de la función, la prueba la nombra.
+
+**266 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

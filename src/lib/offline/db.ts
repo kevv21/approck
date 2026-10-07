@@ -2,6 +2,7 @@
 
 import Dexie, { type Table } from "dexie";
 import type { MenuCache, OrdenLocal } from "./tipos";
+import { reintentable } from "./sync";
 
 /**
  * Almacen local del dispositivo (IndexedDB via Dexie).
@@ -52,15 +53,25 @@ export async function encolarOrdenLocal(o: OrdenLocal) {
   await db()?.ordenes.put(o);
 }
 
+export async function leerOrdenLocal(idLocal: string): Promise<OrdenLocal | null> {
+  return (await db()?.ordenes.get(idLocal)) ?? null;
+}
+
 export async function ordenesPendientes(): Promise<OrdenLocal[]> {
   const d = db();
   if (!d) return [];
   // Se suben en el orden en que se crearon, para que los correlativos del
   // servidor respeten la secuencia real de la noche.
-  return d.ordenes
+  //
+  // «subiendo» tambien entra si lleva rato asi: es una subida que murio a
+  // la mitad (se cerro la app, se apago el telefono). Antes quedaba asi para
+  // siempre, sin reintentarse y sin contarse en el indicador.
+  const ahora = Date.now();
+  const lista = await d.ordenes
     .where("estado")
-    .anyOf("pendiente", "error")
+    .anyOf("pendiente", "error", "subiendo")
     .sortBy("creadaAt");
+  return lista.filter((o) => reintentable(o, ahora));
 }
 
 export async function actualizarOrdenLocal(
@@ -73,8 +84,9 @@ export async function actualizarOrdenLocal(
 export async function contarPorEstado() {
   const d = db();
   if (!d) return { pendientes: 0, conError: 0 };
+  // Lo que esta «subiendo» todavia no esta arriba: cuenta como pendiente.
   const [pendientes, conError] = await Promise.all([
-    d.ordenes.where("estado").equals("pendiente").count(),
+    d.ordenes.where("estado").anyOf("pendiente", "subiendo").count(),
     d.ordenes.where("estado").equals("error").count(),
   ]);
   return { pendientes, conError };

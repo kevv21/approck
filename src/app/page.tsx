@@ -79,6 +79,13 @@ export default function Caja() {
    */
   const [configBase, setConfigBase] = useState<ConfigCobro>(CONFIG_DEFAULT);
   const [edicion, setEdicion] = useState<Edicion | null>(null);
+  /**
+   * Identificador del pedido en curso, el MISMO en todos los intentos de
+   * guardarlo. Si el primer «Cobrar» entró pero la respuesta se perdió, el
+   * segundo devuelve esa misma orden en vez de crear otra: la venta no sale
+   * dos veces en el cierre. Se renueva solo al terminar o cancelar el pedido.
+   */
+  const [idPedido, setIdPedido] = useState(() => crypto.randomUUID());
   const [motivoEdicion, setMotivoEdicion] = useState("");
 
   const [turno, setTurno] = useState<{ id: string } | null>(null);
@@ -250,6 +257,7 @@ export default function Caja() {
     setNotas(""); setEnvio(""); setRecibido(""); setCobrarPropina(false);
     setCobrarEmpaque(true); setMetodoPago("efectivo");
     setConfigBase(CONFIG_DEFAULT); setEdicion(null); setMotivoEdicion("");
+    setIdPedido(crypto.randomUUID());
   };
 
   /**
@@ -311,6 +319,7 @@ export default function Caja() {
     mesa, cliente, telefonoCliente: telefono, direccion, notas, atendio,
     metodoPago, recibido: estado === "pagada" && recibidoCent > 0 ? recibidoCent : undefined,
     motivoDescuento: motivoDesc, turnoId: turno?.id ?? null, estado,
+    idLocal: idPedido,
   });
 
   /** El error en palabras de la caja. Una base atrasada no es «un error». */
@@ -335,18 +344,46 @@ export default function Caja() {
     el?.focus({ preventScroll: true });
   };
 
-  /** Tras guardar: se limpia todo y se confirma a la vista. */
-  const terminar = (texto: string, detalle: string, id?: string) => {
+  /**
+   * Tras guardar: se limpia todo y se confirma a la vista.
+   *
+   * Tres finales posibles, y cada uno se dice distinto:
+   * - normal;
+   * - guardada pero SIN ticket: la orden está bien, lo que falló es la cola
+   *   de impresión. Antes esto se veía como «no se pudo guardar» y el cajero
+   *   la cobraba otra vez;
+   * - ya existía: era un reintento de una orden que sí había entrado. No se
+   *   creó otra. Si el pedido cambió entre intentos, se corrige abriéndola.
+   */
+  const terminar = (
+    texto: string, detalle: string,
+    r: { id?: string; impreso?: boolean; yaExistia?: boolean; numero?: number } = {},
+  ) => {
     setRefrescoOrdenes((n) => n + 1);
     limpiar();
     setHojaAbierta(false);
     setAviso(null);
-    avisar({
-      texto, detalle, tono: "agregado",
-      // Si el papel no sale, esto evita el error caro: rehacer el pedido y
-      // cobrarlo otra vez, que duplica la venta en el cierre.
-      ...(id ? { accion: { texto: "Reimprimir", hacer: () => { reimprimir(id).catch(() => {}); } } } : {}),
-    });
+    // Si el papel no sale, esto evita el error caro: rehacer el pedido y
+    // cobrarlo otra vez, que duplica la venta en el cierre.
+    const reimprimirla = r.id
+      ? { accion: { texto: "Reimprimir", hacer: () => { reimprimir(r.id!).catch(() => {}); } } }
+      : {};
+    if (r.yaExistia) {
+      avisar({
+        texto: `La orden #${r.numero} ya estaba guardada`,
+        detalle: "No se cobró dos veces. Si cambiaste algo después, ábrela en Órdenes guardadas.",
+        tono: "cambiado",
+        accion: { texto: "Ver órdenes", hacer: () => setVista("ordenes") },
+      });
+    } else if (r.impreso === false) {
+      avisar({
+        texto: `${texto}, sin ticket`,
+        detalle: "Se guardó bien. El ticket no llegó a la impresora.",
+        tono: "error", ...reimprimirla,
+      });
+    } else {
+      avisar({ texto, detalle, tono: "agregado", ...reimprimirla });
+    }
   };
 
   const cobrar = async () => {
@@ -368,16 +405,16 @@ export default function Caja() {
         return fallar("Sin conexión no se puede cobrar. Puedes guardar la orden sin cobrar: se sube sola al volver la señal.");
       }
       if (edicion) {
-        const { orden } = await editarOrden(edicion.id, datosOrden("pagada"),
+        const { orden, impreso } = await editarOrden(edicion.id, datosOrden("pagada"),
           { motivo: motivoEdicion, estabaPagada: edicion.pagada });
         terminar(
           edicion.pagada ? `Orden #${orden.numero} corregida` : `Orden #${orden.numero} cobrada`,
           edicion.pagada ? "Hoja corregida enviada a imprimir" : "Enviada a imprimir",
-          orden.id,
+          { id: orden.id, impreso },
         );
       } else {
         const r = await guardarOrden(datosOrden("pagada"));
-        terminar(`Orden #${r.numero} cobrada`, "Enviada a imprimir", r.id);
+        terminar(`Orden #${r.numero} cobrada`, "Enviada a imprimir", r);
       }
     } catch (e) {
       fallar(`No se pudo guardar: ${explicar(e)}`);
@@ -408,6 +445,7 @@ export default function Caja() {
       terminar(
         r.offline ? `Guardada como T-${r.numero}` : `Orden #${r.numero} guardada`,
         r.offline ? "Se sube sola al volver la señal" : "Sin cobrar · la encuentras en Órdenes",
+        { yaExistia: r.yaExistia, numero: r.numero },
       );
     } catch (e) {
       fallar(`No se pudo guardar: ${explicar(e)}`);

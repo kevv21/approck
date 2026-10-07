@@ -23,6 +23,27 @@ export interface ResultadoSync {
 export const MAX_INTENTOS = 5;
 
 /**
+ * Cuanto puede durar una subida antes de darla por muerta. Una subida normal
+ * tarda segundos; un minuto sin terminar es que la app se cerro a la mitad.
+ */
+export const SUBIDA_MUERTA_MS = 60_000;
+
+/**
+ * ¿Hay que (re)intentar subir esta orden?
+ *
+ * «subiendo» se reintenta solo si lleva mas de un minuto asi: es una subida
+ * que murio a la mitad. Reintentarla es seguro porque la subida es
+ * idempotente respecto de `idLocal`: si la primera si llego a la base, la
+ * segunda devuelve la misma orden en vez de crear otra.
+ */
+export function reintentable(o: OrdenLocal, ahoraMs: number): boolean {
+  if (o.estado === "pendiente" || o.estado === "error") return true;
+  if (o.estado !== "subiendo") return false;
+  const desde = Date.parse(o.subiendoAt ?? o.creadaAt);
+  return !Number.isFinite(desde) || ahoraMs - desde >= SUBIDA_MUERTA_MS;
+}
+
+/**
  * Sube las ordenes pendientes, en el orden en que se crearon.
  *
  * Reglas que importan:
@@ -53,7 +74,7 @@ export async function sincronizar(puerto: PuertoSync): Promise<ResultadoSync> {
 
     const intentos = o.intentos + 1;
     try {
-      await puerto.marcar(o.idLocal, { estado: "subiendo" });
+      await puerto.marcar(o.idLocal, { estado: "subiendo", subiendoAt: new Date().toISOString() });
       const { idRemoto, numero } = await puerto.subir(o);
       await puerto.marcar(o.idLocal, {
         estado: "sincronizada",
