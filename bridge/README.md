@@ -59,7 +59,7 @@ Edita `.env`:
 SUPABASE_URL=...            # los mismos de la app web
 SUPABASE_ANON_KEY=...
 PUERTO=COM5                 # el puerto SALIENTE del paso anterior
-BAUDIOS=9600                # si sale basura, probá 115200
+BAUDIOS=9600                # si sale basura, prueba 115200
 ```
 
 ### 3. Verificar
@@ -69,7 +69,7 @@ npm run puertos   # lista los puertos serie que ve el sistema
 npm run prueba    # imprime un ticket de prueba y sale
 ```
 
-Si `npm run prueba` imprime, ya está. Si no, revisá que sea el puerto
+Si `npm run prueba` imprime, ya está. Si no, revisa que sea el puerto
 saliente y que la impresora esté encendida.
 
 ### 4. Arrancar
@@ -100,7 +100,7 @@ sudo rfcomm bind 0 <MAC_DE_LA_IMPRESORA> 1
 ```
 
 **macOS:** el emparejamiento crea `/dev/tty.PT-210-SerialPort` o similar.
-Usá `npm run puertos` para ver el nombre exacto.
+Usa `npm run puertos` para ver el nombre exacto.
 
 ## Comportamiento
 

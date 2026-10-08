@@ -921,6 +921,26 @@ ningún ticket.
 
 **256 pruebas** (se fueron las de RawBT y de selección de modo).
 
+### Inventario con decimales
+
+Pedido: poder contar, por ejemplo, 12.2 de jamón.
+
+La base ya guardaba decimales (`numeric(12,3)`) y el Excel los mostraba; lo
+que fallaba era el CAMPO. Guardaba el número mientras se escribía, y al
+teclear «12.» eso es 12: el punto se borraba solo antes de llegar al 2. Con
+coma pasaba lo mismo. Ahora el campo guarda el texto tal como se escribe y lo
+convierte al leerlo (`inventario/cantidad.ts`): acepta punto o coma, hasta 3
+decimales, y marca en rojo lo que no es una cantidad («1.2.3»). Al salir del
+campo, si lo escrito no era válido, vuelve al último valor bueno: lo que se ve
+es lo que se guarda. Vale para «hay» y para «pedir».
+
+De paso, en el teléfono el selector de unidad se salía de la pantalla y el
+nombre del insumo quedaba apretado: ahora el nombre va arriba y los tres
+campos debajo, a lo ancho.
+
+Verificado en un Android de 360px: «12.2» y «3,75» se escriben, quedan en el
+borrador y vuelven al recargar. 6 pruebas nuevas en `cantidad.test.ts`.
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

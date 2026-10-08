@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { leerCantidad, mostrarCantidad } from "@/lib/inventario/cantidad";
 import { descargarBlob } from "@/lib/excel";
 import { generarInventarioExcel, nombreArchivoInventario } from "@/lib/inventario/excel";
 import {
@@ -74,10 +75,8 @@ export default function Inventario() {
     });
   }, [insumos, filtro, soloSinContar, cantidades]);
 
-  const setCantidad = (id: string, v: string) => {
-    const n = v.trim() === "" ? null : parseFloat(v.replace(",", "."));
-    setCantidades((p) => ({ ...p, [id]: n == null || isNaN(n) ? null : n }));
-  };
+  const setCantidad = (id: string, n: number | null) =>
+    setCantidades((p) => ({ ...p, [id]: n }));
 
   const guardar = async () => {
     if (!conteo) return;
@@ -154,7 +153,7 @@ export default function Inventario() {
           <span style={{ color: "var(--txt-2)" }}>
             Vienen así de la plantilla. Sin unidad, dos conteos del mismo insumo
             no se pueden comparar: uno puede estar en libras y otro en unidades.
-            Definilas una vez acá abajo.
+            Defínelas una vez aquí abajo.
           </span>
         </div>
       )}
@@ -170,24 +169,21 @@ export default function Inventario() {
 
       <div className="panel divide-y" style={{ borderColor: "var(--borde)" }}>
         {visibles.map((i) => (
-          <div key={i.id} className="flex items-center gap-2 p-2">
-            <span className="flex-1 text-sm">{i.nombre}</span>
-            <input className="input !w-20 text-right" inputMode="decimal" placeholder="hay"
-                   aria-label={`Cantidad contada de ${i.nombre}`}
-                   value={cantidades[i.id] ?? ""}
-                   onChange={(e) => setCantidad(i.id, e.target.value)} />
+          // En teléfono, el nombre arriba y los tres campos debajo, repartidos
+          // a lo ancho: en una sola fila el selector de unidad se salía por la
+          // derecha y el nombre quedaba en dos o tres renglones.
+          <div key={i.id} className="flex flex-wrap items-center gap-2 p-2.5 sm:flex-nowrap">
+            <span className="min-w-0 basis-full text-sm font-semibold sm:flex-1 sm:basis-0">{i.nombre}</span>
+            <CampoCantidad placeholder="hay" etiqueta={`Cantidad contada de ${i.nombre}`}
+                           valor={cantidades[i.id] ?? null}
+                           onCambio={(n) => setCantidad(i.id, n)} />
             {/* Lo que hay que pedir, al lado de lo que hay: la decisión se
                 toma mirando las dos cosas a la vez. */}
-            <input className="input !w-20 text-right" inputMode="decimal" placeholder="pedir"
-                   aria-label={`Cuánto pedir de ${i.nombre}`}
-                   value={pedidos[i.id] ?? ""}
-                   onChange={(e) => {
-                     const v = e.target.value.trim();
-                     const n = v === "" ? null : parseFloat(v.replace(",", "."));
-                     setPedidos((p) => ({ ...p, [i.id]: Number.isFinite(n as number) ? n : null }));
-                   }}
-                   style={(pedidos[i.id] ?? 0) > 0 ? { borderColor: "var(--acc)" } : undefined} />
-            <select className="input !w-24 !text-xs" value={i.unidad ?? ""}
+            <CampoCantidad placeholder="pedir" etiqueta={`Cuánto pedir de ${i.nombre}`}
+                           valor={pedidos[i.id] ?? null} resaltar
+                           onCambio={(n) => setPedidos((p) => ({ ...p, [i.id]: n }))} />
+            <select className="input min-w-0 flex-1 !text-sm sm:!w-28 sm:flex-none" value={i.unidad ?? ""}
+                    aria-label={`Unidad de ${i.nombre}`}
                     onChange={async (e) => {
                       const u = e.target.value || null;
                       setInsumos((p) => p.map((x) => (x.id === i.id ? { ...x, unidad: u } : x)));
@@ -254,5 +250,55 @@ export default function Inventario() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Una cantidad del inventario, con decimales (12.2 lb).
+ *
+ * Guarda el TEXTO mientras se escribe y le pasa el NÚMERO al conteo. Antes
+ * guardaba el número directo, y al teclear «12.» quedaba 12: el punto se
+ * borraba solo y no había forma de escribir 12.2.
+ */
+function CampoCantidad({
+  valor, onCambio, placeholder, etiqueta, resaltar,
+}: {
+  valor: number | null;
+  onCambio: (n: number | null) => void;
+  placeholder: string;
+  etiqueta: string;
+  /** Bordea en amarillo cuando tiene algo (lo que hay que pedir). */
+  resaltar?: boolean;
+}) {
+  const [texto, setTexto] = useState(mostrarCantidad(valor));
+
+  // Si el número cambia desde afuera (se cargó un conteo, se restauró el
+  // borrador), el campo lo muestra. Mientras se escribe, no se le pisa el
+  // texto: «12.» y 12 son el mismo número.
+  useEffect(() => {
+    setTexto((t) => (leerCantidad(t) === valor ? t : mostrarCantidad(valor)));
+  }, [valor]);
+
+  const n = leerCantidad(texto);
+  const malo = Number.isNaN(n);
+
+  return (
+    <input className="input mono min-w-0 flex-1 text-right sm:!w-24 sm:flex-none" inputMode="decimal"
+           placeholder={placeholder}
+           aria-label={etiqueta} aria-invalid={malo || undefined}
+           value={texto}
+           onChange={(e) => {
+             const t = e.target.value;
+             setTexto(t);
+             const leido = leerCantidad(t);
+             if (!Number.isNaN(leido)) onCambio(leido);
+           }}
+           // Al salir, el campo muestra lo que de verdad quedó guardado: si
+           // lo escrito no era una cantidad («1.2.3»), vuelve al último valor
+           // bueno en vez de quedarse en rojo diciendo otra cosa.
+           onBlur={() => setTexto(mostrarCantidad(malo ? valor : n))}
+           style={malo
+             ? { borderColor: "var(--mal)" }
+             : resaltar && (n ?? 0) > 0 ? { borderColor: "var(--acc)" } : undefined} />
   );
 }
