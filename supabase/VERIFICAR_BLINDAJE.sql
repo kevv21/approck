@@ -1,20 +1,22 @@
 -- ===========================================================================
 -- APPROCK — VERIFICAR EL BLINDAJE
 --
--- Pega esto en Supabase y dale Run. Intenta 33 operaciones con los dos roles
+-- Pega esto en Supabase y dale Run. Intenta 37 operaciones con los dos roles
 -- que importan y dice cuales pasan y cuales rebotan:
 --
 --   authenticated  un aparato vinculado. Debe poder hacer su trabajo y nada
---                  mas. Estas 27 filas tienen que salir SIEMPRE en verde.
+--                  mas. Estas 29 filas tienen que salir SIEMPRE en verde.
 --   anon           la clave publishable a secas, la que cualquiera saca del
---                  codigo de la pagina. Estas 6 filas dependen de si corriste
---                  EXIGIR_CUENTA.sql; la salida dice cual es tu caso.
+--                  codigo de la pagina. 6 filas dependen de si corriste
+--                  EXIGIR_CUENTA.sql (la salida dice cual es tu caso) y 2
+--                  dicen «siempre»: esas van cerradas en los dos modos.
 --
 -- NO ENSUCIA NADA. Todo corre dentro de una transaccion que termina en
 -- ROLLBACK, asi que las ordenes y los turnos de prueba desaparecen. Se puede
 -- correr sobre la base de produccion y sobre una caja abierta.
 --
--- Las 33 filas tienen que salir con ✓. Una sola ✗ es un permiso que no
+-- Las 37 filas tienen que salir con ✓ (o «· abierto» si no corriste
+-- EXIGIR_CUENTA.sql). Una sola ✗ es un permiso que no
 -- quedo como se penso, y el texto dice cual.
 -- ===========================================================================
 
@@ -70,6 +72,8 @@ declare
     ['cambiar un precio del menú', $q$update producto set precio=1$q$, 'BLOQUEAR', 'authenticated'],
     ['meter un producto falso', $q$insert into producto (nombre,categoria,grupo_descuento,precio) values ('_x_','_y_','otro',1)$q$, 'BLOQUEAR', 'authenticated'],
     ['meter un pago suelto', $q$insert into pago (orden_id,metodo,monto) values (null,'efectivo',1)$q$, 'BLOQUEAR', 'authenticated'],
+    ['leer los PIN de las cuentas', 'select 1 from acceso limit 1', 'BLOQUEAR', 'authenticated'],
+    ['meter líneas sueltas en una orden', $q$select crear_orden_lineas('33333333-3333-3333-3333-333333333333'::uuid, '[]'::jsonb)$q$, 'BLOQUEAR', 'authenticated'],
 
     -- ---- con la clave sola, sin vincular: no se ve NADA ----
     ['(anónimo) leer el menú', 'select 1 from producto limit 1', 'BLOQUEAR', 'anon'],
@@ -77,7 +81,11 @@ declare
     ['(anónimo) leer los cierres de caja', 'select 1 from turno limit 1', 'BLOQUEAR', 'anon'],
     ['(anónimo) leer la bitácora', 'select 1 from audit_log limit 1', 'BLOQUEAR', 'anon'],
     ['(anónimo) leer el PIN del local', 'select 1 from settings limit 1', 'BLOQUEAR', 'anon'],
-    ['(anónimo) meter una orden falsa', $q$insert into orden (tipo, metodo_pago, estado, total, precio_mitades) values ('mesa','efectivo','pagada',1,'promedio')$q$, 'BLOQUEAR', 'anon']
+    ['(anónimo) meter una orden falsa', $q$insert into orden (tipo, metodo_pago, estado, total, precio_mitades) values ('mesa','efectivo','pagada',1,'promedio')$q$, 'BLOQUEAR', 'anon'],
+
+    -- ---- cerrado SIEMPRE, con o sin EXIGIR_CUENTA ----
+    ['(anónimo, siempre) leer los PIN de las cuentas', 'select 1 from acceso limit 1', 'BLOQUEAR', 'anon'],
+    ['(anónimo, siempre) meter líneas sueltas en una orden', $q$select crear_orden_lineas('33333333-3333-3333-3333-333333333333'::uuid, '[]'::jsonb)$q$, 'BLOQUEAR', 'anon']
   ];
   i int;
   afectadas int;
@@ -114,12 +122,15 @@ end $$;
 with modo as (
   select exists (
     select 1 from _resultado
-    where rol = 'anon' and veredicto like 'PERMITIR%'
+    where rol = 'anon' and veredicto like 'PERMITIR%' and caso not like '%siempre%'
   ) as anonimo_abierto
 )
 select
   r.rol,
   case
+    -- Lo que tiene que estar cerrado en los dos modos.
+    when r.caso like '%siempre%' and r.veredicto like 'BLOQUEAR%' then '✓'
+    when r.caso like '%siempre%' then '✗ ESPERABA BLOQUEAR'
     when r.rol = 'authenticated' and r.veredicto like r.esperado || '%' then '✓'
     when r.rol = 'authenticated' then '✗ ESPERABA ' || r.esperado
     -- anon: se acepta cualquiera de los dos modos, pero se dice cual.
@@ -133,7 +144,8 @@ from _resultado r cross join modo m order by r.n;
 
 -- Resumen en una linea.
 select case when exists (
-    select 1 from _resultado where rol = 'anon' and veredicto like 'PERMITIR%')
+    select 1 from _resultado where rol = 'anon' and veredicto like 'PERMITIR%'
+      and caso not like '%siempre%')
   then 'Acceso anónimo ABIERTO: cualquiera con la dirección de la app puede leer '
        || 'las ventas y crear órdenes. Borrar y adulterar siguen cerrados. '
        || 'Para cerrarlo: supabase/EXIGIR_CUENTA.sql'

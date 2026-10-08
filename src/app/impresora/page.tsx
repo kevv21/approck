@@ -10,6 +10,9 @@ import {
 } from "@/lib/escpos";
 import { construirTicket, hojaCodepages, type DatosTicket } from "@/lib/ticket";
 import { imprimirBytes } from "@/lib/repo";
+import { impresoraBluetooth } from "@/lib/printer/salida";
+import { useSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 import { calcularTotales } from "@/lib/pricing";
 import { centavos } from "@/lib/money";
 import { hayConfig } from "@/lib/supabase";
@@ -18,10 +21,14 @@ import { CONFIG_DEFAULT, type LineaOrden } from "@/lib/types";
 /**
  * IMPRESORA
  *
- * Reemplaza a la «estación de impresión» y a «Probar impresora». Se imprime
- * por un solo camino: internet. El ticket va a la cola al cobrar y lo
- * imprime la PC de caja. Aquí se ve si esa PC está respondiendo, se ajusta
- * el papel y se manda un ticket de prueba.
+ * Reemplaza a la «estación de impresión» y a «Probar impresora». El camino
+ * normal es internet: el ticket va a la cola al cobrar y lo imprime la PC de
+ * caja. Aquí se ve si esa PC está respondiendo, se ajusta el papel y se manda
+ * un ticket de prueba.
+ *
+ * Cuando no hay PC, la cuenta maestra conecta la impresora por Bluetooth
+ * (BLE) desde aquí, y mientras siga conectada todo lo que imprime ese
+ * teléfono sale directo.
  */
 
 // Pedido de ejemplo con productos reales de la carta.
@@ -39,6 +46,7 @@ export default function Impresora() {
   const [transliterar, setTransliterar] = useState(false);
   const [pc, setPc] = useState<{ viva: boolean; detalle?: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const maestra = puede(useSesion()?.rol, "imprimir");
 
   useEffect(() => {
     setAncho(anchoGuardado());
@@ -67,8 +75,12 @@ export default function Impresora() {
   const enviar = async (bytes: Uint8Array, que: string) => {
     setEnviando(true);
     try {
-      await imprimirBytes(null, "prueba", bytes, que);
-      avisar({ texto: `${que} enviada`, detalle: "La imprime la PC de caja", tono: "agregado" });
+      const salida = await imprimirBytes(null, "prueba", bytes, que);
+      avisar({
+        texto: `${que} enviada`,
+        detalle: salida === "bluetooth" ? "Salió por Bluetooth, desde este teléfono" : "La imprime la PC de caja",
+        tono: "agregado",
+      });
     } catch (e) {
       avisar({ texto: "No se pudo enviar", detalle: (e as Error).message, tono: "error" });
     } finally {
@@ -111,11 +123,15 @@ export default function Impresora() {
         {pc && !pc.viva && (
           <p className="text-xs leading-snug" style={{ color: "var(--txt-2)" }}>
             Revisa que la PC esté encendida, con internet, con la impresora conectada y
-            con el servicio del puente corriendo. Mientras tanto, la caja puede imprimir
-            el recibo desde el navegador («Más opciones» → «Imprimir aquí»).
+            con el servicio del puente corriendo. Mientras tanto, la cuenta maestra puede
+            conectar la impresora por Bluetooth aquí abajo, o imprimir el recibo desde
+            el navegador («Más opciones» → «Imprimir aquí»).
           </p>
         )}
       </div>
+
+      <Bluetooth maestra={maestra} pcCaida={pc != null && !pc.viva}
+                 prueba={() => construirTicket(ejemplo(), { codepage, transliterar })} />
 
       <div className="panel space-y-3 p-4">
         <span className="rotulo">Papel</span>
@@ -153,6 +169,108 @@ export default function Impresora() {
           o sobra margen, cambia entre 58 y 80 mm.
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Bluetooth directo, sin PC. Solo la cuenta maestra.
+ *
+ * Buscar la impresora tiene que salir de un toque: el navegador solo abre la
+ * lista de aparatos si se lo pide un gesto de la persona.
+ */
+function Bluetooth({
+  maestra, pcCaida, prueba,
+}: { maestra: boolean; pcCaida: boolean; prueba: () => Uint8Array }) {
+  const { avisar } = useAvisos();
+  const [estado, setEstado] = useState(() => impresoraBluetooth.estado());
+  const [ocupado, setOcupado] = useState(false);
+  const [problema, setProblema] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fuera del primer render: `navigator` no existe al prerenderizar.
+    setMotivo(impresoraBluetooth.motivoNoDisponible());
+    setEstado(impresoraBluetooth.estado());
+    impresoraBluetooth.onEstado = setEstado;
+    return () => { impresoraBluetooth.onEstado = undefined; };
+  }, []);
+
+  const buscar = async () => {
+    setOcupado(true);
+    setProblema(null);
+    try {
+      await impresoraBluetooth.conectar();
+      setEstado(impresoraBluetooth.estado());
+      avisar({ texto: "Impresora conectada", detalle: "Lo que imprimas desde este teléfono sale por aquí", tono: "agregado" });
+    } catch (e) {
+      const err = e as DOMException;
+      // Cerrar la lista sin elegir también llega como NotFoundError.
+      setProblema(err.name === "NotFoundError"
+        ? "No se eligió ninguna impresora. Si la tuya no aparecía en la lista, lo más probable es que solo hable Bluetooth clásico (la que pide PIN 0000 al emparejarla): esas no se pueden usar desde una página web."
+        : `No se pudo conectar: ${err.message}`);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const probar = async () => {
+    setOcupado(true);
+    try {
+      await impresoraBluetooth.imprimir(prueba());
+      avisar({ texto: "Prueba enviada por Bluetooth", tono: "agregado" });
+    } catch (e) {
+      avisar({ texto: "No salió por Bluetooth", detalle: (e as Error).message, tono: "error" });
+    } finally {
+      setOcupado(false);
+      setEstado(impresoraBluetooth.estado());
+    }
+  };
+
+  return (
+    <div className="panel space-y-2 p-4" style={pcCaida && !estado.conectada ? { borderColor: "var(--acc)" } : undefined}>
+      <span className="rotulo">Sin PC: Bluetooth en este teléfono</span>
+      {!maestra ? (
+        <p className="text-sm leading-snug" style={{ color: "var(--txt-2)" }}>
+          Para imprimir directo desde este teléfono, entra con la cuenta maestra.
+        </p>
+      ) : motivo ? (
+        <p className="text-sm leading-snug" style={{ color: "var(--txt-2)" }}>{motivo}</p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 rounded-xl px-3 py-2"
+               style={{ background: "var(--panel-2)" }} role="status">
+            <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: estado.conectada ? "var(--ok)" : "var(--txt-3)" }} />
+            <span className="min-w-0 flex-1 truncate text-sm">
+              {estado.conectada ? `Conectada: ${estado.nombre ?? "impresora"}` : "No conectada"}
+            </span>
+            {estado.conectada && (
+              <button className="btn btn-ghost btn-chico" disabled={ocupado}
+                      onClick={() => { impresoraBluetooth.desconectar(); setEstado(impresoraBluetooth.estado()); }}>
+                Desconectar
+              </button>
+            )}
+          </div>
+          <p className="text-xs leading-snug" style={{ color: "var(--txt-2)" }}>
+            {estado.conectada
+              ? "Mientras siga conectada, todo lo que imprimas desde este teléfono (cobros, reimpresiones, pre-cuentas) sale por aquí y no por la PC."
+              : "Para cuando no hay PC de caja. Mientras esté conectada, este teléfono imprime directo. Hay que volver a conectarla cada vez que se abre la app."}
+          </p>
+          {estado.conectada ? (
+            <button className="btn btn-acc w-full" disabled={ocupado} onClick={probar}>
+              Imprimir prueba por Bluetooth
+            </button>
+          ) : (
+            <button className="btn btn-acc w-full" disabled={ocupado} onClick={buscar}>
+              {ocupado ? "Buscando…" : "Buscar impresora Bluetooth"}
+            </button>
+          )}
+          {problema && (
+            <p role="alert" className="text-xs leading-snug" style={{ color: "var(--mal)" }}>{problema}</p>
+          )}
+        </>
+      )}
     </div>
   );
 }

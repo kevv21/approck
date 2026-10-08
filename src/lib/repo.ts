@@ -8,6 +8,7 @@ import { construirTicket, type DatosTicket } from "./ticket";
 import { anchoGuardado, codepageGuardado, transliterarGuardado } from "./escpos";
 import { noExisteFuncion } from "./diagnostico";
 import { previsualizarTicket } from "./ticket";
+import { impresoraBluetooth, imprimeDirecto } from "./printer/salida";
 import type {
   ConfigCobro, Descuento, LineaOrden, MetodoPago, Producto, TipoOrden, Totales,
 } from "./types";
@@ -151,9 +152,12 @@ type TipoDocumento = "cliente" | "cocina" | "prueba" | "precuenta";
  * MANDAR A IMPRIMIR. Es el único punto de salida: cobro, reimpresión,
  * pre-cuenta y prueba pasan por aquí.
  *
- * El ticket queda en la cola en el mismo toque, y la PC de caja lo imprime
- * con el puente: se entera al instante por tiempo real, y si eso falla, en
- * la siguiente consulta (cada 3 s).
+ * Normalmente el ticket queda en la cola en el mismo toque, y la PC de caja
+ * lo imprime con el puente: se entera al instante por tiempo real, y si eso
+ * falla, en la siguiente consulta (cada 3 s).
+ *
+ * Si este teléfono está conectado a la impresora por Bluetooth (la maestra lo
+ * conecta en Impresora cuando no hay PC), imprime él. Ver `printer/salida.ts`.
  *
  * Usa el ancho, el juego de caracteres y «quitar acentos» que se eligieron en
  * la pantalla Impresora de este aparato.
@@ -165,17 +169,46 @@ export async function imprimirDocumento(
   const bytes = construirTicket(d, {
     codepage: codepageGuardado(), transliterar: transliterarGuardado(),
   });
-  await imprimirBytes(ordenId, tipo, bytes, previsualizarTicket(d));
+  return imprimirBytes(ordenId, tipo, bytes, previsualizarTicket(d));
 }
+
+/** Por dónde salió: directo por Bluetooth, o a la cola de la PC de caja. */
+export type Salida = "bluetooth" | "cola";
 
 /** Lo mismo, con los bytes ya armados (hojas de prueba). */
 export async function imprimirBytes(
   ordenId: string | null, tipo: TipoDocumento, bytes: Uint8Array, preview = "",
-) {
+): Promise<Salida> {
+  // La pantalla ya no le ofrece imprimir a la cuenta de revisión; esto es
+  // por si algún botón se escapó.
+  if (sesionActual()?.rol === "revision") {
+    throw new Error("La cuenta de revisión no imprime. Entra con la cuenta maestra.");
+  }
+
+  if (imprimeDirecto()) {
+    // Si el Bluetooth falla se dice, no se manda a la cola a escondidas: la
+    // maestra lo conectó porque la PC no está, y un ticket esperando a una PC
+    // apagada es un ticket que no sale. El cobro lo informa como «sin
+    // ticket», con Reimprimir.
+    try {
+      await impresoraBluetooth.imprimir(bytes);
+    } catch (e) {
+      throw new Error(`No salió por Bluetooth: ${(e as Error).message}`);
+    }
+    // Queda en la cola ya como impreso: la PC no lo vuelve a sacar, y la
+    // reimpresión de «no hay duplicado» sabe que este ticket ya salió.
+    await supabase.from("print_job").insert({
+      orden_id: ordenId, tipo, payload_b64: b64(bytes), preview,
+      estado: "impreso", impreso_at: new Date().toISOString(),
+    }).then(() => {}, () => {});
+    return "bluetooth";
+  }
+
   const { error } = await supabase.from("print_job").insert({
     orden_id: ordenId, tipo, payload_b64: b64(bytes), preview,
   });
   if (error) throw error;
+  return "cola";
 }
 
 /** Resultado de guardar: la orden, y lo que paso alrededor de ella. */

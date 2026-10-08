@@ -12,6 +12,8 @@ import { hayConfig, supabase } from "@/lib/supabase";
 import { hayInternet } from "@/lib/offline/conexion";
 import { BASE_DESACTUALIZADA, noExisteColumna } from "@/lib/diagnostico";
 import { METODOS_PAGO, TIPOS_ORDEN } from "@/lib/types";
+import { useSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/auth/permisos";
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 
@@ -23,6 +25,12 @@ interface Turno {
 }
 
 export default function Cierre() {
+  // La cuenta de revisión ve todo y descarga el Excel, pero no imprime, no
+  // anula y no abre ni cierra la caja.
+  const rol = useSesion()?.rol;
+  const imprime = puede(rol, "imprimir");
+  const anula = puede(rol, "anular");
+  const manejaTurno = puede(rol, "turno");
   const [desde, setDesde] = useState(hoyISO());
   const [hasta, setHasta] = useState(hoyISO());
   const [ordenes, setOrdenes] = useState<FilaOrden[]>([]);
@@ -37,9 +45,10 @@ export default function Cierre() {
   const [contado, setContado] = useState("");
   const [pedidosYa, setPedidosYa] = useState("");
   /**
-   * Las quitadas no se ven ni cuentan. Este interruptor existe para poder
-   * devolverlas: una pantalla desde la que se saca algo y no se puede volver
-   * a meter es una pantalla desde la que se pierde algo.
+   * Las anuladas y las quitadas no se ven ni cuentan en el cierre. Esta vista
+   * existe para revisarlas, y para devolver las quitadas: una pantalla desde
+   * la que se saca algo y no se puede volver a meter es una pantalla desde la
+   * que se pierde algo.
    */
   const [verOcultas, setVerOcultas] = useState(false);
 
@@ -60,9 +69,14 @@ export default function Cierre() {
         .select("*, orden_item(*)")
         .gte("created_at", d.toISOString())
         .lte("created_at", h.toISOString());
-      // Quitadas fuera: no aparecen en la tabla, no suman en los totales y no
-      // entran al Excel, porque el Excel se arma con esta misma lista.
-      q = verOcultas ? q.not("oculta_at", "is", null) : q.is("oculta_at", null);
+      // Anuladas y quitadas fuera: no aparecen en la lista, no suman en los
+      // totales y no entran al Excel, porque el Excel se arma con esta misma
+      // lista. Lo pidió el dueño: una venta que se canceló o se cargó por
+      // error no tiene que salir en el cierre ni en lo vendido. Siguen en la
+      // base y en la bitácora, con quién y por qué.
+      q = verOcultas
+        ? q.or("oculta_at.not.is.null,estado.eq.anulada")
+        : q.is("oculta_at", null).neq("estado", "anulada");
       const { data, error } = await q.order("numero");
       if (error) throw error;
       setOrdenes(
@@ -121,14 +135,17 @@ export default function Cierre() {
   /** Lo que se puede hacer con una orden. Una vez, para la tabla y las tarjetas. */
   const acciones = (o: FilaOrden) => (
     <>
-      <button className="btn btn-ghost btn-chico"
-              onClick={() => reimprimir((o as unknown as { id: string }).id)}>
-        Reimprimir
-      </button>
+      {imprime && (
+        <button className="btn btn-ghost btn-chico"
+                onClick={() => reimprimir((o as unknown as { id: string }).id)}>
+          Reimprimir
+        </button>
+      )}
 
       {/* Quitar del historial: la orden sale del cierre SIN quedar
-          como anulada. No borra la fila; ver `ocultarOrden`. */}
-      {verOcultas ? (
+          como anulada. No borra la fila; ver `ocultarOrden`. Una anulada
+          no se devuelve: ya no se puede tocar (BLINDAR). */}
+      {!anula ? null : verOcultas ? (o.oculta_por && o.estado !== "anulada" && (
         <button className="btn btn-ghost btn-chico" style={{ color: "var(--ok)" }}
                 onClick={async () => {
                   try {
@@ -141,7 +158,7 @@ export default function Cierre() {
                 }}>
           Devolver
         </button>
-      ) : (
+      )) : (
         <button className="btn btn-ghost btn-chico" style={{ color: "var(--txt-2)" }}
                 onClick={async () => {
                   // Se pide por qué, y se guarda solo en la bitácora.
@@ -166,12 +183,15 @@ export default function Cierre() {
         </button>
       )}
 
-      {!verOcultas && (o.estado === "pagada" || o.estado === "abierta") && (
+      {anula && !verOcultas && (o.estado === "pagada" || o.estado === "abierta") && (
         <button className="btn btn-mal-suave btn-chico"
                 onClick={async () => {
                   // Motivo obligatorio: una anulación sin motivo es
                   // el agujero por donde se va la plata.
-                  const motivo = prompt(`Motivo de la anulación de la orden #${o.numero}:`);
+                  const motivo = prompt(
+                    `¿Por qué se anula la orden #${o.numero}?\n` +
+                    `Sale del cierre y de lo vendido. No se puede deshacer.`
+                  );
                   if (!motivo?.trim()) return;
                   try {
                     await anularOrden((o as unknown as { id: string }).id, motivo);
@@ -192,7 +212,16 @@ export default function Cierre() {
       {/* turno */}
       <div className="panel p-4">
         <h1 className="display mb-3 text-3xl">Turno de caja</h1>
-        {turnoAbiertoAhora ? (
+        {!manejaTurno ? (
+          <p className="text-sm" style={{ color: "var(--txt-2)" }}>
+            {turnoAbiertoAhora
+              ? <>Abierto por <b>{turno!.abierto_por}</b> el{" "}
+                  {new Date(turno!.abierto_at).toLocaleString("es-NI", { hour12: false })}.</>
+              : turno ? <>Turno <b>{turno.numero ?? "—"}</b> cerrado.</>
+              : "No hay turno abierto."}{" "}
+            Abrir y cerrar la caja es de la cuenta maestra.
+          </p>
+        ) : turnoAbiertoAhora ? (
           <div className="space-y-2">
             <p className="text-sm" style={{ color: "var(--txt-2)" }}>
               Abierto por <b>{turno!.abierto_por}</b> el{" "}
@@ -276,13 +305,13 @@ export default function Cierre() {
         </button>
         <button className={`chip ${verOcultas ? "chip-on" : ""}`} aria-pressed={verOcultas}
                 onClick={() => setVerOcultas((v) => !v)}>
-          {verOcultas ? "Ver el cierre" : "Ver quitadas"}
+          {verOcultas ? "Ver el cierre" : "Ver anuladas y quitadas"}
         </button>
       </div>
 
       {verOcultas && (
         <div className="panel p-3 text-sm" style={{ borderColor: "var(--acc-2)" }}>
-          <b style={{ color: "var(--acc-2)" }}>Órdenes quitadas del historial.</b>{" "}
+          <b style={{ color: "var(--acc-2)" }}>Órdenes anuladas y quitadas.</b>{" "}
           No cuentan en el cierre ni salen en el Excel. Los totales de arriba
           son los de esta lista, no los del día.
         </div>
@@ -333,9 +362,9 @@ export default function Cierre() {
             PedidosYa (aparte) C$
           </label>
           <input id="pedidosya" className="input mono !min-h-10 !px-2 !text-lg font-bold"
-                 inputMode="decimal" placeholder="0.00"
+                 inputMode="decimal" placeholder="0.00" readOnly={!manejaTurno}
                  value={pedidosYa} onChange={(e) => setPedidosYa(e.target.value)} />
-          {turno && !turnoAbiertoAhora && (
+          {manejaTurno && turno && !turnoAbiertoAhora && (
             <p className="mt-1 text-[11px]" style={{ color: "var(--txt-2)" }}>
               Turno cerrado: el cambio sale en el Excel que descargues ahora,
               pero ya no se guarda en la base.
@@ -419,13 +448,8 @@ export default function Cierre() {
               </span>
             )}
             {/* Solo aquí: en el cierre normal no hay nada que decir
-                porque la orden quitada ni aparece. */}
-            {verOcultas && o.oculta_por && (
-              <div className="text-[11px]" style={{ color: "var(--txt-3)" }}>
-                Quitada por {o.oculta_por}
-                {o.oculta_motivo ? ` · ${o.oculta_motivo}` : ""}
-              </div>
-            )}
+                porque la orden anulada o quitada ni aparece. */}
+            {verOcultas && <PorQuien o={o} />}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {acciones(o)}
             </div>
@@ -463,13 +487,8 @@ export default function Cierre() {
                     </span>
                   )}
                   {/* Solo aquí: en el cierre normal no hay nada que decir
-                      porque la orden quitada ni aparece. */}
-                  {verOcultas && o.oculta_por && (
-                    <div className="text-[11px]" style={{ color: "var(--txt-3)" }}>
-                      Quitada por {o.oculta_por}
-                      {o.oculta_motivo ? ` · ${o.oculta_motivo}` : ""}
-                    </div>
-                  )}
+                      porque la orden anulada o quitada ni aparece. */}
+                  {verOcultas && <PorQuien o={o} />}
                 </td>
                 <td className="mono px-3 py-2" style={{ color: "var(--acc-2)" }}>
                   {o.desc_total > 0 ? `-${fmtC(o.desc_total)}` : ""}
@@ -488,6 +507,19 @@ export default function Cierre() {
           No hay órdenes en este rango.
         </p>
       )}
+    </div>
+  );
+}
+
+/** Quién sacó la orden del cierre y por qué. */
+function PorQuien({ o }: { o: FilaOrden }) {
+  const [que, quien, motivo] = o.estado === "anulada"
+    ? ["Anulada", o.anulada_por, o.anulada_motivo]
+    : ["Quitada", o.oculta_por, o.oculta_motivo];
+  if (!quien) return null;
+  return (
+    <div className="text-[11px]" style={{ color: "var(--txt-3)" }}>
+      {que} por {quien}{motivo ? ` · ${motivo}` : ""}
     </div>
   );
 }

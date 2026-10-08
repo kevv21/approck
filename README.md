@@ -261,7 +261,8 @@ En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
 | Ruta | Para qué |
 |---|---|
 | `/` | Caja: menú, pedido, descuentos, propina, cobro |
-| `/impresora` | Si la PC de caja está imprimiendo, ancho del papel, acentos y ticket de prueba |
+| `/impresora` | Si la PC de caja está imprimiendo, Bluetooth del teléfono cuando no hay PC (maestra), ancho del papel, acentos y ticket de prueba |
+| `/configuracion` | Estado de la base, y PIN de las cuentas maestra y revisión |
 | `/inventario` | Conteo de insumos y descarga del Excel con la plantilla |
 | `/cierre` | Turnos, arqueo y descarga del Excel |
 
@@ -353,13 +354,16 @@ de Supabase se cae con el wifi del local y no siempre reconecta.
 
 ## Alcance y límites conocidos
 
-- **Seguridad.** Hay un PIN de acceso y un nombre por persona, pero las
-  políticas RLS abren las tablas a la clave anon: cualquiera con la URL puede
-  saltarse la pantalla llamando a la API directo. **Es control de acceso, no
-  seguridad.** Sirve para que nadie entre por accidente desde un teléfono
-  ajeno, no para resistir a un atacante. Lo que sí da garantías es la
+- **Seguridad.** Hay dos cuentas por PIN —**maestra** (cobra, imprime, edita,
+  anula, abre y cierra la caja) y **revisión** (ve las órdenes y los cierres,
+  descarga el Excel y hace inventario)— y un nombre por persona. Los PIN se
+  guardan con bcrypt en una tabla que nadie puede leer y los comprueba la
+  base (`17_accesos.sql`). Aun así, **el PIN reparte lo que cada quien ve en
+  la app; no es una cerradura**: sin `EXIGIR_CUENTA.sql`, quien tenga la
+  clave pública puede llamar a la API directo. Lo que sí da garantías es la
   bitácora, que registra quién hizo cada anulación y cada descuento.
-  PIN inicial: **1234**. Cámbialo antes de operar.
+  PIN inicial de la maestra: **1234**. Cámbialo en **Estado → Cuentas y PIN**,
+  donde también se activa la cuenta de revisión.
 - **Offline parcial.** Se pueden tomar órdenes sin señal: quedan en
   IndexedDB con un número temporal `T-n` y se suben solas al reconectar, con
   el correlativo real que asigna Postgres. Cobrar y cerrar caja **requieren

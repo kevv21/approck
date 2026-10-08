@@ -15,7 +15,7 @@ import { Interruptor, Segmentado } from "@/components/Controles";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import {
-  cargarMenu, cargarOrden, editarOrden, imprimirDocumento, reimprimir, turnoAbierto,
+  anularOrden, cargarMenu, cargarOrden, editarOrden, imprimirDocumento, reimprimir, turnoAbierto,
   type OrdenBreve,
 } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
@@ -23,6 +23,8 @@ import { guardarMenuLocal } from "@/lib/offline/db";
 import { hayInternet } from "@/lib/offline/conexion";
 import { previsualizarTicket, type DatosTicket } from "@/lib/ticket";
 import { descargarHtml, imprimirHtml } from "@/lib/printer";
+import { imprimeDirecto, pcResponde } from "@/lib/printer/salida";
+import { useRouter } from "next/navigation";
 import { hayConfig } from "@/lib/supabase";
 import { BASE_DESACTUALIZADA, noExisteColumna, noExisteFuncion } from "@/lib/diagnostico";
 import {
@@ -52,6 +54,10 @@ interface Edicion {
 
 export default function Caja() {
   const { avisar } = useAvisos();
+  const router = useRouter();
+  // Se pregunta una vez al abrir si la PC de caja está viva, para que el
+  // aviso de «no responde» no demore el cobro.
+  useEffect(() => { pcResponde().catch(() => {}); }, []);
   const [menu, setMenu] = useState<Producto[]>([]);
   const [lineas, setLineas] = useState<LineaOrden[]>([]);
   const [descuentos, setDescuentos] = useState<Descuento[]>([]);
@@ -95,6 +101,8 @@ export default function Caja() {
   /** En teléfono: el menú para tomar pedidos, o las órdenes guardadas. */
   const [vista, setVista] = useState<"menu" | "ordenes">("menu");
   const [confirmaCancelar, setConfirmaCancelar] = useState(false);
+  /** Motivo de la anulación de la orden abierta; null = diálogo cerrado. */
+  const [motivoAnular, setMotivoAnular] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
   /** Sube tras cada orden guardada, para recargar las listas de órdenes. */
@@ -383,6 +391,19 @@ export default function Caja() {
       });
     } else {
       avisar({ texto, detalle, tono: "agregado", ...reimprimirla });
+      // El ticket quedó en la cola, pero si la PC de caja no está, ahí se
+      // queda. Se dice en el momento, con el camino para imprimir ya.
+      if (r.id && !imprimeDirecto()) {
+        pcResponde().then((viva) => {
+          if (viva) return;
+          avisar({
+            texto: `${texto} · la PC de caja no responde`,
+            detalle: "El ticket sale cuando vuelva. Para imprimir ya, conecta la impresora por Bluetooth.",
+            tono: "cambiado",
+            accion: { texto: "Conectar", hacer: () => router.push("/impresora") },
+          });
+        });
+      }
     }
   };
 
@@ -454,17 +475,44 @@ export default function Caja() {
     }
   };
 
+  /** Anula la orden guardada que está abierta en la caja. */
+  const anular = async () => {
+    if (!edicion || !motivoAnular?.trim()) return;
+    setGuardando(true);
+    try {
+      if (!(await hayInternet())) {
+        avisar({ texto: "No se anuló", detalle: "Sin conexión no se puede anular una orden.", tono: "error" });
+        return;
+      }
+      const numero = edicion.numero;
+      await anularOrden(edicion.id, motivoAnular);
+      setMotivoAnular(null);
+      setRefrescoOrdenes((n) => n + 1);
+      limpiar();
+      setHojaAbierta(false);
+      avisar({ texto: `Orden #${numero} anulada`, detalle: "Ya no sale en el cierre", tono: "quitado" });
+    } catch (e) {
+      avisar({ texto: "No se anuló", detalle: explicar(e), tono: "error" });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const imprimirPrecuenta = async () => {
     if (lineas.length === 0) return;
     setGuardando(true);
     setAviso(null);
     try {
       // La pre-cuenta no guarda la orden: es para que el cliente revise.
-      await imprimirDocumento(null, "precuenta", {
+      const salida = await imprimirDocumento(null, "precuenta", {
         numero: edicion?.numero ?? 0, tipo, mesa, cliente, telefonoCliente: telefono, direccion,
         notas, mesero: atendio, fecha: new Date(), totales: t, documento: "precuenta",
       });
-      avisar({ texto: "Pre-cuenta enviada", detalle: "A la impresora", tono: "agregado" });
+      avisar({
+        texto: "Pre-cuenta enviada",
+        detalle: salida === "bluetooth" ? "Por Bluetooth, desde este teléfono" : "A la PC de caja",
+        tono: "agregado",
+      });
     } catch (e) {
       fallar(`No se pudo imprimir: ${explicar(e)}`);
     } finally {
@@ -678,10 +726,16 @@ export default function Caja() {
                   <button className="btn btn-ghost btn-chico" onClick={() => descargarHtml(datosTicket())}>
                     Descargar recibo
                   </button>
-                  {!edicion && (
+                  {!edicion ? (
                     // Con confirmación: un toque borraba un pedido entero.
                     <button className="btn btn-mal-suave btn-chico" onClick={() => setConfirmaCancelar(true)}>
                       Cancelar orden
+                    </button>
+                  ) : (
+                    // Una orden ya guardada no se «cancela»: se anula, con
+                    // motivo, y sale del cierre y de lo vendido.
+                    <button className="btn btn-mal-suave btn-chico" onClick={() => setMotivoAnular("")}>
+                      Anular orden
                     </button>
                   )}
                 </div>
@@ -790,10 +844,12 @@ export default function Caja() {
       </HojaPedido>
 
       {/* Cancelar borra un pedido que puede llevar diez líneas cargadas a
-          mano. Un toque accidental no debería poder hacerlo. */}
+          mano. Un toque accidental no debería poder hacerlo.
+          Los diálogos van al centro y no abajo: abajo salen los avisos, y
+          uno recién mostrado tapaba la pregunta. */}
       {confirmaCancelar && (
         <div role="dialog" aria-modal="true" aria-label="Cancelar la orden"
-             className="fixed inset-0 z-[55] flex items-end justify-center p-3 sm:items-center"
+             className="fixed inset-0 z-[55] flex items-center justify-center p-3"
              style={{ background: "var(--velo)" }} onClick={() => setConfirmaCancelar(false)}>
           <div className="panel surgir w-full max-w-sm space-y-3 p-4" style={{ background: "var(--panel-3)" }}
                onClick={(e) => e.stopPropagation()}>
@@ -825,6 +881,36 @@ export default function Caja() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Anular una orden guardada: se canceló, o se cargó por error. Sale
+          del cierre y del Excel; queda en la bitácora con quién y por qué. */}
+      {motivoAnular !== null && edicion && (
+        <div role="dialog" aria-modal="true" aria-label="Anular la orden"
+             className="fixed inset-0 z-[55] flex items-center justify-center p-3"
+             style={{ background: "var(--velo)" }} onClick={() => setMotivoAnular(null)}>
+          <form className="panel surgir w-full max-w-sm space-y-3 p-4" style={{ background: "var(--panel-3)" }}
+                onClick={(e) => e.stopPropagation()}
+                onSubmit={(e) => { e.preventDefault(); anular(); }}>
+            <b className="block text-lg">¿Anular la orden #{edicion.numero}?</b>
+            <p className="text-sm leading-snug" style={{ color: "var(--txt-2)" }}>
+              Sale del cierre y de lo vendido
+              {edicion.pagada ? ` (se cobraron ${fmtC(edicion.totalAntes)})` : ""}.
+              No se puede deshacer.
+            </p>
+            <input className="input" autoFocus placeholder="Motivo (obligatorio)"
+                   aria-label="Motivo de la anulación" value={motivoAnular}
+                   onChange={(e) => setMotivoAnular(e.target.value)} />
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className="btn btn-ghost" onClick={() => setMotivoAnular(null)}>
+                No anular
+              </button>
+              <button type="submit" className="btn btn-mal" disabled={guardando || !motivoAnular.trim()}>
+                Anular
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

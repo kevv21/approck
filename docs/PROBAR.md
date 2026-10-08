@@ -63,6 +63,27 @@ en uno o dos segundos.
 
 ---
 
+## Sin PC de caja — Bluetooth desde el teléfono (cuenta maestra)
+
+Solo en **Chrome en Android** (el iPhone no tiene Bluetooth para páginas web).
+
+1. Entra con el PIN de la **maestra**.
+2. **Más → Impresora → Sin PC: Bluetooth en este teléfono → Buscar impresora
+   Bluetooth**. Elige la impresora de la lista.
+3. **Imprimir prueba por Bluetooth**.
+
+Mientras siga conectada, todo lo que imprimas desde ese teléfono (cobros,
+reimpresiones, pre-cuentas) sale por ahí y no por la PC. Al cerrar la app se
+desconecta: hay que volver a conectarla.
+
+**Si la impresora no aparece en la lista**, lo más probable es que solo hable
+Bluetooth clásico (la que pide PIN 0000 al emparejarla). Web Bluetooth solo
+habla Bluetooth de baja energía (BLE), así que esa impresora no se puede usar
+desde la página: no es un ajuste, el canal no existe. Hay que probarlo en el
+teléfono real; avísame qué pasa.
+
+---
+
 ## Instalar la app en la pantalla de inicio
 
 En Chrome (Android) o Safari (iPhone), abre la dirección `https://` de la app y

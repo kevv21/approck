@@ -127,6 +127,18 @@ revoke all on function crear_orden(jsonb, jsonb) from public;
 revoke all on function crear_orden_lineas(uuid, jsonb) from public;
 do $$
 begin
+  -- Supabase le da EXECUTE de cada funcion nueva a anon y authenticated
+  -- DIRECTO, no por `public`: el revoke de arriba no lo quita. Sin esto,
+  -- una funcion interna quedaba llamable con la clave publica, y correr el
+  -- instalador con EXIGIR_CUENTA aplicado le abria las nuevas a anon.
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function crear_orden(jsonb, jsonb) from anon;
+    revoke all on function crear_orden_lineas(uuid, jsonb) from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on function crear_orden(jsonb, jsonb) from authenticated;
+    revoke all on function crear_orden_lineas(uuid, jsonb) from authenticated;
+  end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
     grant execute on function crear_orden(jsonb, jsonb) to authenticated;
   end if;

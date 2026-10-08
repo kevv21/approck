@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useSesion } from "@/lib/auth/sesion";
+import { puedeVer } from "@/lib/auth/permisos";
 
 /**
  * NAVEGACIÓN
@@ -15,6 +17,9 @@ import { useEffect, useState } from "react";
  * Cierres, Inventario— y «Más» para lo que se abre de vez en cuando
  * (Impresora, Estado). En PC, donde sobra ancho y se usa
  * con mouse, siguen arriba, todas a la vista.
+ *
+ * Cada cuenta ve solo sus pantallas: la de revisión no tiene Caja ni
+ * Impresora. Sin sesión se ven todas; la puerta de acceso tapa el contenido.
  */
 
 type Item = { href: string; label: string; icono: keyof typeof ICONOS; detalle?: string };
@@ -35,12 +40,20 @@ const OTRAS: Item[] = [
 const activa = (ruta: string, href: string) =>
   href === "/" ? ruta === "/" : ruta.startsWith(href);
 
+/** Las secciones que la cuenta abierta puede abrir. */
+function useSecciones() {
+  const sesion = useSesion();
+  const deEsta = (l: Item[]) => (sesion ? l.filter((n) => puedeVer(sesion.rol, n.href)) : l);
+  return { principales: deEsta(PRINCIPALES), otras: deEsta(OTRAS) };
+}
+
 /** Pestañas arriba. Solo en PC. */
 export function PestanasArriba() {
   const ruta = usePathname();
+  const { principales, otras } = useSecciones();
   return (
     <nav className="hidden min-w-0 flex-1 gap-1 lg:flex" aria-label="Secciones">
-      {[...PRINCIPALES, ...OTRAS].map((n) => {
+      {[...principales, ...otras].map((n) => {
         const on = activa(ruta, n.href);
         return (
           <Link key={n.href} href={n.href} aria-current={on ? "page" : undefined}
@@ -63,7 +76,8 @@ export function PestanasArriba() {
 export function NavAbajo() {
   const ruta = usePathname();
   const [mas, setMas] = useState(false);
-  const enOtra = OTRAS.some((o) => activa(ruta, o.href));
+  const { principales, otras } = useSecciones();
+  const enOtra = otras.some((o) => activa(ruta, o.href));
 
   // Cambiar de pantalla cierra el menú.
   useEffect(() => { setMas(false); }, [ruta]);
@@ -78,10 +92,11 @@ export function NavAbajo() {
   return (
     <>
       <nav aria-label="Secciones"
-           className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t lg:hidden"
+           className="fixed inset-x-0 bottom-0 z-40 grid border-t lg:hidden"
            style={{ background: "var(--panel)", borderColor: "var(--borde)",
+                    gridTemplateColumns: `repeat(${principales.length + 1}, minmax(0, 1fr))`,
                     paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        {PRINCIPALES.map((n) => (
+        {principales.map((n) => (
           <Boton key={n.href} item={n} on={activa(ruta, n.href)} />
         ))}
         <button onClick={() => setMas((v) => !v)} aria-expanded={mas}
@@ -101,7 +116,7 @@ export function NavAbajo() {
                style={{ bottom: "calc(var(--nav-alto) + env(safe-area-inset-bottom, 0px))",
                         background: "var(--panel-3)", borderTop: "1px solid var(--borde-2)" }}
                onClick={(e) => e.stopPropagation()}>
-            {OTRAS.map((n) => {
+            {otras.map((n) => {
               const on = activa(ruta, n.href);
               return (
                 <Link key={n.href} href={n.href} role="menuitem"

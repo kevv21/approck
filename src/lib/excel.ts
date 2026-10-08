@@ -20,6 +20,9 @@ export interface FilaOrden {
   /** Quitada del historial: no entra al cierre ni a esta hoja. */
   oculta_por?: string | null;
   oculta_motivo?: string | null;
+  /** Anulada: tampoco entra al cierre ni a esta hoja. */
+  anulada_por?: string | null;
+  anulada_motivo?: string | null;
   costo_envio: number;
   iva: number;
   propina: number;
@@ -104,8 +107,10 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
     { width: 15 }, { width: 13 }, { width: 15 },
   ];
 
+  // Solo lo cobrado. Las anuladas no salen en ninguna parte de la hoja: el
+  // dueño pidió que una venta cancelada o cargada por error no figure en el
+  // cierre ni en lo vendido. Quedan en la base y en la bitácora.
   const pagadas = d.ordenes.filter((o) => o.estado === "pagada");
-  const anuladas = d.ordenes.filter((o) => o.estado === "anulada");
 
   // --- helpers de maquetado ------------------------------------------------
   const tituloBloque = (texto: string) => {
@@ -366,18 +371,11 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
     ws.addRow([]);
   }
 
-  // --- 6. Anulaciones y descuentos -----------------------------------------
+  // --- 6. Descuentos -------------------------------------------------------
   const conDescuento = pagadas.filter((o) => o.desc_total > 0);
-  if (anuladas.length > 0 || conDescuento.length > 0) {
-    tituloBloque("ANULACIONES Y DESCUENTOS");
+  if (conDescuento.length > 0) {
+    tituloBloque("DESCUENTOS");
     encabezadoTabla(["Orden", "Motivo", "Tipo", "Monto"]);
-    for (const o of anuladas) {
-      const r = ws.addRow([o.numero, o.desc_motivo ?? "(sin motivo)", "Anulada", aCordobas(o.total)]);
-      r.eachCell((c, i) => {
-        c.border = bordeFino(); c.font = { name: "Calibri", size: 11 };
-        if (i === 4) c.numFmt = MONEDA;
-      });
-    }
     for (const o of conDescuento) {
       const r = ws.addRow([o.numero, o.desc_motivo ?? "(sin motivo)", "Descuento", aCordobas(o.desc_total)]);
       r.eachCell((c, i) => {

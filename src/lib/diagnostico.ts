@@ -345,6 +345,10 @@ export async function diagnosticar(): Promise<Prueba[]> {
       p_id: "00000000-0000-0000-0000-000000000000", p_orden: {}, p_items: [], p_motivo: null,
     });
     if (noExisteFuncion(eFn)) viejas.push("función editar_orden (editar órdenes guardadas)");
+    // Las cuentas por PIN. Sin ella la app entra con el PIN viejo y todos son
+    // maestra: funciona, pero la cuenta de revisión no existe.
+    const { error: eAcc } = await supabase.rpc("accesos_estado");
+    if (noExisteFuncion(eAcc)) viejas.push("cuentas maestra y revisión (17_accesos.sql)");
     pruebas.push(
       viejas.length
         ? {

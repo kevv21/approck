@@ -33,5 +33,12 @@ do $$ begin
     grant execute on function crear_orden(jsonb, jsonb) to anon;
   end if;
 
+  -- Y las cuentas por PIN, por 17_accesos.sql.
+  if exists (select 1 from pg_proc where proname = 'entrar_con_pin') then
+    grant execute on function entrar_con_pin(text) to anon;
+    grant execute on function accesos_estado() to anon;
+    grant execute on function cambiar_pin(text, text, text, text) to anon;
+  end if;
+
   raise notice 'Hecho. Ahora corre BLINDAR.sql para volver a acotar los permisos.';
 end $$;

@@ -1,26 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  entrar, nombresRecordados, salir, sesionActual, type Sesion,
-} from "@/lib/auth/sesion";
+import { entrar, nombresRecordados, salir, useSesion } from "@/lib/auth/sesion";
+import { ROLES, inicioDe, puedeVer } from "@/lib/auth/permisos";
 import {
   alCambiarVinculo, requiereCuenta, sesionGuardada,
 } from "@/lib/auth/dispositivo";
 import VincularDispositivo from "@/components/VincularDispositivo";
 import { registrar } from "@/lib/auth/auditoria";
 import { hayConfig } from "@/lib/supabase";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 /**
- * Puerta de entrada. Un PIN compartido y el nombre de quien trabaja.
+ * Puerta de entrada. El nombre de quien trabaja y el PIN de su cuenta:
+ * maestra o revisión. El PIN decide qué cuenta se abre.
  *
  * El nombre no es decorativo: va en la bitácora de cada anulación y cada
  * descuento, y sale impreso en el recibo. Es lo que sirve cuando al final
  * de la noche falta plata en la caja.
  */
 export default function Acceso({ children }: { children: React.ReactNode }) {
-  const [sesion, setSesion] = useState<Sesion | null | undefined>(undefined);
+  const sesion = useSesion();
   // undefined = todavía no se sabe. true = se puede pasar al PIN, sea porque
   // la base no exige cuenta o porque este aparato ya está vinculado.
   const [puedePasar, setPuedePasar] = useState<boolean | undefined>(undefined);
@@ -30,9 +30,16 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   const [entrando, setEntrando] = useState(false);
   const [previos, setPrevios] = useState<string[]>([]);
   const ruta = usePathname();
+  const router = useRouter();
+  // Una pantalla que no es de esta cuenta (la Caja, para revisión) lleva a la
+  // suya en vez de mostrarse a medias.
+  const fuera = sesion != null && !puedeVer(sesion.rol, ruta);
 
   useEffect(() => {
-    setSesion(sesionActual());
+    if (fuera && sesion) router.replace(inicioDe(sesion.rol));
+  }, [fuera, sesion, router]);
+
+  useEffect(() => {
     setPrevios(nombresRecordados());
     if (!hayConfig) { setPuedePasar(true); return; }
 
@@ -49,17 +56,19 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
     return alCambiarVinculo(() => { mirar(); });
   }, []);
 
-  // Mientras se lee sessionStorage no se dibuja nada, para no mostrar la
+  // Mientras se pregunta a la base no se dibuja nada, para no mostrar la
   // pantalla de acceso un instante a quien ya entró.
-  if (sesion === undefined || puedePasar === undefined) return null;
+  if (puedePasar === undefined) return null;
   // Dos rutas quedan libres, las dos por la misma razón: se usan JUSTO
   // cuando el PIN no se puede verificar.
   //   /impresora     ajustar y probar la impresora, antes de tener nada montado.
   //   /configuracion el PIN vive en `settings.pin_hash`. Si esa tabla no
   //                  existe todavía, entrar es imposible — y la pantalla que
   //                  explica por qué quedaría del otro lado de la puerta.
+  // Con sesión abierta manda la cuenta: revisión no entra a Impresora aunque
+  // esté libre para quien todavía no puso el PIN.
   const LIBRES = ["/impresora", "/configuracion"];
-  if (!hayConfig || LIBRES.includes(ruta)) return <>{children}</>;
+  if (!hayConfig || (!sesion && LIBRES.includes(ruta))) return <>{children}</>;
 
   // Puerta de afuera, y solo cuando la base la exige: si no responde a la
   // clave sola, no hay nada que ver sin una cuenta.
@@ -68,12 +77,21 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   }
 
   if (sesion) {
+    if (fuera) return null;
     return (
       <>
         <div className="flex items-center gap-2 px-3 text-xs"
              style={{ background: "var(--panel-2)", color: "var(--txt-2)",
                       minHeight: "40px" }}>
-          <span>Trabajando: <b style={{ color: "var(--txt)" }}>{sesion.nombre}</b></span>
+          <span className="min-w-0 truncate">
+            Trabajando: <b style={{ color: "var(--txt)" }}>{sesion.nombre}</b>
+          </span>
+          <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                style={sesion.rol === "maestra"
+                  ? { background: "var(--acc-fondo)", color: "var(--acc)" }
+                  : { background: "var(--panel-3)", color: "var(--txt-2)" }}>
+            {ROLES[sesion.rol].etiqueta}
+          </span>
           {/*
             "Desvincular" NO va al lado de "Salir". En un teléfono, con los
             dedos y a media atención, tocar el de al lado deja el aparato
@@ -84,7 +102,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
           */}
           <button className="ml-auto flex items-center px-2 underline"
                   style={{ minHeight: "40px" }}
-                  onClick={() => { salir(); setSesion(null); }}>Salir</button>
+                  onClick={() => salir()}>Salir</button>
         </div>
         {children}
       </>
@@ -103,7 +121,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
         setPin("");
         return;
       }
-      setSesion(s);
+      setPin("");
     } catch (e) {
       setError(`No se pudo verificar: ${(e as Error).message}`);
     } finally {
@@ -119,7 +137,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
             ROCK MUNCHIES
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
-            Pon tu nombre y el PIN del local
+            Pon tu nombre y el PIN de tu cuenta
           </p>
         </div>
 

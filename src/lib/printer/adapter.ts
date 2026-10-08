@@ -3,21 +3,23 @@ import type { AnchoPapel } from "../escpos";
 /**
  * Capa de impresion.
  *
- * Se imprime por UN solo camino: internet. Cualquier aparato —telefono,
- * iPhone, tablet, PC— deja el ticket en la cola (`print_job`) en el momento
- * de cobrar, reimprimir o pedir la pre-cuenta, y lo imprime la PC de caja con
- * el servicio del puente (bridge/), que tiene la impresora conectada.
+ * El camino normal es internet: cualquier aparato —telefono, iPhone, tablet,
+ * PC— deja el ticket en la cola (`print_job`) en el momento de cobrar,
+ * reimprimir o pedir la pre-cuenta, y lo imprime la PC de caja con el
+ * servicio del puente (bridge/), que tiene la impresora conectada.
  *
- *   puente   Ese servicio. En la app solo sirve para saber si esta vivo.
- *   html     No es un camino de impresion: «Imprimir aqui» y «Descargar
- *            recibo» de la caja, el respaldo con window.print() para cuando
- *            no hay internet o la PC esta apagada.
+ *   puente     Ese servicio. En la app solo sirve para saber si esta vivo.
+ *   bluetooth  Web Bluetooth (BLE) directo del telefono, para cuando no hay
+ *              PC de caja. Solo la cuenta maestra, y solo mientras este
+ *              conectada: el dueño pidio BLE y no RawBT.
+ *   html       No es un camino de impresion: «Imprimir aqui» y «Descargar
+ *              recibo» de la caja, el respaldo con window.print().
  *
- * Antes habia seis modos (RawBT por Bluetooth, USB, puerto COM, Web
- * Bluetooth, navegador y puente) y una «estacion» que tenia que quedar
- * abierta en un aparato. El dueño pidio dejar solo internet.
+ * Antes habia seis modos y una «estacion» que tenia que quedar abierta en un
+ * aparato. Por eso quien decide la salida es UNA funcion (`salida.ts`), con
+ * una regla que se puede decir en voz alta.
  */
-export type TipoAdaptador = "puente" | "html";
+export type TipoAdaptador = "puente" | "bluetooth" | "html";
 
 export interface EstadoImpresora {
   conectada: boolean;

@@ -110,6 +110,16 @@ begin
     execute format('revoke insert on settings from %I', r);
 
     -- ------------------------------------------------------------------
+    -- acceso: los PIN de las cuentas. Nadie los lee ni los escribe: solo
+    -- las funciones de 17_accesos.sql. RLS ya devuelve 0 filas, pero
+    -- PERMITIR_ANONIMO da permiso sobre TODAS las tablas, y una politica
+    -- que alguien agregue sin pensar los dejaria a la vista.
+    -- ------------------------------------------------------------------
+    if to_regclass('public.acceso') is not null then
+      execute format('revoke all on acceso from %I', r);
+    end if;
+
+    -- ------------------------------------------------------------------
     -- insumo: la app solo completa la unidad de medida que falta.
     -- ------------------------------------------------------------------
     execute format('revoke insert on insumo from %I', r);

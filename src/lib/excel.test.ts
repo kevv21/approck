@@ -150,34 +150,37 @@ describe("arqueo", () => {
   });
 });
 
-describe("anulaciones y descuentos", () => {
-  it("las lista con su motivo cuando existen", async () => {
+describe("descuentos y anulaciones", () => {
+  it("lista los descuentos con su motivo", async () => {
     const txt = textoDe(await abrir(await generarCierreExcel({
       ...base,
-      ordenes: [
-        ...ordenes,
-        orden(6, "efectivo", 300, { estado: "anulada", desc_motivo: "cliente se fue" }),
-        orden(7, "efectivo", 300, { desc_total: centavos(50), desc_motivo: "cortesía" }),
-      ],
+      ordenes: [...ordenes, orden(7, "efectivo", 300, { desc_total: centavos(50), desc_motivo: "cortesía" })],
     })));
-    expect(txt).toContain("ANULACIONES Y DESCUENTOS");
-    expect(txt).toContain("cliente se fue");
+    expect(txt).toContain("DESCUENTOS");
     expect(txt).toContain("cortesía");
   });
 
-  it("sin anulaciones ni descuentos no dibuja el bloque", async () => {
+  it("sin descuentos no dibuja el bloque", async () => {
     const txt = textoDe(await abrir(await generarCierreExcel(base)));
-    expect(txt).not.toContain("ANULACIONES Y DESCUENTOS");
+    expect(txt).not.toContain("DESCUENTOS");
   });
 
-  it("una orden anulada no entra en los consumibles", async () => {
+  // Pedido del dueño: una venta anulada (se canceló, se cargó por error) no
+  // sale en el cierre ni en lo vendido. Ni como fila, ni en un bloque aparte.
+  it("una orden anulada no aparece en ninguna parte de la hoja", async () => {
     const ws = await abrir(await generarCierreExcel({
       ...base,
-      ordenes: [orden(1, "efectivo", 300), orden(2, "efectivo", 300, { estado: "anulada" })],
+      ordenes: [
+        orden(1, "efectivo", 300),
+        orden(2, "efectivo", 300, { estado: "anulada", anulada_motivo: "cliente se fue" }),
+      ],
     }));
     let cant = 0;
     ws.eachRow((r) => { if (r.getCell(2).value === "Diabla") cant = Number(r.getCell(1).value); });
     expect(cant).toBe(1); // solo la pagada
+    const txt = textoDe(ws);
+    expect(txt).not.toContain("cliente se fue");
+    expect(txt).not.toMatch(/anulad/i);
   });
 });
 

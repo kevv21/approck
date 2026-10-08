@@ -941,6 +941,87 @@ campos debajo, a lo ancho.
 Verificado en un Android de 360px: «12.2» y «3,75» se escriben, quedan en el
 borrador y vuelven al recargar. 6 pruebas nuevas en `cantidad.test.ts`.
 
+### Dos cuentas, anular de verdad y Bluetooth sin PC
+
+Pedido del dueño: una cuenta **maestra** (imprimir, agregar, eliminar) y otra
+de **revisión** (ver pedidos y hacer inventario), cada una con su PIN; que
+anular saque la venta del cierre y de lo vendido; y que, sin PC de caja, la
+maestra imprima por **Web Bluetooth (BLE), no RawBT**.
+
+**Cuentas.** `supabase/17_accesos.sql` (ya en `00_INSTALAR.sql`): los PIN
+viven con bcrypt en `acceso`, una tabla que nadie puede leer, y la app le
+pregunta a la base `entrar_con_pin(pin)` → `maestra` / `revision` / nada.
+Antes el navegador leía el SHA-256 del PIN de `settings`, que cualquiera con
+la clave pública puede leer y que para 4 dígitos se revierte en un instante.
+- Revisión: Cierres (en lectura: sin reimprimir, anular, quitar ni tocar el
+  turno; el Excel sí), Inventario y Estado. Abrir la Caja o Impresora la
+  lleva a Cierres. La barra muestra solo sus pantallas.
+- Los PIN se cambian en **Estado → Cuentas y PIN**. Siempre pide el de la
+  maestra, también para la de revisión: revisión no puede darse permisos.
+  Los dos PIN tienen que ser distintos; 4 a 8 números; medio segundo de
+  espera por PIN fallido; cada cambio queda en la bitácora (`cambio_pin`).
+- Migración sola: la primera entrada con el PIN viejo lo copia como PIN de
+  la maestra. `settings.pin_hash` **no se borra**, para que una versión
+  vieja abierta en algún teléfono no quede sin PIN; cuando todos tengan la
+  nueva: `update settings set pin_hash = null where id = 'default';`.
+- Base sin `17_accesos.sql`: la app entra con el PIN viejo y todos son
+  maestra, como antes; Estado dice qué falta.
+- **Límite, dicho claro:** el PIN reparte lo que cada quien ve y toca en la
+  app. No frena a quien llame a la API con la clave pública; eso lo cierra
+  `EXIGIR_CUENTA.sql`.
+
+**Anular.** Una orden anulada ya no aparece en el cierre, en sus totales ni
+en el Excel (se fue el bloque «Anulaciones» de la hoja; quedan los
+descuentos). Se revisan en **Ver anuladas y quitadas**, con «Anulada por X ·
+motivo». En la caja, una orden guardada abierta para editar tiene
+**Anular orden** en «Más opciones», con motivo obligatorio. Sigue en la base
+y en la bitácora.
+Riesgo que queda: anular una venta de un turno YA cerrado cambia el Excel que
+se re-descargue de ese día (el efectivo de entonces ya se contó). Es el
+camino que propone `editar_orden` para corregir una cobrada de un turno
+cerrado, así que no se bloqueó; se puede bloquear si el dueño prefiere.
+
+**Bluetooth sin PC.** Una sola regla, en `printer/salida.ts`: si el teléfono
+está conectado a la impresora por Bluetooth, imprime él; si no, el ticket va
+a la cola de la PC. Se conecta en **Impresora → Sin PC: Bluetooth en este
+teléfono** (solo maestra). Lo impreso por Bluetooth queda en la cola ya como
+`impreso`, así que la PC no lo repite y un reintento del cobro no saca otro.
+Si el Bluetooth falla no se manda a la cola a escondidas: la caja dice
+«cobrada, sin ticket» con Reimprimir. Y al cobrar con la PC caída, la caja
+avisa «la PC de caja no responde» con un botón **Conectar**.
+**Sin verificar en hardware, y probablemente no sirva con la PT-210:** su
+PIN 0000 indica Bluetooth clásico, y Web Bluetooth solo habla BLE. Si no
+aparece en la lista de Chrome, no es un ajuste: hay que usar la PC, otra
+impresora con BLE, o RawBT (que el dueño descartó).
+
+**Hueco de permisos encontrado de paso.** Supabase le da EXECUTE de cada
+función nueva a `anon` y `authenticated` directo, no por `public`, así que
+el `revoke ... from public` de 15/16 no lo quitaba. Con eso
+`crear_orden_lineas` —la interna que mete líneas en cualquier orden— habría
+quedado llamable con la clave pública, y reinstalar con `EXIGIR_CUENTA`
+aplicado le abría las funciones nuevas a `anon`. Producción no estaba
+expuesta: todavía no tiene `16_crear_orden.sql` (comprobado con una llamada
+que no escribe nada). Ahora cada función se revoca de los dos roles antes de
+concederse. `BLINDAR.sql` también quita todo permiso sobre `acceso`, y
+`VERIFICAR_BLINDAJE.sql` pasa de 33 a **37 casos**, con dos que tienen que
+salir cerrados en los dos modos.
+
+Verificado contra Postgres 16 simulando los permisos por defecto de Supabase:
+instalador tres veces (12 / 69 / 59), BLINDAR completo, 31 ✓ y 6 «abierto»
+(modo sin cuenta, esperado); en modo con cuenta exigida, reinstalar no le da
+nada a `anon`. Las funciones de PIN: PIN viejo → maestra y migra, PIN malo →
+nada, leer `acceso` → denegado, revisión no cambia a la maestra, PIN
+repetidos rechazados, bitácora con cada cambio, `settings.pin_hash` intacto.
+En un Android de 360px contra PostgREST simulado: revisión entra a Cierres,
+sin Caja ni Impresora, sin botones de reimprimir/anular; la maestra no ve la
+anulada en el cierre y sí en la vista aparte; anular desde la caja manda el
+motivo; cobrar con la PC caída muestra el aviso con «Conectar»; cero
+desbordamiento. Un fallo encontrado mirando: el aviso flotante tapaba la
+pregunta del diálogo de anular; los diálogos de confirmación van ahora al
+centro.
+
+**280 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

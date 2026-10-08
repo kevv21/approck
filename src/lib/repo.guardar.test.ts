@@ -27,6 +27,8 @@ const base = {
 function reiniciar() {
   base.ordenes = []; base.items = []; base.jobs = []; base.rpcs = [];
   base.sinFuncion = false; base.colaFalla = false;
+  ble.conectada = false; ble.falla = false; ble.impresos = [];
+  quien.rol = "maestra";
 }
 
 function nuevaFila(o: Record<string, unknown>): Fila {
@@ -88,7 +90,20 @@ vi.mock("./supabase", () => {
   };
 });
 vi.mock("./auth/auditoria", () => ({ registrar: async () => {} }));
-vi.mock("./auth/sesion", () => ({ sesionActual: () => ({ nombre: "Ana" }) }));
+const quien = { rol: "maestra" as string };
+vi.mock("./auth/sesion", () => ({ sesionActual: () => ({ nombre: "Ana", rol: quien.rol }) }));
+
+/** La impresora Bluetooth del teléfono: conectada o no, y si falla al escribir. */
+const ble = { conectada: false, falla: false, impresos: [] as Uint8Array[] };
+vi.mock("./printer/salida", () => ({
+  imprimeDirecto: () => ble.conectada,
+  impresoraBluetooth: {
+    imprimir: async (b: Uint8Array) => {
+      if (ble.falla) throw new Error("GATT Server is disconnected");
+      ble.impresos.push(b);
+    },
+  },
+}));
 vi.mock("./observabilidad", () => ({ reportarError: () => {} }));
 
 
@@ -208,5 +223,52 @@ describe("por dónde sale el ticket", () => {
       numero: 0, tipo: "mesa", fecha: new Date(), totales: { lineas: [] } as never,
     });
     expect(base.jobs).toEqual([expect.objectContaining({ orden_id: null, tipo: "precuenta" })]);
+  });
+});
+
+describe("sin PC de caja: Bluetooth del teléfono", () => {
+  it("conectado, el ticket sale por Bluetooth y queda en la cola como ya impreso", async () => {
+    ble.conectada = true;
+    const r = await guardarYEncolar(datos());
+    expect(r.impreso).toBe(true);
+    expect(ble.impresos).toHaveLength(1);
+    // Ya impreso: la PC, si vuelve, no lo saca otra vez.
+    expect(base.jobs).toEqual([expect.objectContaining({ tipo: "cliente", estado: "impreso" })]);
+  });
+
+  it("sin conectar, va a la cola de la PC como siempre", async () => {
+    const salida = await imprimirDocumento(null, "precuenta", {
+      numero: 0, tipo: "mesa", fecha: new Date(), totales: { lineas: [] } as never,
+    });
+    expect(salida).toBe("cola");
+    expect(ble.impresos).toHaveLength(0);
+  });
+
+  it("si el Bluetooth falla, la orden queda cobrada y se avisa sin ticket; no se esconde en la cola", async () => {
+    ble.conectada = true;
+    ble.falla = true;
+    const r = await guardarYEncolar(datos());
+    expect(base.ordenes).toHaveLength(1);
+    expect(r.impreso).toBe(false);
+    expect(base.jobs).toHaveLength(0);
+  });
+
+  it("el reintento de un cobro impreso por Bluetooth no saca un segundo ticket", async () => {
+    ble.conectada = true;
+    await guardarYEncolar(datos());
+    await guardarYEncolar(datos());
+    expect(ble.impresos).toHaveLength(1);
+  });
+});
+
+describe("la cuenta de revisión", () => {
+  it("no imprime, ni por la PC ni por Bluetooth", async () => {
+    quien.rol = "revision";
+    ble.conectada = true;
+    await expect(imprimirDocumento(null, "precuenta", {
+      numero: 0, tipo: "mesa", fecha: new Date(), totales: { lineas: [] } as never,
+    })).rejects.toThrow(/revisión no imprime/);
+    expect(base.jobs).toHaveLength(0);
+    expect(ble.impresos).toHaveLength(0);
   });
 });
