@@ -45,7 +45,7 @@ const GS = 0x1d;
 
 /**
  * Codepages que suelen traer estos clones. Si los acentos salen mal,
- * probalos en orden desde la pagina /estacion con el boton de prueba.
+ * pruebalos en orden desde la pantalla Impresora, con la hoja de acentos.
  */
 /**
  * Codepages ordenados de mas a menos compatible.
@@ -57,7 +57,7 @@ const GS = 0x1d;
  * impresoras mas viejas o mas baratas.
  *
  * Si ninguno funciona, quedan dos salidas que no dependen del firmware:
- * quitar acentos, o el modo imagen de raster.ts.
+ * quitar acentos.
  */
 export const CODEPAGES = [
   { n: 0, nombre: "CP437 - estandar, funciona en casi todas" },
@@ -85,6 +85,17 @@ export function codepageGuardado(): number {
 
 export function guardarCodepage(n: number): void {
   try { localStorage.setItem(CLAVE_CP, String(n)); } catch { /* modo privado */ }
+}
+
+const CLAVE_ANCHO = "approck:ancho-papel";
+
+/** Ancho del rollo de esta impresora, recordado en este dispositivo. */
+export function anchoGuardado(): AnchoPapel {
+  try { return localStorage.getItem(CLAVE_ANCHO) === "80" ? 80 : 58; } catch { return 58; }
+}
+
+export function guardarAncho(a: AnchoPapel): void {
+  try { localStorage.setItem(CLAVE_ANCHO, String(a)); } catch { /* modo privado */ }
 }
 
 export function transliterarGuardado(): boolean {

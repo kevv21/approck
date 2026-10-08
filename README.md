@@ -7,23 +7,26 @@ por categoría, propina configurable y cierres de caja descargables en Excel.
 
 ## El problema que define la arquitectura
 
-La PT-210 solo tiene Bluetooth. Y **Safari en iPhone/iPad no implementa Web
-Bluetooth**; Apple ha dicho que no lo va a implementar. Como en el local hay
+La PT-210 solo tiene Bluetooth Clásico, que ningún navegador habla. Y **Safari
+en iPhone/iPad no implementa Web Bluetooth**; Apple ha dicho que no lo va a
+implementar. Como en el local hay
 iPhones, ningún iPhone puede imprimir desde el navegador, y no hay código que
 lo arregle.
 
-Por eso el sistema separa **tomar la orden** de **imprimir**:
+Por eso se imprime **por internet**:
 
 ```
-PC (caja)       ─┐
-iPhone (mesero) ─┼──► tabla print_job ──► Android de caja ──BLE──► PT-210
-Tablet          ─┘      (Postgres)         (/estacion)
+Teléfono / iPhone / tablet / PC ──► cola print_job (Supabase) ──► PC de caja (bridge/) ──► PT-210
 ```
 
-Cualquier dispositivo crea el trabajo de impresión. Un solo Android, abierto
-en `/estacion`, lo consume y lo manda a la impresora. Esto además da
-reimpresión gratis y evita el emparejamiento Bluetooth en la PC, que en
-Windows es inconsistente.
+Cualquier aparato deja el ticket en la cola en el mismo toque de «Cobrar»,
+«Reimprimir» o «Pre-cuenta». La PC de caja, con el servicio del puente, se
+entera al instante por tiempo real (y si eso falla, en la consulta de cada 3
+segundos) y lo imprime. No hay que dejar ninguna pantalla abierta, y la cola
+da reimpresión y el registro de cada ticket.
+
+Sin internet o con la PC apagada no sale ningún ticket: la caja tiene
+«Imprimir aquí» y «Descargar recibo» como respaldo desde el navegador.
 
 ---
 
@@ -63,7 +66,7 @@ apilan descuentos.
 
 Antes de configurar nada: **[docs/PROBAR.md](docs/PROBAR.md)** explica cómo
 verificar la impresora desde el teléfono en cinco minutos, sin base de datos.
-La pantalla `/prueba` resuelve los acentos imprimiendo los tres juegos de
+La pantalla `/impresora` resuelve los acentos imprimiendo los tres juegos de
 caracteres en una sola hoja: miras el papel y eliges el que se lee bien.
 
 Sin Supabase configurado la app **no** simula nada: la pantalla de caja dice
@@ -215,7 +218,8 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-Para probar desde un Android en la red del local, Web Bluetooth exige HTTPS:
+Para probar desde un teléfono en la red del local (instalar la PWA y el
+service worker exigen HTTPS):
 
 ```bash
 npx next dev --experimental-https -H 0.0.0.0
@@ -248,7 +252,7 @@ Para probar sin la impresora en la mano: `SIMULAR=true npm start` guarda los
 tickets como archivos en `bridge/salida/`.
 
 En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
-`/estacion` muestra el estado del puente y la cola.
+`/impresora` muestra si la PC de caja está respondiendo.
 
 ---
 
@@ -257,7 +261,7 @@ En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
 | Ruta | Para qué |
 |---|---|
 | `/` | Caja: menú, pedido, descuentos, propina, cobro |
-| `/estacion` | Android de caja: conexión Bluetooth y cola de impresión |
+| `/impresora` | Si la PC de caja está imprimiendo, ancho del papel, acentos y ticket de prueba |
 | `/inventario` | Conteo de insumos y descarga del Excel con la plantilla |
 | `/cierre` | Turnos, arqueo y descarga del Excel |
 

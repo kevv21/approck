@@ -54,11 +54,11 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   if (sesion === undefined || puedePasar === undefined) return null;
   // Dos rutas quedan libres, las dos por la misma razón: se usan JUSTO
   // cuando el PIN no se puede verificar.
-  //   /prueba        diagnóstico de impresora, antes de tener nada montado.
+  //   /impresora     ajustar y probar la impresora, antes de tener nada montado.
   //   /configuracion el PIN vive en `settings.pin_hash`. Si esa tabla no
   //                  existe todavía, entrar es imposible — y la pantalla que
   //                  explica por qué quedaría del otro lado de la puerta.
-  const LIBRES = ["/prueba", "/configuracion"];
+  const LIBRES = ["/impresora", "/configuracion"];
   if (!hayConfig || LIBRES.includes(ruta)) return <>{children}</>;
 
   // Puerta de afuera, y solo cuando la base la exige: si no responde a la

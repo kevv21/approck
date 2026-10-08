@@ -15,7 +15,7 @@ import { Interruptor, Segmentado } from "@/components/Controles";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import {
-  cargarMenu, cargarOrden, editarOrden, encolar, reimprimir, turnoAbierto,
+  cargarMenu, cargarOrden, editarOrden, imprimirDocumento, reimprimir, turnoAbierto,
   type OrdenBreve,
 } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
@@ -460,11 +460,11 @@ export default function Caja() {
     setAviso(null);
     try {
       // La pre-cuenta no guarda la orden: es para que el cliente revise.
-      await encolar(null, "precuenta", {
+      await imprimirDocumento(null, "precuenta", {
         numero: edicion?.numero ?? 0, tipo, mesa, cliente, telefonoCliente: telefono, direccion,
         notas, mesero: atendio, fecha: new Date(), totales: t, documento: "precuenta",
       });
-      avisar({ texto: "Pre-cuenta enviada", detalle: "A la estación de impresión", tono: "agregado" });
+      avisar({ texto: "Pre-cuenta enviada", detalle: "A la impresora", tono: "agregado" });
     } catch (e) {
       fallar(`No se pudo imprimir: ${explicar(e)}`);
     } finally {
@@ -723,7 +723,7 @@ export default function Caja() {
           </p>
           <div className="mt-4 grid gap-2">
             <Link className="btn btn-acc text-center" href="/configuracion">Ver qué falta</Link>
-            <Link className="btn btn-ghost text-center" href="/prueba">Probar la impresora</Link>
+            <Link className="btn btn-ghost text-center" href="/impresora">Probar la impresora</Link>
           </div>
         </div>
       </div>

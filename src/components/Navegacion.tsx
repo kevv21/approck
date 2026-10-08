@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
  *
  * Ahora, en teléfono, una barra abajo con lo que se usa todos los días —Caja,
  * Cierres, Inventario— y «Más» para lo que se abre de vez en cuando
- * (Estación, Probar la impresora, Estado). En PC, donde sobra ancho y se usa
+ * (Impresora, Estado). En PC, donde sobra ancho y se usa
  * con mouse, siguen arriba, todas a la vista.
  */
 
@@ -26,10 +26,8 @@ const PRINCIPALES: Item[] = [
 ];
 
 const OTRAS: Item[] = [
-  { href: "/estacion", label: "Estación", icono: "estacion",
-    detalle: "La PC que imprime los tickets" },
-  { href: "/prueba", label: "Probar impresora", icono: "prueba",
-    detalle: "Ticket de prueba, ancho y caracteres" },
+  { href: "/impresora", label: "Impresora", icono: "estacion",
+    detalle: "PC de caja, papel y ticket de prueba" },
   { href: "/configuracion", label: "Estado", icono: "estado",
     detalle: "Base de datos, conexión y caja abierta" },
 ];
@@ -168,6 +166,5 @@ const ICONOS = {
   inventario: svg(<><path d="M3 7l9-4 9 4-9 4Z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" /></>),
   mas: svg(<><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></>),
   estacion: svg(<><path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M7 17v4h10v-4" /></>),
-  prueba: svg(<><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" /></>),
   estado: svg(<><path d="M3 12h4l3-8 4 16 3-8h4" /></>),
 } as const;

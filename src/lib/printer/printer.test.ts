@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ticketHtml } from "./html";
-import { adaptadoresSugeridos, crearAdaptador } from "./index";
+import { AdaptadorPuente } from "./puente";
+import { anchoGuardado, guardarAncho } from "../escpos";
 import { calcularTotales } from "../pricing";
 import { centavos } from "../money";
 import { CONFIG_DEFAULT, type LineaOrden } from "../types";
@@ -37,22 +38,32 @@ describe("fallback HTML", () => {
   });
 });
 
-describe("selección de adaptador", () => {
-  it("el puente siempre va primero: es el único que sirve en todos lados", () => {
-    expect(adaptadoresSugeridos()[0]).toBe("puente");
+describe("preferencias de impresión del aparato", () => {
+  const almacen = new Map<string, string>();
+  afterEach(() => { almacen.clear(); vi.unstubAllGlobals(); });
+
+  it("el ancho del papel se recuerda; por defecto 58 mm", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => almacen.get(k) ?? null,
+      setItem: (k: string, v: string) => { almacen.set(k, v); },
+    });
+    expect(anchoGuardado()).toBe(58);
+    guardarAncho(80);
+    expect(anchoGuardado()).toBe(80);
   });
 
-  it("siempre ofrece el fallback HTML como último recurso", () => {
-    expect(adaptadoresSugeridos()).toContain("html");
+  it("sin almacenamiento (modo privado) no se rompe", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => { throw new Error("bloqueado"); },
+      setItem: () => { throw new Error("bloqueado"); },
+    });
+    expect(anchoGuardado()).toBe(58);
+    expect(() => guardarAncho(80)).not.toThrow();
   });
 
-  it("el puente está disponible incluso sin APIs de hardware", () => {
-    const a = crearAdaptador("puente");
+  it("el puente está disponible en cualquier aparato, iPhone incluido", () => {
+    const a = new AdaptadorPuente();
     expect(a.disponible()).toBe(true);
     expect(a.motivoNoDisponible()).toBeNull();
-  });
-
-  it("html no se instancia como adaptador: se usa directo", () => {
-    expect(() => crearAdaptador("html")).toThrow();
   });
 });

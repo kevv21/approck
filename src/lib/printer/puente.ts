@@ -48,7 +48,7 @@ export class AdaptadorPuente implements PrinterAdapter {
     await this.refrescarLatido();
     if (!this.estado().conectada) {
       throw new Error(
-        "El puente no está respondiendo. Revisá que el servicio esté corriendo en la PC de caja y que la impresora esté encendida."
+        "El puente no está respondiendo. Revisa que el servicio esté corriendo en la PC de caja y que la impresora esté encendida."
       );
     }
   }
@@ -64,7 +64,7 @@ export class AdaptadorPuente implements PrinterAdapter {
   }
 
   async imprimir(): Promise<void> {
-    // El trabajo ya fue encolado por quien llamo a `encolar()`. Este
+    // El trabajo ya lo dejo en la cola `imprimirDocumento()`. Este
     // adaptador no escribe bytes: solo existe para que la UI sepa que el
     // camino de impresion es el puente y pueda reportar su estado.
     return;

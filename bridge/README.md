@@ -14,7 +14,10 @@ la red local. **No funciona:** una PWA servida por HTTPS no puede hacer
 peticiones a `http://192.168.x.x`. El navegador lo bloquea por contenido
 mixto y Private Network Access, y no hay forma de evitarlo desde el sitio.
 
-Por eso el puente **consulta** en vez de recibir:
+Por eso el puente **consulta** en vez de recibir. Y para que el ticket salga
+apenas se toca «Cobrar», además **escucha en tiempo real** los tickets nuevos:
+los imprime al instante, y la consulta cada 3 segundos queda de respaldo por si
+el tiempo real se cae con el wifi del local.
 
 ```
 PC de caja     ─┐
@@ -27,13 +30,19 @@ Desventaja: **necesita internet para imprimir.**
 
 ## Instalación en Windows
 
+### 0. Node 22 o más nuevo
+
+Descarga el instalador LTS de https://nodejs.org (22 o superior). Con Node 18 o
+20 el puente **no arranca**: la librería de Supabase necesita el WebSocket que
+trae Node 22 y se cae al iniciar.
+
 ### 1. Emparejar la impresora
 
-1. Encendé la PT-210.
+1. Enciende la PT-210.
 2. Configuración → Bluetooth y dispositivos → Agregar dispositivo.
-3. Emparejá (el PIN suele ser `0000` o `1234`).
+3. Empareja (el PIN suele ser `0000` o `1234`).
 4. Más opciones de Bluetooth → pestaña **Puertos COM**.
-5. Anotá el puerto marcado como **Saliente**, por ejemplo `COM5`.
+5. Anota el puerto marcado como **Saliente**, por ejemplo `COM5`.
    El de entrada no sirve.
 
 ### 2. Instalar el servicio
@@ -44,7 +53,7 @@ npm install
 cp .env.example .env
 ```
 
-Editá `.env`:
+Edita `.env`:
 
 ```
 SUPABASE_URL=...            # los mismos de la app web
@@ -111,7 +120,7 @@ Usá `npm run puertos` para ver el nombre exacto.
 | Síntoma | Causa |
 |---|---|
 | "No se pudo cargar 'serialport'" | Falta `npm install` en `bridge/` |
-| Imprime basura | Codepage o baudios equivocados. Probá 115200 |
+| Imprime basura | Codepage o baudios equivocados. Prueba 115200 |
 | No imprime nada | Puerto COM de entrada en vez de saliente |
-| Se corta a la mitad | Impresora con poca batería; dejala enchufada |
+| Se corta a la mitad | Impresora con poca batería; déjala enchufada |
 | "no hay señal del puente" en la app | El servicio no está corriendo |

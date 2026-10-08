@@ -163,9 +163,16 @@ async function main() {
 
   // Se procesa de a UNO: mandar dos tickets a la vez a una termica los
   // entrelaza y salen ilegibles.
+  //
+  // Si llega un aviso de ticket nuevo mientras se esta imprimiendo, no se
+  // descarta: se anota y se vuelve a mirar la cola apenas termina. Sin esto,
+  // el ticket esperaba a la siguiente consulta periodica.
+  let otraVez = false;
   const tick = async () => {
-    if (!corriendo || procesando) return;
+    if (!corriendo) return;
+    if (procesando) { otraVez = true; return; }
     procesando = true;
+    otraVez = false;
     try {
       // El token dura una hora y este proceso corre dias. Sin renovarlo, a la
       // hora la cola empieza a responder "permission denied" y los tickets se
@@ -192,11 +199,15 @@ async function main() {
       log(`No se pudo consultar la cola: ${e.message}`);
     } finally {
       procesando = false;
+      if (otraVez) setImmediate(tick);
     }
   };
 
   await tick();
   setInterval(tick, intervalo);
+  // Al instante, cuando alguien toca «Cobrar» o «Reimprimir» en cualquier
+  // aparato. La consulta periodica de arriba queda de respaldo.
+  cola.escucharNuevos(() => tick());
 }
 
 main().catch((e) => {

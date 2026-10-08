@@ -377,7 +377,7 @@ export function hojaCodepages(ancho: AnchoPapel = 58): Uint8Array {
   cabecera.alinear(1).negrita(true).linea("PRUEBA DE ACENTOS");
   cabecera.negrita(false).linea(`${ancho}mm - ${cols} columnas`).alinear(0);
   cabecera.linea("Mira cual bloque se lee bien");
-  cabecera.linea("y elegi ese numero en la app.");
+  cabecera.linea("y elige ese numero en la app.");
   bytes.push(...cabecera.bytes());
 
   for (const cp of CODEPAGES) {

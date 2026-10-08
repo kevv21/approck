@@ -5,6 +5,7 @@ import { registrar } from "./auth/auditoria";
 import { sesionActual } from "./auth/sesion";
 import { calcularTotales } from "./pricing";
 import { construirTicket, type DatosTicket } from "./ticket";
+import { anchoGuardado, codepageGuardado, transliterarGuardado } from "./escpos";
 import { noExisteFuncion } from "./diagnostico";
 import { previsualizarTicket } from "./ticket";
 import type {
@@ -104,8 +105,6 @@ const b64 = (bytes: Uint8Array): string => {
   return btoa(s);
 };
 
-export const desdeB64 = (s: string): Uint8Array =>
-  Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 export type EstadoGuardado = "abierta" | "pagada";
 
@@ -146,6 +145,39 @@ export interface DatosGuardarOrden {
   tomadaAt?: string;
 }
 
+type TipoDocumento = "cliente" | "cocina" | "prueba" | "precuenta";
+
+/**
+ * MANDAR A IMPRIMIR. Es el único punto de salida: cobro, reimpresión,
+ * pre-cuenta y prueba pasan por aquí.
+ *
+ * El ticket queda en la cola en el mismo toque, y la PC de caja lo imprime
+ * con el puente: se entera al instante por tiempo real, y si eso falla, en
+ * la siguiente consulta (cada 3 s).
+ *
+ * Usa el ancho, el juego de caracteres y «quitar acentos» que se eligieron en
+ * la pantalla Impresora de este aparato.
+ */
+export async function imprimirDocumento(
+  ordenId: string | null, tipo: TipoDocumento, datos: DatosTicket,
+) {
+  const d: DatosTicket = { ...datos, ancho: datos.ancho ?? anchoGuardado() };
+  const bytes = construirTicket(d, {
+    codepage: codepageGuardado(), transliterar: transliterarGuardado(),
+  });
+  await imprimirBytes(ordenId, tipo, bytes, previsualizarTicket(d));
+}
+
+/** Lo mismo, con los bytes ya armados (hojas de prueba). */
+export async function imprimirBytes(
+  ordenId: string | null, tipo: TipoDocumento, bytes: Uint8Array, preview = "",
+) {
+  const { error } = await supabase.from("print_job").insert({
+    orden_id: ordenId, tipo, payload_b64: b64(bytes), preview,
+  });
+  if (error) throw error;
+}
+
 /** Resultado de guardar: la orden, y lo que paso alrededor de ella. */
 export interface OrdenGuardada {
   orden: { id: string; numero: number; created_at: string; estado: string };
@@ -161,9 +193,8 @@ export interface OrdenGuardada {
 }
 
 /**
- * Guarda la orden con SNAPSHOT de nombres y precios y encola el ticket.
- * Ningun dispositivo imprime directo: todos escriben en print_job y la
- * estacion de caja es la unica que habla con la PT-210.
+ * Guarda la orden con SNAPSHOT de nombres y precios y manda a imprimir el
+ * ticket por donde imprime este aparato (`imprimirDocumento`).
  *
  * Orden y lineas entran JUNTAS, por la funcion `crear_orden` de la base
  * (16_crear_orden.sql): todo o nada, e idempotente respecto de `idLocal`.
@@ -334,10 +365,10 @@ const ticketDe = (
   fecha: new Date(orden.created_at), totales: t,
 });
 
-/** Encola sin lanzar: devuelve si llego a la cola. */
+/** Manda a imprimir sin lanzar: devuelve si llegó a la cola. */
 async function encolarSinFallar(ordenId: string, datos: DatosTicket): Promise<boolean> {
   try {
-    await encolar(ordenId, "cliente", datos);
+    await imprimirDocumento(ordenId, "cliente", datos);
     return true;
   } catch (e) {
     const { reportarError } = await import("./observabilidad");
@@ -378,7 +409,7 @@ async function alCobrar(
   // una orden que quedó en la cola local ANTES de este cambio conserva
   // `imprimirCocina: true` en su payload y sacará comanda al sincronizar.
   if (d.imprimirCocina) {
-    await encolar(orden.id, "cocina", { ...base, documento: "cocina" }).catch(() => {});
+    await imprimirDocumento(orden.id, "cocina", { ...base, documento: "cocina" }).catch(() => {});
   }
 
   // El spec exige que todo descuento quede registrado con usuario, hora y
@@ -516,56 +547,9 @@ export async function restaurarOrden(ordenId: string) {
   return data;
 }
 
-export async function encolar(
-  ordenId: string | null,
-  tipo: "cliente" | "cocina" | "prueba" | "precuenta",
-  datos: DatosTicket
-) {
-  const bytes = construirTicket(datos, { transliterar: false });
-  const { error } = await supabase.from("print_job").insert({
-    orden_id: ordenId,
-    tipo,
-    payload_b64: b64(bytes),
-    preview: previsualizarTicket(datos),
-  });
-  if (error) throw error;
-}
 
-export async function encolarBytes(
-  ordenId: string | null,
-  tipo: "cliente" | "cocina" | "prueba" | "precuenta",
-  bytes: Uint8Array,
-  preview = ""
-) {
-  const { error } = await supabase.from("print_job").insert({
-    orden_id: ordenId, tipo, payload_b64: b64(bytes), preview,
-  });
-  if (error) throw error;
-}
 
-export async function jobsPendientes() {
-  const { data, error } = await supabase
-    .from("print_job").select("*")
-    .in("estado", ["pendiente", "error"])
-    .lt("intentos", 5)
-    .order("created_at").limit(20);
-  if (error) throw error;
-  return data ?? [];
-}
 
-export async function marcarJob(
-  id: string,
-  estado: "imprimiendo" | "impreso" | "error",
-  err?: string,
-  intentos?: number
-) {
-  await supabase.from("print_job").update({
-    estado,
-    error: err ?? null,
-    ...(intentos != null ? { intentos } : {}),
-    ...(estado === "impreso" ? { impreso_at: new Date().toISOString() } : {}),
-  }).eq("id", id);
-}
 
 export interface OrdenBreve {
   id: string;
@@ -680,14 +664,14 @@ export async function reimprimir(ordenId: string, cocina = false) {
     detalle: { orden: o.numero, documento: cocina ? "cocina" : "cliente" },
   });
 
-  await encolar(ordenId, cocina ? "cocina" : "cliente", {
+  await imprimirDocumento(ordenId, cocina ? "cocina" : "cliente", {
     numero: o.numero, tipo: o.tipo, mesa: o.mesa, cliente: o.cliente,
     telefonoCliente: o.telefono_cliente, direccion: o.direccion, notas: o.notas,
     metodoPago: o.metodo_pago, recibido: o.recibido, atendio: o.atendio,
     fecha: new Date(o.created_at), totales: t,
     reimpresion: !cocina,
     documento: cocina ? "cocina" : "cliente",
-    ancho: (o.ancho_papel as 58 | 80) ?? 58,
+    ancho: (o.ancho_papel as 58 | 80) ?? undefined,
     tipoCambio: o.tipo_cambio ?? 0,
   });
 }

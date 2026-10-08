@@ -881,6 +881,46 @@ propagado fallan 2; quitando una columna de la función, la prueba la nombra.
 
 **266 pruebas.**
 
+### Impresión: solo por internet, al tocar imprimir
+
+Pedido del dueño: quitar la «zona de impresiones», dejar solo la conexión por
+internet, y que imprima en el momento de darle imprimir.
+
+- **Se fue la Estación de impresión** (`/estacion`) con sus seis modos (RawBT
+  por Bluetooth, USB, puerto COM, Web Bluetooth, navegador y puente) y la
+  pantalla que había que dejar abierta en un aparato para vaciar la cola. Se
+  borraron sus adaptadores. **«Probar impresora»** (`/prueba`) también se fue:
+  conectaba por Web Bluetooth y puerto COM.
+- **Un solo camino:** cualquier aparato deja el ticket en la cola y lo
+  imprime la PC de caja con el puente. Hay **un solo punto de salida**
+  (`imprimirDocumento`) para cobro, reimpresión, pre-cuenta y prueba.
+- **Al instante:** el puente ahora escucha en tiempo real los tickets nuevos
+  y los imprime apenas entran. Antes esperaba a la consulta de cada 3 s, que
+  queda de respaldo. Si llega un ticket mientras imprime otro, vuelve a mirar
+  la cola al terminar en vez de esperar la siguiente consulta.
+- **Pantalla nueva «Impresora»** (`/impresora`, en «Más»): dice si la PC de
+  caja está respondiendo, y tiene ancho del papel, hoja de acentos, «quitar
+  acentos» y recibo de prueba. Esas preferencias ahora se usan en TODO lo que
+  se imprime; antes la cola ignoraba el juego de caracteres elegido.
+- Se quedan «Imprimir aquí» y «Descargar recibo» en la caja (Más opciones):
+  no son un modo de impresión sino el respaldo desde el navegador cuando no
+  hay internet o la PC está apagada.
+
+**Fallo encontrado de paso:** con la versión actual de supabase-js, **el
+puente no arranca en Node 18 ni 20** (se cae al construir el cliente: le
+falta el WebSocket nativo), aunque su `package.json` decía `>=18`. Es el mismo
+fallo que ya se había corregido en la app. Ahora pide `>=22` y el README de
+`bridge/` lo dice como paso 0. El tiempo real se comprobó contra un servidor
+sin WebSocket: avisa que está caído y sigue con la consulta, sin caerse.
+
+Riesgo que queda, y es de diseño: sin internet o con la PC apagada no sale
+ningún ticket.
+
+`docs/PROBAR.md` reescrito para este flujo; `bridge/README.md` y el
+`README` actualizados, y sin voseo.
+
+**256 pruebas** (se fueron las de RawBT y de selección de modo).
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

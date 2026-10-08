@@ -14,5 +14,5 @@
     "@supabase/supabase-js": "^2.45.4",
     "serialport": "^12.0.0"
   },
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=22" }
 }

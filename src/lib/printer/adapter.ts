@@ -1,34 +1,23 @@
 import type { AnchoPapel } from "../escpos";
 
 /**
- * Capa de impresion intercambiable (docs/SPEC.md, "Capa de impresion").
+ * Capa de impresion.
  *
- * Existen tres implementaciones porque ningun metodo funciona en todas
- * partes:
+ * Se imprime por UN solo camino: internet. Cualquier aparato —telefono,
+ * iPhone, tablet, PC— deja el ticket en la cola (`print_job`) en el momento
+ * de cobrar, reimprimir o pedir la pre-cuenta, y lo imprime la PC de caja con
+ * el servicio del puente (bridge/), que tiene la impresora conectada.
  *
- *   rawbt    App puente de Android que habla Bluetooth CLASICO (SPP). Es la
- *            unica via desde el telefono cuando la impresora no expone BLE,
- *            que es el caso de la PT-210 del local: pide PIN al vincularla,
- *            y BLE nunca pide PIN.
+ *   puente   Ese servicio. En la app solo sirve para saber si esta vivo.
+ *   html     No es un camino de impresion: «Imprimir aqui» y «Descargar
+ *            recibo» de la caja, el respaldo con window.print() para cuando
+ *            no hay internet o la PC esta apagada.
  *
- *   usb      WebUSB con cable OTG. El selftest de la PT-210 reporta USB&BT,
- *            asi que este camino existe y no depende de Bluetooth.
- *
- *   puente   Un servicio Node en la PC de caja, emparejado con la impresora
- *            por Bluetooth SPP, que consulta la cola y imprime. Es el unico
- *            camino que sirve para iPhone, porque el telefono solo escribe
- *            en la cola y nunca habla con la impresora.
- *
- *   bluetooth  Web Bluetooth directo. Solo Chrome/Edge en Android y PC.
- *              Nunca en iOS: Safari no implementa la API.
- *
- *   serial     Web Serial. Chrome/Edge en PC contra un puerto COM, util
- *              cuando la PT-210 ya esta emparejada en Windows.
- *
- *   html       Ultimo recurso: recibo en HTML con window.print() y descarga.
- *              Funciona en cualquier navegador, incluido iPhone.
+ * Antes habia seis modos (RawBT por Bluetooth, USB, puerto COM, Web
+ * Bluetooth, navegador y puente) y una «estacion» que tenia que quedar
+ * abierta en un aparato. El dueño pidio dejar solo internet.
  */
-export type TipoAdaptador = "rawbt" | "puente" | "bluetooth" | "serial" | "usb" | "html";
+export type TipoAdaptador = "puente" | "html";
 
 export interface EstadoImpresora {
   conectada: boolean;

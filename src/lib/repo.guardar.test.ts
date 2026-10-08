@@ -91,7 +91,9 @@ vi.mock("./auth/auditoria", () => ({ registrar: async () => {} }));
 vi.mock("./auth/sesion", () => ({ sesionActual: () => ({ nombre: "Ana" }) }));
 vi.mock("./observabilidad", () => ({ reportarError: () => {} }));
 
-const { guardarYEncolar } = await import("./repo");
+
+
+const { guardarYEncolar, imprimirDocumento } = await import("./repo");
 
 const pizza: LineaOrden = {
   id: "l1", productoId: "", nombre: "Hawaiana", precioUnit: 29000, cantidad: 1,
@@ -190,5 +192,21 @@ describe("base sin actualizar (falta crear_orden)", () => {
     const b = await guardarYEncolar(datos());
     expect(b.yaExistia).toBe(true);
     expect(base.ordenes).toHaveLength(1);
+  });
+});
+
+describe("por dónde sale el ticket", () => {
+  it("queda en la cola como pendiente, para que lo imprima la PC de caja", async () => {
+    await guardarYEncolar(datos());
+    expect(base.jobs).toHaveLength(1);
+    expect((base.jobs[0] as { estado?: string }).estado).toBeUndefined(); // pendiente por defecto
+    expect((base.jobs[0] as { tipo: string }).tipo).toBe("cliente");
+  });
+
+  it("la pre-cuenta también va a la cola, sin orden asociada", async () => {
+    await imprimirDocumento(null, "precuenta", {
+      numero: 0, tipo: "mesa", fecha: new Date(), totales: { lineas: [] } as never,
+    });
+    expect(base.jobs).toEqual([expect.objectContaining({ orden_id: null, tipo: "precuenta" })]);
   });
 });

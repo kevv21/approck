@@ -102,6 +102,35 @@ export class Cola {
   }
 
   /**
+   * Avisa EN EL MOMENTO en que entra un ticket a la cola, para imprimirlo sin
+   * esperar a la siguiente consulta. Es un acelerador, no el mecanismo: si el
+   * tiempo real no conecta (wifi del local, Node sin WebSocket), la consulta
+   * cada pocos segundos sigue imprimiendo todo. Nunca lanza.
+   */
+  escucharNuevos(alLlegar) {
+    if (typeof globalThis.WebSocket === "undefined") {
+      this.log("Sin tiempo real (Node sin WebSocket; usa Node 22): solo consulta periódica.");
+      return () => {};
+    }
+    try {
+      const canal = this.db
+        .channel("puente_print_job")
+        .on("postgres_changes",
+            { event: "INSERT", schema: "public", table: "print_job" },
+            () => alLlegar())
+        .subscribe((estado) => {
+          if (estado === "SUBSCRIBED") this.log("Tiempo real activo: los tickets salen al instante.");
+          else if (estado === "CHANNEL_ERROR" || estado === "TIMED_OUT")
+            this.log(`Tiempo real caído (${estado}); sigue la consulta periódica.`);
+        });
+      return () => { this.db.removeChannel(canal); };
+    } catch (e) {
+      this.log(`Sin tiempo real (${e.message}); sigue la consulta periódica.`);
+      return () => {};
+    }
+  }
+
+  /**
    * Latido para que la app sepa que el puente esta vivo.
    * Sin esto, la caja no tiene forma de distinguir "no hay tickets" de
    * "el puente lleva dos horas caido y nadie se dio cuenta".
