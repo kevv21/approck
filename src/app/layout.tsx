@@ -6,6 +6,7 @@ import RegistrarSW from "@/components/RegistrarSW";
 import Acceso from "@/components/Acceso";
 import ProveedorAvisos from "@/components/Avisos";
 import AppNativa from "@/components/AppNativa";
+import { AUTOR } from "@/lib/autoria";
 import "./globals.css";
 
 /*
@@ -33,6 +34,9 @@ const display = Big_Shoulders({
 export const metadata: Metadata = {
   title: "Rockzza · Rock Munchies",
   description: "POS con tickets ESC/POS, descuentos por categoría y cierres a Excel",
+  // Autoría (lib/autoria.ts): sale como <meta name="author"> y "creator".
+  authors: [{ name: AUTOR }],
+  creator: AUTOR,
   manifest: "/manifest.json",
   // Sin esto el navegador pide /favicon.ico, que no existe: un 404 en cada carga.
   icons: { icon: "/icon.svg", apple: "/icon.svg" },

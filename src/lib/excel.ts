@@ -4,6 +4,7 @@
 import type ExcelJSTypes from "exceljs";
 import { aCordobas, desglosarIva, repartirProporcional } from "./money";
 import { METODOS_PAGO, TIPOS_ORDEN, etiquetaPago, type MetodoPago, type TipoOrden } from "./types";
+import { FIRMA } from "./autoria";
 
 export interface FilaOrden {
   numero: number;
@@ -95,7 +96,8 @@ const hora = (d: Date) => `${dosDigitos(d.getHours())}:${dosDigitos(d.getMinutes
 export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Rockzza";
+  // Autoría en las propiedades del archivo, no en la hoja (lib/autoria.ts).
+  wb.creator = FIRMA;
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Cierre");

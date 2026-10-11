@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "POS para Rock Munchies - tickets ESC/POS 58mm, descuentos por categoria, cierres a Excel",
+  "author": "kjd",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

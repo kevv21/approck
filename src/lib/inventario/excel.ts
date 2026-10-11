@@ -2,6 +2,7 @@
 
 import type ExcelJSTypes from "exceljs";
 import type { ConteoItem } from "./tipos";
+import { FIRMA } from "../autoria";
 
 /**
  * Exportador fiel a Plantilla_Inventario.xlsx.
@@ -30,7 +31,8 @@ export interface DatosConteo {
 export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Rockzza";
+  // Autoría en las propiedades del archivo, no en la hoja (lib/autoria.ts).
+  wb.creator = FIRMA;
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Inventario");

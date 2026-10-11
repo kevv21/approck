@@ -9,6 +9,11 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- Autoría: Rockzza la hizo kjd (src/lib/autoria.ts). -->
+        <meta-data
+            android:name="rockzza.autor"
+            android:value="kjd" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"

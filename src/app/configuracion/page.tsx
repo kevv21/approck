@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { diagnosticar, estaListo, type Prueba } from "@/lib/diagnostico";
 import { correoVinculado, desvincular } from "@/lib/auth/dispositivo";
 import CuentasPin from "@/components/CuentasPin";
+import Firma from "@/components/Firma";
 
 const ICONO = { ok: "✓", mal: "✕", aviso: "!" } as const;
 const COLOR = { ok: "var(--ok)", mal: "var(--mal)", aviso: "var(--acc-2)" } as const;
@@ -133,6 +134,7 @@ export default function Configuracion() {
           )}
         </div>
       )}
+      <Firma className="pt-3" />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   alCambiarVinculo, requiereCuenta, sesionGuardada,
 } from "@/lib/auth/dispositivo";
 import VincularDispositivo from "@/components/VincularDispositivo";
+import Firma from "@/components/Firma";
 import { registrar } from "@/lib/auth/auditoria";
 import { hayConfig } from "@/lib/supabase";
 import { usePathname, useRouter } from "next/navigation";
@@ -168,6 +169,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
           <p className="text-center text-sm" style={{ color: "var(--mal)" }}>{error}</p>
         )}
       </div>
+      <Firma className="mt-4" />
     </div>
   );
 }

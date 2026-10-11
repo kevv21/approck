@@ -1091,6 +1091,45 @@ Auditoría: 0 vulnerabilidades.
 
 **297 pruebas.**
 
+### Retoques visuales en Figma — propuesta, sin aprobar
+
+Pedido: usar Figma para retoques visuales y de sensación de la app actual, y
+dejar preparado el cambio de marca para otros locales (solo logo y colores).
+Archivo: <https://www.figma.com/design/BHKTBBbZ3MwSS2Rvhw6kHM>
+— «1 · Sistema» (tokens, tipografía, componentes), «2 · Pantallas» (Acceso,
+Caja, Pedido, Cobrada y las dos de «Otro local») y «3 · Sensación»
+(movimiento, vibración, textura). **Nada de esto está en el código**: espera
+aprobación. El plan de Figma (Starter) solo deja un modo por colección de
+variables, así que cada marca es una colección aparte.
+
+### Firma de autoría — 2026-10-11
+
+Pedido: dejar, en pequeño y sin que se note, constancia de que la app la hizo
+**kjd**. Vive en un solo lugar, `src/lib/autoria.ts`, y de ahí sale a:
+- los metadatos de la página: `<meta name="author" content="kjd">` y
+  `creator`;
+- el pie del acceso y de Estado: «Rockzza · kjd», a 10px y media opacidad;
+- las propiedades de los Excel de cierre e inventario (Autor), **no la
+  hoja**: el cierre se imprime y se firma, y ahí no tiene nada que hacer;
+- el manifiesto del APK (`rockzza.autor`), que entra en el próximo APK;
+- el `package.json` de la app y del puente.
+
+Nunca en el recibo: ese papel es del cliente. Es de la plataforma, no de la
+marca: cuando la app lleve el nombre de otro local, se queda.
+
+Límite: es una constancia, no una protección. El repositorio es público y la
+firma se borra con una línea. Pendiente de decidir: el certificado de la
+llave de firma del APK dice `CN=Rockzza, O=Rock Munchies`; si tiene que decir
+kjd, hay que generar otra llave **antes** del primer APK automático (hoy solo
+existe el APK 1, entregado a mano).
+
+Dos pruebas nuevas fijan que el autor va en las propiedades de cada Excel y
+no en la hoja; comprobadas al revés (con el autor viejo, fallan). Verificado
+a 360px: la firma sale en el acceso y en Estado, sin desbordamiento, y la
+página lleva los dos `<meta>`.
+
+**300 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a

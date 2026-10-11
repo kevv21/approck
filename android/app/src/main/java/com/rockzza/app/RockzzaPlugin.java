@@ -46,6 +46,8 @@ import java.util.concurrent.Executors;
  *
  * Todo lo que toca la impresora pasa por UNA cola de un solo hilo: dos tickets
  * a la vez se intercalarían en el papel.
+ *
+ * Rockzza · kjd
  */
 @CapacitorPlugin(
     name = "Rockzza",

@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { generarInventarioExcel, nombreArchivoInventario } from "./excel";
 import { normalizarUnidad } from "./tipos";
 import type { ConteoItem } from "./tipos";
+import { AUTOR, FIRMA } from "../autoria";
 
 const items: ConteoItem[] = [
   { insumo_id: "1", nombre_snapshot: "Harina", unidad_snapshot: "Arroba", cantidad: 2.5 },
@@ -104,6 +105,12 @@ describe("metadatos sin alterar la plantilla", () => {
     }));
     expect(wb.getWorksheet("Datos")).toBeUndefined();
     expect(wb.worksheets).toHaveLength(1);
+  });
+
+  it("la autoría va en las propiedades del archivo, no en la hoja", async () => {
+    const wb = await abrir(await generarInventarioExcel({ fecha: "2026-09-19", items }));
+    expect(wb.creator).toBe(FIRMA);
+    expect(wb.getWorksheet("Inventario")!.headerFooter?.oddHeader ?? "").not.toContain(AUTOR);
   });
 
   it("el pedido sale en su propia columna y como listado abajo", async () => {

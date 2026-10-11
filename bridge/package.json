@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Servicio de impresion para la PC de caja: consulta la cola y manda los tickets a la impresora termica.",
+  "author": "kjd",
   "main": "index.mjs",
   "scripts": {
     "start": "node index.mjs",

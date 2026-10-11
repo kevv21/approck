@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { generarCierreExcel, nombreArchivoCierre, type FilaOrden } from "./excel";
 import { centavos } from "./money";
 import { METODOS_PAGO } from "./types";
+import { AUTOR, FIRMA } from "./autoria";
 
 const orden = (
   numero: number,
@@ -59,6 +60,17 @@ describe("encabezado", () => {
     expect(txt).toContain("CIERRE DE CAJA");
     expect(txt).toContain("Día: 19/09/2026");
     expect(txt).toMatch(/Hora: \d{2}:\d{2}/);
+  });
+});
+
+describe("autoría", () => {
+  it("va en las propiedades del archivo, no en la hoja que se imprime y se firma", async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await (await generarCierreExcel(base)).arrayBuffer());
+    expect(wb.creator).toBe(FIRMA);
+    const ws = wb.getWorksheet("Cierre")!;
+    expect(textoDe(ws)).not.toContain(AUTOR);
+    expect(ws.headerFooter?.oddFooter ?? "").not.toContain(AUTOR);
   });
 });
 
