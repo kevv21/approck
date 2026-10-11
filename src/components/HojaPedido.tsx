@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useAtras } from "@/lib/nativo/atras";
 
 /**
  * El pedido como hoja que sube desde abajo, en teléfono.
@@ -20,6 +21,8 @@ export default function HojaPedido({
   pie?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  useAtras(abierta, onCerrar);
+
   useEffect(() => {
     if (!abierta) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
@@ -63,7 +66,7 @@ export default function HojaPedido({
         {pie && (
           <div className="shrink-0 px-3 pb-3 pt-2"
                style={{ borderTop: "1px solid var(--borde)",
-                        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}>
+                        paddingBottom: "calc(var(--sa-bottom) + 12px)" }}>
             {pie}
           </div>
         )}

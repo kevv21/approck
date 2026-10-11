@@ -95,7 +95,7 @@ const hora = (d: Date) => `${dosDigitos(d.getHours())}:${dosDigitos(d.getMinutes
 export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "APPROCK";
+  wb.creator = "Rockzza";
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Cierre");
@@ -406,7 +406,7 @@ export async function generarCierreExcel(d: DatosCierre): Promise<Blob> {
     fitToPage: true, fitToWidth: 1, fitToHeight: 0,
     margins: { left: 0.5, right: 0.5, top: 0.6, bottom: 0.5, header: 0.3, footer: 0.3 },
   };
-  ws.headerFooter.oddFooter = "&LGenerado por APPROCK&RPágina &P de &N";
+  ws.headerFooter.oddFooter = "&LGenerado por Rockzza&RPágina &P de &N";
 
   const buf = await wb.xlsx.writeBuffer();
   return new Blob([buf], {

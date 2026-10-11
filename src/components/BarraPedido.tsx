@@ -50,7 +50,7 @@ export default function BarraPedido({
 
   return (
     <div className="fixed inset-x-0 z-30 px-3 pb-2 pt-3 lg:hidden"
-         style={{ bottom: "calc(var(--nav-alto) + env(safe-area-inset-bottom, 0px))",
+         style={{ bottom: "calc(var(--nav-alto) + var(--sa-bottom))",
                   background: "linear-gradient(to top, var(--bg) 55%, transparent)" }}>
       <button onClick={onAbrir}
               className="btn btn-acc w-full !justify-between !px-3"

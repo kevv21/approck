@@ -114,7 +114,7 @@ export default function Menu({
     <div className="min-w-0">
       {/* Fila pegada arriba: categorías o buscador. */}
       <div className="sticky z-20 -mx-3 mb-2 px-3 py-2 lg:mx-0 lg:rounded-2xl lg:px-2"
-           style={{ top: "calc(var(--header-alto) + env(safe-area-inset-top, 0px))",
+           style={{ top: "calc(var(--header-alto) + var(--sa-top))",
                     background: "var(--bg)" }}>
         {buscando ? (
           <div className="flex items-center gap-2">

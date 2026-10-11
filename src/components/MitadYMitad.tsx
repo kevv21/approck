@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAtras } from "@/lib/nativo/atras";
 import { fmtC } from "@/lib/money";
 import {
   precioMitadYMitad, type MitadPizza, type Producto, type ReglaMitades,
@@ -89,6 +90,8 @@ export default function MitadYMitad({
   const [filtro, setFiltro] = useState("");
 
   // Escape cierra. En PC es el reflejo de cualquiera frente a un modal.
+  useAtras(true, onCancelar);
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onCancelar(); };
     window.addEventListener("keydown", h);

@@ -5,6 +5,7 @@ import IndicadorConexion from "@/components/IndicadorConexion";
 import RegistrarSW from "@/components/RegistrarSW";
 import Acceso from "@/components/Acceso";
 import ProveedorAvisos from "@/components/Avisos";
+import AppNativa from "@/components/AppNativa";
 import "./globals.css";
 
 /*
@@ -30,12 +31,12 @@ const display = Big_Shoulders({
 });
 
 export const metadata: Metadata = {
-  title: "APPROCK - Rock Munchies",
+  title: "Rockzza · Rock Munchies",
   description: "POS con tickets ESC/POS, descuentos por categoría y cierres a Excel",
   manifest: "/manifest.json",
   // Sin esto el navegador pide /favicon.ico, que no existe: un 404 en cada carga.
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "APPROCK" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Rockzza" },
 };
 
 export const viewport: Viewport = {
@@ -56,10 +57,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b px-3 lg:px-4"
                 style={{ background: "var(--panel)", borderColor: "var(--borde)",
                          height: "var(--header-alto)",
-                         paddingTop: "env(safe-area-inset-top, 0px)",
+                         paddingTop: "var(--sa-top)",
                          boxSizing: "content-box" }}>
+          {/* Rockzza: rock + pizza. El ícono es una porción con forma de púa. */}
           <span className="display text-2xl" style={{ color: "var(--acc)" }}>
-            Approck
+            Rockzza
           </span>
           <PestanasArriba />
           <span className="flex-1 lg:hidden" />
@@ -67,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <RegistrarSW />
         <ProveedorAvisos>
+          <AppNativa />
           <Acceso>
             <main className="con-nav">{children}</main>
           </Acceso>

@@ -30,7 +30,7 @@ export interface DatosConteo {
 export async function generarInventarioExcel(d: DatosConteo): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "APPROCK";
+  wb.creator = "Rockzza";
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Inventario");

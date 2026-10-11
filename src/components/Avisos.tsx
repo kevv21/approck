@@ -3,6 +3,7 @@
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
+import { vibrar } from "@/lib/nativo/rockzza";
 
 /**
  * AVISOS DE LO QUE ACABA DE PASAR
@@ -45,6 +46,13 @@ const DURACION = 3200;
 /** Con deshacer se da más tiempo: hay que leerlo y decidir. */
 const DURACION_DESHACER = 5500;
 
+/**
+ * Lo que se siente en la mano con cada aviso. Corto para lo que salió bien
+ * (se nota sin mirar que la pizza entró), más largo para un error, que es lo
+ * que no se puede pasar por alto con el teléfono en la otra mano.
+ */
+const VIBRACION: Record<TonoAviso, number> = { agregado: 10, cambiado: 10, quitado: 14, error: 40 };
+
 const COLOR: Record<TonoAviso, string> = {
   agregado: "var(--ok)",
   cambiado: "var(--acc-2)",
@@ -63,6 +71,7 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
   }, []);
 
   const avisar = useCallback((a: Omit<Aviso, "id">) => {
+    vibrar(VIBRACION[a.tono]);
     if (reloj.current) clearTimeout(reloj.current);
     setAviso({ ...a, id: ++siguiente.current });
     reloj.current = setTimeout(
@@ -87,7 +96,7 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
           // Encima de la barra de navegación y, en la caja, de la barra del
           // pedido. La hoja del pedido fija su propio --aviso-abajo, porque
           // su pie —total y cobrar— es lo que no se puede tapar.
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + var(--aviso-abajo, calc(var(--nav-alto) + var(--barra-alto, 0px) + 12px)))" }}
+          style={{ bottom: "calc(var(--sa-bottom) + var(--aviso-abajo, calc(var(--nav-alto) + var(--barra-alto, 0px) + 12px)))" }}
         >
           <div className="pointer-events-auto flex w-full max-w-md items-center gap-3
                           rounded-xl px-3.5 py-3"

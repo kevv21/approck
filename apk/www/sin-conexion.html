@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rockzza</title>
+<style>
+  /* Mismos colores que la app (src/app/globals.css). Sin fuentes de
+     internet: esta página existe justo para cuando no hay. */
+  :root { --bg:#121016; --panel:#1b1820; --borde:#38323f; --txt:#f5f0e6;
+          --txt-2:#b8afc2; --acc:#ffc83d; --sobre-acc:#231803; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--txt);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { min-height:100%; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:20px; text-align:center;
+    padding: calc(24px + var(--safe-area-inset-top, 0px)) 24px
+             calc(24px + var(--safe-area-inset-bottom, 0px)); }
+  h1 { margin:0; font-size:28px; letter-spacing:.02em; }
+  p { margin:0; max-width:320px; line-height:1.45; color:var(--txt-2); font-size:16px; }
+  button { min-height:52px; min-width:220px; border:0; border-radius:14px;
+    background:var(--acc); color:var(--sobre-acc); font-size:17px; font-weight:700; }
+  button:active { transform: scale(.97); }
+  small { color:var(--txt-2); font-size:13px; min-height:1em; }
+  svg { width:96px; height:96px; }
+</style>
+</head>
+<body>
+<main>
+  <svg viewBox="0 0 192 192" aria-hidden="true">
+    <rect width="192" height="192" rx="40" fill="#1b1820"/>
+    <path d="M96 30 38 150a6 6 0 0 0 6.6 8.3C61 155 78 153 96 153s35 2 51.4 5.3a6 6 0 0 0 6.6-8.3Z" fill="#ffc83d"/>
+    <circle cx="84" cy="112" r="10" fill="#1b1820"/><circle cx="110" cy="92" r="9" fill="#1b1820"/>
+    <circle cx="108" cy="130" r="8" fill="#1b1820"/>
+  </svg>
+  <h1 id="titulo">Sin conexión</h1>
+  <p id="texto">La primera vez, Rockzza necesita internet para descargarse. Después abre
+    sin señal y puedes tomar pedidos igual.</p>
+  <button id="reintentar" type="button">Reintentar</button>
+  <small id="estado" role="status"></small>
+</main>
+<script>
+  var APP = "https://approck.vercel.app/";
+  var estado = document.getElementById("estado");
+  if (navigator.onLine) {
+    // Hay red pero la app no respondió: no es culpa del teléfono.
+    document.getElementById("titulo").textContent = "No se pudo abrir Rockzza";
+    document.getElementById("texto").textContent =
+      "El teléfono tiene internet, pero la app no respondió. Espera un momento y reintenta.";
+  }
+  function abrir() { estado.textContent = "Abriendo…"; location.replace(APP); }
+  document.getElementById("reintentar").addEventListener("click", abrir);
+  // Vuelve sola en cuanto regresa la señal.
+  window.addEventListener("online", abrir);
+</script>
+</body>
+</html>

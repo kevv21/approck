@@ -11,6 +11,8 @@ import {
 import { construirTicket, hojaCodepages, type DatosTicket } from "@/lib/ticket";
 import { imprimirBytes } from "@/lib/repo";
 import { impresoraBluetooth } from "@/lib/printer/salida";
+import { enApk } from "@/lib/nativo/rockzza";
+import ImpresoraTelefono from "@/components/ImpresoraTelefono";
 import { useSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/auth/permisos";
 import { calcularTotales } from "@/lib/pricing";
@@ -47,6 +49,11 @@ export default function Impresora() {
   const [pc, setPc] = useState<{ viva: boolean; detalle?: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const maestra = puede(useSesion()?.rol, "imprimir");
+  // En el APK la impresora del teléfono es Bluetooth clásico (nativo); en
+  // Chrome, Bluetooth de baja energía. Se decide al montar: al prerenderizar
+  // no se sabe dónde va a correr.
+  const [apk, setApk] = useState(false);
+  useEffect(() => { setApk(enApk()); }, []);
 
   useEffect(() => {
     setAncho(anchoGuardado());
@@ -78,7 +85,7 @@ export default function Impresora() {
       const salida = await imprimirBytes(null, "prueba", bytes, que);
       avisar({
         texto: `${que} enviada`,
-        detalle: salida === "bluetooth" ? "Salió por Bluetooth, desde este teléfono" : "La imprime la PC de caja",
+        detalle: salida === "bluetooth" ? "Salió por la impresora de este teléfono" : "La imprime la PC de caja",
         tono: "agregado",
       });
     } catch (e) {
@@ -102,7 +109,8 @@ export default function Impresora() {
         <p className="mt-1 text-sm leading-snug" style={{ color: "var(--txt-2)" }}>
           Los tickets se imprimen <b>por internet</b>: al cobrar, reimprimir o pedir la
           pre-cuenta, el ticket sale en la <b>PC de caja</b>, que tiene la impresora
-          conectada. Funciona igual desde cualquier teléfono, iPhone incluido.
+          conectada. Funciona igual desde cualquier teléfono, iPhone incluido. Si este
+          teléfono tiene su propia impresora (más abajo), sale directo por ella.
         </p>
       </div>
 
@@ -124,14 +132,19 @@ export default function Impresora() {
           <p className="text-xs leading-snug" style={{ color: "var(--txt-2)" }}>
             Revisa que la PC esté encendida, con internet, con la impresora conectada y
             con el servicio del puente corriendo. Mientras tanto, la cuenta maestra puede
-            conectar la impresora por Bluetooth aquí abajo, o imprimir el recibo desde
+            usar una impresora con este teléfono aquí abajo, o imprimir el recibo desde
             el navegador («Más opciones» → «Imprimir aquí»).
           </p>
         )}
       </div>
 
-      <Bluetooth maestra={maestra} pcCaida={pc != null && !pc.viva}
-                 prueba={() => construirTicket(ejemplo(), { codepage, transliterar })} />
+      {apk ? (
+        <ImpresoraTelefono maestra={maestra} pcCaida={pc != null && !pc.viva}
+                           prueba={() => construirTicket(ejemplo(), { codepage, transliterar })} />
+      ) : (
+        <Bluetooth maestra={maestra} pcCaida={pc != null && !pc.viva}
+                   prueba={() => construirTicket(ejemplo(), { codepage, transliterar })} />
+      )}
 
       <div className="panel space-y-3 p-4">
         <span className="rotulo">Papel</span>

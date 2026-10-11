@@ -25,6 +25,9 @@ import { previsualizarTicket, type DatosTicket } from "@/lib/ticket";
 import { descargarHtml, imprimirHtml } from "@/lib/printer";
 import { imprimeDirecto, pcResponde } from "@/lib/printer/salida";
 import { useRouter } from "next/navigation";
+import { useAtras } from "@/lib/nativo/atras";
+import { enApk } from "@/lib/nativo/rockzza";
+
 import { hayConfig } from "@/lib/supabase";
 import { BASE_DESACTUALIZADA, noExisteColumna, noExisteFuncion } from "@/lib/diagnostico";
 import {
@@ -103,6 +106,9 @@ export default function Caja() {
   const [confirmaCancelar, setConfirmaCancelar] = useState(false);
   /** Motivo de la anulación de la orden abierta; null = diálogo cerrado. */
   const [motivoAnular, setMotivoAnular] = useState<string | null>(null);
+  // «Atrás» de Android cierra el diálogo, no la pantalla.
+  useAtras(confirmaCancelar, () => setConfirmaCancelar(false));
+  useAtras(motivoAnular !== null, () => setMotivoAnular(null));
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
   /** Sube tras cada orden guardada, para recargar las listas de órdenes. */
@@ -396,11 +402,14 @@ export default function Caja() {
       if (r.id && !imprimeDirecto()) {
         pcResponde().then((viva) => {
           if (viva) return;
+          const apk = enApk();
           avisar({
             texto: `${texto} · la PC de caja no responde`,
-            detalle: "El ticket sale cuando vuelva. Para imprimir ya, conecta la impresora por Bluetooth.",
+            detalle: apk
+              ? "El ticket sale cuando vuelva. Para imprimir ya, elige una impresora en este teléfono."
+              : "El ticket sale cuando vuelva. Para imprimir ya, conecta la impresora por Bluetooth.",
             tono: "cambiado",
-            accion: { texto: "Conectar", hacer: () => router.push("/impresora") },
+            accion: { texto: apk ? "Elegir" : "Conectar", hacer: () => router.push("/impresora") },
           });
         });
       }

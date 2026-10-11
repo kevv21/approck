@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSesion } from "@/lib/auth/sesion";
 import { puedeVer } from "@/lib/auth/permisos";
+import { useAtras } from "@/lib/nativo/atras";
 
 /**
  * NAVEGACIÓN
@@ -79,8 +80,9 @@ export function NavAbajo() {
   const { principales, otras } = useSecciones();
   const enOtra = otras.some((o) => activa(ruta, o.href));
 
-  // Cambiar de pantalla cierra el menú.
+  // Cambiar de pantalla cierra el menú, y «atrás» también.
   useEffect(() => { setMas(false); }, [ruta]);
+  useAtras(mas, () => setMas(false));
 
   useEffect(() => {
     if (!mas) return;
@@ -95,7 +97,7 @@ export function NavAbajo() {
            className="fixed inset-x-0 bottom-0 z-40 grid border-t lg:hidden"
            style={{ background: "var(--panel)", borderColor: "var(--borde)",
                     gridTemplateColumns: `repeat(${principales.length + 1}, minmax(0, 1fr))`,
-                    paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+                    paddingBottom: "var(--sa-bottom)" }}>
         {principales.map((n) => (
           <Boton key={n.href} item={n} on={activa(ruta, n.href)} />
         ))}
@@ -113,7 +115,7 @@ export function NavAbajo() {
              style={{ background: "var(--velo)" }}>
           <div role="menu" aria-label="Más secciones"
                className="subir absolute inset-x-0 rounded-t-2xl p-2"
-               style={{ bottom: "calc(var(--nav-alto) + env(safe-area-inset-bottom, 0px))",
+               style={{ bottom: "calc(var(--nav-alto) + var(--sa-bottom))",
                         background: "var(--panel-3)", borderTop: "1px solid var(--borde-2)" }}
                onClick={(e) => e.stopPropagation()}>
             {otras.map((n) => {

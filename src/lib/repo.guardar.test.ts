@@ -97,11 +97,9 @@ vi.mock("./auth/sesion", () => ({ sesionActual: () => ({ nombre: "Ana", rol: qui
 const ble = { conectada: false, falla: false, impresos: [] as Uint8Array[] };
 vi.mock("./printer/salida", () => ({
   imprimeDirecto: () => ble.conectada,
-  impresoraBluetooth: {
-    imprimir: async (b: Uint8Array) => {
-      if (ble.falla) throw new Error("GATT Server is disconnected");
-      ble.impresos.push(b);
-    },
+  imprimirDirecto: async (b: Uint8Array) => {
+    if (ble.falla) throw new Error("GATT Server is disconnected");
+    ble.impresos.push(b);
   },
 }));
 vi.mock("./observabilidad", () => ({ reportarError: () => {} }));

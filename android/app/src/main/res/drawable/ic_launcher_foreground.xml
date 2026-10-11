@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La porción de pizza con forma de púa de guitarra: Rockzza.
+     Mismo dibujo que public/icon.svg (192x192), reducido a la zona segura
+     del ícono adaptable (66dp de 108dp) para que ningún recorte lo corte. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.41"
+        android:scaleY="0.41"
+        android:translateX="14.64"
+        android:translateY="10.09">
+        <path
+            android:fillColor="#FFC83D"
+            android:pathData="M96,30 L38,150 a6,6 0 0,0 6.6,8.3 C61,155 78,153 96,153 s35,2 51.4,5.3 a6,6 0 0,0 6.6,-8.3 Z" />
+        <path
+            android:fillColor="#121016"
+            android:pathData="M74,112 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0 Z M101,92 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z M100,130 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0 Z" />
+    </group>
+</vector>

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   APPROCK — sistema visual (v3, «cartel de serigrafía»)
+   ROCKZZA — sistema visual (v3, «cartel de serigrafía»)
    ===========================================================================
 
    De dónde sale: Rock Munchies es rock y pizza. Los carteles de conciertos se
@@ -26,6 +26,15 @@
    =========================================================================== */
 
 :root {
+  /* Zonas seguras (muesca, barra de estado, barra de gestos). En el
+     navegador las da env(); en el APK de Android, Capacitor las inyecta como
+     --safe-area-inset-*, porque ahí env() no siempre llega bien. Todo el CSS
+     usa estas cuatro y no env() directo. */
+  --sa-top:    var(--safe-area-inset-top,    env(safe-area-inset-top, 0px));
+  --sa-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sa-left:   var(--safe-area-inset-left,   env(safe-area-inset-left, 0px));
+  --sa-right:  var(--safe-area-inset-right,  env(safe-area-inset-right, 0px));
+
   /* superficies, de más honda a más cerca */
   --bg:      #121016;   /* la sala con las luces bajas */
   --panel:   #1b1820;   /* paneles */
@@ -332,4 +341,4 @@ body {
 .desliza::-webkit-scrollbar { display: none; }
 
 /* Espacio para la barra de navegación de abajo, en teléfono. */
-.con-nav { padding-bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom, 0px)); }
+.con-nav { padding-bottom: calc(var(--nav-alto) + var(--sa-bottom)); }

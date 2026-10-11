@@ -254,6 +254,14 @@ tickets como archivos en `bridge/salida/`.
 En los demás dispositivos (incluidos iPhones) abre `/` e instala la PWA.
 `/impresora` muestra si la PC de caja está respondiendo.
 
+### 6. App de Android: Rockzza (opcional)
+
+En Android se puede instalar **Rockzza**, la misma app como APK. Se
+actualiza sola con cada publicación (abre la versión de Vercel) y suma lo que
+una página no puede: **imprimir sin PC** por Bluetooth clásico en la PT-210,
+el botón atrás de Android y vibración. Instalar, elegir la impresora y
+activar la compilación automática del APK: [`docs/APK.md`](docs/APK.md).
+
 ---
 
 ## Pantallas

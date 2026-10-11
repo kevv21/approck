@@ -14,14 +14,18 @@
     "vercel:configurar": "node scripts/configurar-vercel.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "dexie": "^4.4.6",
     "exceljs": "^4.4.0",
-    "next": "^15.5.25",
+    "next": "^15.5.27",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/cli": "8.5.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",

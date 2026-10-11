@@ -1,0 +1,106 @@
+name: APK
+
+# Compila, firma y publica el APK de Rockzza en Releases.
+#
+# Solo cuando cambia la parte de Android. Lo de todos los días (pantallas,
+# precios, arreglos) NO necesita APK nuevo: la app lo carga de Vercel y se
+# actualiza sola. La app avisa cuando hay un APK nuevo publicado aquí
+# (src/lib/apk/actualizacion.ts busca la etiqueta apk-v<número>).
+#
+# Necesita dos secretos del repositorio (ver docs/APK.md):
+#   ANDROID_KEYSTORE_B64       la llave de firma (.jks) en base64
+#   ANDROID_KEYSTORE_PASSWORD  su contraseña
+# Siempre la MISMA llave: con otra, Android rechaza la actualización.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "capacitor.config.ts"
+      - "apk/**"
+      - ".github/workflows/apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Dos publicaciones a la vez se pisarían el número de versión.
+concurrency:
+  group: apk
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      # Sin la llave no se compila. Al subir código solo se avisa (main no
+      # queda en rojo por un ajuste pendiente); a mano, falla con el motivo.
+      - name: Revisar la llave de firma
+        id: llave
+        env:
+          LLAVE: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          CLAVE: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$LLAVE" ] && [ -n "$CLAVE" ]; then
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "::error::Faltan los secretos ANDROID_KEYSTORE_B64 y ANDROID_KEYSTORE_PASSWORD. Ver docs/APK.md."
+            exit 1
+          else
+            echo "::warning::No se compiló el APK: faltan los secretos de la llave de firma (docs/APK.md)."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.llave.outputs.lista == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.llave.outputs.lista == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Capacitor 8 compila con Java 21.
+      - uses: actions/setup-java@v4
+        if: steps.llave.outputs.lista == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Instalar dependencias
+        if: steps.llave.outputs.lista == 'true'
+        run: npm ci
+
+      - name: Copiar la configuración al proyecto Android
+        if: steps.llave.outputs.lista == 'true'
+        run: npx cap sync android
+
+      # El número de versión sube solo con cada corrida. El APK 1 se compiló
+      # a mano; desde aquí empiezan en 2.
+      - name: Número de versión
+        if: steps.llave.outputs.lista == 'true'
+        run: echo "ROCKZZA_VERSION=$(( ${{ github.run_number }} + 1 ))" >> "$GITHUB_ENV"
+
+      - name: Compilar y firmar
+        if: steps.llave.outputs.lista == 'true'
+        env:
+          LLAVE: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ROCKZZA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          export ROCKZZA_KEYSTORE="$RUNNER_TEMP/rockzza-firma.jks"
+          echo "$LLAVE" | base64 -d > "$ROCKZZA_KEYSTORE"
+          cd android
+          ./gradlew assembleRelease --no-daemon
+          rm -f "$ROCKZZA_KEYSTORE"
+
+      - name: Publicar en Releases
+        if: steps.llave.outputs.lista == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK="Rockzza-${ROCKZZA_VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$APK"
+          gh release create "apk-v${ROCKZZA_VERSION}" "$APK" \
+            --target "$GITHUB_SHA" \
+            --title "Rockzza ${ROCKZZA_VERSION}" \
+            --notes "$(git log -1 --format=%s)"

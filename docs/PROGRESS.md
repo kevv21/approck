@@ -1022,6 +1022,75 @@ centro.
 
 **280 pruebas.**
 
+### Rockzza: la app de Android, y la versión nueva en producción
+
+**Producción al día.** `main` pasó a la versión de `demo-unificada` (interfaz
+nueva, editar órdenes, cuentas, anular, decimales, impresión). Antes,
+`approck.vercel.app` seguía en la versión de antes de todo eso. Comprobado:
+`/impresora` responde y `/estacion` ya no existe. Funciona con la base actual;
+las cuentas aparecen al correr `00_INSTALAR.sql`.
+
+**El APK se llama Rockzza** (rock + pizza, lo eligió el dueño) y su ícono es
+la porción con forma de púa que ya tenía la app. El nombre visible de la app
+web también pasó de «Approck» a Rockzza, para que el ícono y la pantalla
+digan lo mismo. El repositorio sigue llamándose `approck`.
+
+**Cómo está hecho (Capacitor 8.5.2, `com.rockzza.app`):** el APK abre
+`https://approck.vercel.app`; no trae la app adentro. Así cada publicación
+llega sola a los teléfonos, igual que la página. Se leyó el código de
+Capacitor antes de decidirlo: con un WebView actualizado, la página remota
+recibe el puente nativo por inyección al inicio del documento y sus
+peticiones van directo a la red, así que el service worker (la app sin
+señal) debería funcionar igual que en Chrome. Falta confirmarlo en un
+teléfono.
+
+Lo que suma el APK, en `android/app/src/main/java/com/rockzza/app/RockzzaPlugin.java`:
+- **Impresora del teléfono por Bluetooth clásico (SPP)** — la PT-210 con PIN
+  0000, que Chrome no puede ver. Se empareja en Android, se elige una vez en
+  Impresora y queda guardada; se conecta sola al imprimir. Si la conexión
+  estaba muerta y no salió nada, reconecta y reintenta una vez; si se cortó a
+  mitad del ticket, no lo repite (medio ticket dos veces confunde más) y la
+  caja dice «sin ticket» con Reimprimir. Las impresoras chinas que no publican
+  bien el servicio SPP se intentan por el canal 1, como hace RawBT.
+  Sin permiso de ubicación: solo se listan las ya emparejadas.
+- La regla de salida (`printer/salida.ts`) no cambia: si el teléfono tiene su
+  propia impresora, imprime él; si no, la PC.
+- **Botón atrás** (`nativo/atras.ts` + `AppNativa`): cierra lo último abierto
+  (hoja del pedido, diálogos de cancelar y anular, mitad y mitad, menú
+  «Más»); en la primera pantalla manda la app al fondo en vez de cerrarla.
+- **Vibración** corta con cada aviso: 10 ms al agregar o cobrar, 40 ms al
+  fallar. También en Chrome de Android.
+- Ícono adaptable (con versión monocroma para Android 13+), pantalla de
+  arranque oscura con el ícono, sin el logo de Capacitor, y una página
+  propia para cuando la primera apertura no tiene internet.
+- Zonas seguras: todo el CSS usa `--sa-*`, que toma lo que inyecta Capacitor
+  (`--safe-area-inset-*`) o, en el navegador, `env()`.
+
+**Actualizaciones del APK.** `.github/workflows/apk.yml` compila, firma y
+publica en Releases con la etiqueta `apk-v<n>` cada vez que cambia la parte de
+Android. La app compara su versión con la publicada (cada 6 h, sin cuenta: el
+repositorio es público) y muestra «Hay una versión nueva · Descargar». La
+llave de firma se generó aquí; GitHub no deja cargar secretos desde esta
+sesión, así que el dueño tiene que pegar dos secretos una vez (`docs/APK.md`).
+Sin ellos, el workflow solo deja un aviso: `main` no queda en rojo.
+
+Verificado: el proyecto Android compila (debug y release), el release está
+firmado (esquema v2) con nombre «Rockzza», `com.rockzza.app` y los permisos
+esperados (`BLUETOOTH_CONNECT`, `VIBRATE`, los viejos hasta Android 11). La
+parte web, a 360px simulando el puente de Android: elegir la PT-210 de la
+lista (las impresoras primero), prueba impresa por el teléfono, cobro impreso
+por el teléfono y registrado como ya impreso en la cola, atrás cierra la hoja
+y luego manda la app al fondo, lista vacía con los pasos para emparejar,
+aviso de APK nuevo que abre la descarga, cero desbordamiento. En el navegador
+normal todo sigue igual (cobro con la PC caída, anular).
+**Sin probar en hardware:** no hay emulador (sin virtualización) ni impresora
+en este entorno. Lo que falta confirmar está al final de `docs/APK.md`.
+
+De paso: Next 15.5.25 → 15.5.27 (aviso moderado nuevo de caché en SSG/ISR).
+Auditoría: 0 vulnerabilidades.
+
+**297 pruebas.**
+
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
       dueño. Queda como ajuste `precioMitades` por si conviene cambiar a
