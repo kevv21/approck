@@ -27,18 +27,21 @@
  *     nombre, asi que nunca quedan viejos. Solo se guarda lo que responde
  *     200, y si la red falla se busca en cache antes de rendirse.
  *   - Navegaciones: red primero con respaldo en cache.
+ *   - Archivos fijos de public/ (logo, grano, icono, manifiesto): cache
+ *     primero. Se guardan al instalar; cambian solo con VERSION.
  *   - Peticiones a Supabase: NUNCA se cachean. Servir datos viejos de
  *     ordenes o de la cola de impresion seria peor que fallar.
  */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE_SHELL = `approck-shell-${VERSION}`;
 const CACHE_ESTATICOS = `approck-static-${VERSION}`;
 
-const SHELL = [
-  "/", "/estacion", "/cierre", "/inventario", "/configuracion",
-  "/manifest.json", "/icon.svg",
-];
+// Archivos fijos de public/. Se sirven de la cache primero: sin esto el
+// logo de la pantalla del PIN salía como un hueco sin señal. Si alguno
+// cambia, hay que subir VERSION para que los teléfonos lo bajen de nuevo.
+const ARCHIVOS = ["/manifest.json", "/icon.svg", "/grano.png", "/marca/rock-munchies.svg"];
+const SHELL = ["/", "/cierre", "/inventario", "/configuracion", "/impresora", ...ARCHIVOS];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -87,6 +90,14 @@ self.addEventListener("fetch", (e) => {
   // un error honesto.
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+
+  // Archivos fijos de public/: cache primero, red si no están.
+  if (ARCHIVOS.includes(url.pathname)) {
+    e.respondWith(
+      caches.match(req, { ignoreSearch: true }).then((hit) => hit ?? fetch(req))
+    );
+    return;
+  }
 
   // Estáticos con hash: cache primero.
   if (url.pathname.startsWith("/_next/static/")) {

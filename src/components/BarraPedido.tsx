@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { fmtC } from "@/lib/money";
 
 /**
@@ -10,8 +10,9 @@ import { fmtC } from "@/lib/money";
  * fuera de la vista. Esta barra vive abajo, justo encima de la navegación, y
  * siempre dice cuántas cosas van y cuánto suman; tocarla abre el pedido.
  *
- * El contador late cuando cambia. Es el acuse de recibo más barato que hay, y
- * el que se ve sin apartar la vista del menú.
+ * El contador es el sticker del logo y se vuelve a pegar cada vez que cambia:
+ * el acuse de recibo más barato que hay, y el que se ve sin apartar la vista
+ * del menú.
  *
  * En PC no aparece: ahí el pedido ya está en la columna de al lado.
  */
@@ -24,19 +25,7 @@ export default function BarraPedido({
   /** «Orden #12»: se está corrigiendo una orden guardada, no armando una. */
   editando?: string | null;
 }) {
-  const [latiendo, setLatiendo] = useState(false);
-  const previo = useRef(items);
   const visible = items > 0 || Boolean(editando);
-
-  useEffect(() => {
-    if (items !== previo.current && items > 0) {
-      setLatiendo(true);
-      const t = setTimeout(() => setLatiendo(false), 300);
-      previo.current = items;
-      return () => clearTimeout(t);
-    }
-    previo.current = items;
-  }, [items]);
 
   // Los avisos se acomodan encima de esta barra mientras se ve.
   useEffect(() => {
@@ -53,18 +42,17 @@ export default function BarraPedido({
          style={{ bottom: "calc(var(--nav-alto) + var(--sa-bottom))",
                   background: "linear-gradient(to top, var(--bg) 55%, transparent)" }}>
       <button onClick={onAbrir}
-              className="btn btn-acc w-full !justify-between !px-3"
-              style={{ minHeight: "56px", boxShadow: "var(--sombra-alta)" }}>
-        <span className="flex min-w-0 items-center gap-2.5">
-          <span className={`mono grid h-8 min-w-8 place-items-center rounded-full px-2 text-sm font-bold ${latiendo ? "latido" : ""}`}
-                style={{ background: "var(--sobre-acc)", color: "var(--acc)" }}>
+              className="btn btn-acc w-full !justify-between !rounded-2xl !pl-2.5 !pr-[18px]"
+              style={{ minHeight: "56px", boxShadow: "0 6px 18px rgb(0 0 0 / .45)" }}>
+        <span className="flex min-w-0 items-center gap-3">
+          <span key={items} className="sticker sticker-oscuro pegar" aria-label={`${items} en el pedido`}>
             {items}
           </span>
-          <span className="truncate text-sm font-bold">
+          <span className="truncate text-base font-bold">
             {editando ? `Editando ${editando}` : "Ver pedido"}
           </span>
         </span>
-        <span className="mono text-lg font-bold">{fmtC(total)}</span>
+        <span className="mono text-[19px] font-bold">{fmtC(total)}</span>
       </button>
     </div>
   );

@@ -58,17 +58,25 @@ GitHub compila y publica cada APK nuevo
 1. GitHub → repositorio `approck` → **Settings** → **Secrets and variables**
    → **Actions** → **New repository secret**.
 2. Nombre `ANDROID_KEYSTORE_B64` → valor: el texto del archivo
-   `rockzza-firma.b64.txt` (todo, en una línea).
+   `rockzza-firma-kjd.b64.txt` (todo, en una línea).
 3. Nombre `ANDROID_KEYSTORE_PASSWORD` → valor: la contraseña de la llave.
 
 Sin esos dos secretos, el código se sigue publicando normal; solo no sale un
 APK nuevo (GitHub deja un aviso amarillo en la corrida «APK»).
 
-**Guarda una copia de la llave (`rockzza-firma.jks`) y de su contraseña fuera
-de GitHub**, por ejemplo en tu Google Drive personal. Android solo acepta una
-actualización firmada con la MISMA llave: si se pierde, hay que desinstalar
+**Guarda una copia de la llave (`rockzza-firma-kjd.jks`) y de su contraseña
+fuera de GitHub**, por ejemplo en tu Google Drive personal. Android solo acepta
+una actualización firmada con la MISMA llave: si se pierde, hay que desinstalar
 Rockzza en cada teléfono e instalarla de nuevo. La llave nunca va en el
 repositorio: es público.
+
+La llave está a nombre de kjd: su certificado dice `CN=kjd, O=Rockzza,
+L=Managua, C=NI`, y cualquiera lo puede leer en el APK con
+`apksigner verify --print-certs Rockzza-2.apk`. Es la única firma de autoría
+que no se puede falsificar: solo quien tiene la llave publica actualizaciones.
+La primera llave (la de `rockzza-firma.jks`, a nombre de Rock Munchies) se
+descartó el 2026-10-12, antes de que el APK 1 se instalara en algún teléfono;
+cualquier copia de ella se puede borrar.
 
 ## Para desarrollo
 

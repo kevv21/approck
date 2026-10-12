@@ -4,6 +4,7 @@ import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
 import { vibrar } from "@/lib/nativo/rockzza";
+import { Alerta, Check, Lapiz, Menos } from "@/components/Iconos";
 
 /**
  * AVISOS DE LO QUE ACABA DE PASAR
@@ -21,7 +22,8 @@ import { vibrar } from "@/lib/nativo/rockzza";
  *    falta ver el menú.
  */
 
-export type TonoAviso = "agregado" | "cambiado" | "quitado" | "error";
+/** «atencion»: salió bien pero hay algo que mirar (la PC de caja no responde). */
+export type TonoAviso = "agregado" | "cambiado" | "atencion" | "quitado" | "error";
 
 interface Aviso {
   id: number;
@@ -51,13 +53,18 @@ const DURACION_DESHACER = 5500;
  * (se nota sin mirar que la pizza entró), más largo para un error, que es lo
  * que no se puede pasar por alto con el teléfono en la otra mano.
  */
-const VIBRACION: Record<TonoAviso, number> = { agregado: 10, cambiado: 10, quitado: 14, error: 40 };
+const VIBRACION: Record<TonoAviso, number> = { agregado: 10, cambiado: 10, atencion: 20, quitado: 14, error: 40 };
 
-const COLOR: Record<TonoAviso, string> = {
-  agregado: "var(--ok)",
-  cambiado: "var(--acc-2)",
-  quitado:  "var(--txt-2)",
-  error:    "var(--mal)",
+/**
+ * Cada tono con su ícono, no solo su color: un vistazo de reojo distingue la
+ * palomita del signo de alerta aunque la luz del local no deje ver el verde.
+ */
+const TONO: Record<TonoAviso, { fondo: string; tinta: string; icono: React.ReactNode }> = {
+  agregado: { fondo: "var(--ok)",      tinta: "var(--sobre-ok)",  icono: <Check size={18} /> },
+  cambiado: { fondo: "var(--acc-2)",   tinta: "var(--sobre-acc)", icono: <Lapiz size={16} /> },
+  atencion: { fondo: "var(--acc)",     tinta: "var(--sobre-acc)", icono: <Alerta size={18} /> },
+  quitado:  { fondo: "var(--panel-2)", tinta: "var(--txt-2)",     icono: <Menos size={18} /> },
+  error:    { fondo: "var(--mal)",     tinta: "var(--sobre-mal)", icono: <Alerta size={18} /> },
 };
 
 export default function ProveedorAvisos({ children }: { children: React.ReactNode }) {
@@ -99,16 +106,18 @@ export default function ProveedorAvisos({ children }: { children: React.ReactNod
           style={{ bottom: "calc(var(--sa-bottom) + var(--aviso-abajo, calc(var(--nav-alto) + var(--barra-alto, 0px) + 12px)))" }}
         >
           <div className="pointer-events-auto flex w-full max-w-md items-center gap-3
-                          rounded-xl px-3.5 py-3"
+                          rounded-2xl py-2.5 pl-3 pr-3.5"
                style={{ background: "var(--panel-3)",
                         border: "1px solid var(--borde-2)",
-                        boxShadow: "var(--sombra)" }}>
-            <span aria-hidden="true" className="h-8 w-1 shrink-0 rounded-full"
-                  style={{ background: COLOR[aviso.tono] }} />
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="text-sm font-semibold">{aviso.texto}</div>
+                        boxShadow: "0 6px 20px rgb(0 0 0 / .5)" }}>
+            <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
+                  style={{ background: TONO[aviso.tono].fondo, color: TONO[aviso.tono].tinta }}>
+              {TONO[aviso.tono].icono}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-bold leading-5">{aviso.texto}</div>
               {aviso.detalle && (
-                <div className="line-clamp-2 text-xs" style={{ color: "var(--txt-2)" }}>
+                <div className="line-clamp-2 text-[13px] leading-[17px]" style={{ color: "var(--txt-2)" }}>
                   {aviso.detalle}
                 </div>
               )}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next, Big_Shoulders } from "next/font/google";
 import { NavAbajo, PestanasArriba } from "@/components/Navegacion";
 import IndicadorConexion from "@/components/IndicadorConexion";
+import CuentaEncabezado from "@/components/CuentaEncabezado";
 import RegistrarSW from "@/components/RegistrarSW";
 import Acceso from "@/components/Acceso";
 import ProveedorAvisos from "@/components/Avisos";
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // El mismo color que la barra de arriba: si no, la barra de estado de
   // Android queda de otro tono y la app parece una página web.
-  themeColor: "#1b1820",
+  themeColor: "#1c1a18",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -58,18 +59,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={`${texto.variable} ${mono.variable} ${display.variable}`}>
       <body>
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b px-3 lg:px-4"
+        <header className="sticky top-0 z-30 flex items-center gap-2 border-b pl-4 pr-2 lg:gap-3 lg:px-4"
                 style={{ background: "var(--panel)", borderColor: "var(--borde)",
                          height: "var(--header-alto)",
                          paddingTop: "var(--sa-top)",
                          boxSizing: "content-box" }}>
           {/* Rockzza: rock + pizza. El ícono es una porción con forma de púa. */}
-          <span className="display text-2xl" style={{ color: "var(--acc)" }}>
+          <span className="display shrink-0 text-[26px] tracking-[.02em]" style={{ color: "var(--acc)" }}>
             Rockzza
           </span>
           <PestanasArriba />
           <span className="flex-1 lg:hidden" />
           <IndicadorConexion />
+          <CuentaEncabezado />
         </header>
         <RegistrarSW />
         <ProveedorAvisos>

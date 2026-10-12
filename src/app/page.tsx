@@ -11,12 +11,13 @@ import UltimasOrdenes from "@/components/UltimasOrdenes";
 import MitadYMitad from "@/components/MitadYMitad";
 import Menu from "@/components/caja/Menu";
 import LineaPedido from "@/components/caja/LineaPedido";
+import SelloCobrada from "@/components/caja/SelloCobrada";
 import { Interruptor, Segmentado } from "@/components/Controles";
 import { centavos, fmtC } from "@/lib/money";
 import { calcularTotales } from "@/lib/pricing";
 import {
-  anularOrden, cargarMenu, cargarOrden, editarOrden, imprimirDocumento, reimprimir, turnoAbierto,
-  type OrdenBreve,
+  anularOrden, cargarMenu, cargarOrden, editarOrden, imprimirDocumento, ordenesAbiertas, reimprimir,
+  turnoAbierto, type OrdenBreve,
 } from "@/lib/repo";
 import { cargarMenuConRespaldo, guardarOrden } from "@/lib/offline/servicio";
 import { guardarMenuLocal } from "@/lib/offline/db";
@@ -26,7 +27,7 @@ import { descargarHtml, imprimirHtml } from "@/lib/printer";
 import { imprimeDirecto, pcResponde } from "@/lib/printer/salida";
 import { useRouter } from "next/navigation";
 import { useAtras } from "@/lib/nativo/atras";
-import { enApk } from "@/lib/nativo/rockzza";
+import { enApk, vibrar } from "@/lib/nativo/rockzza";
 
 import { hayConfig } from "@/lib/supabase";
 import { BASE_DESACTUALIZADA, noExisteColumna, noExisteFuncion } from "@/lib/diagnostico";
@@ -113,6 +114,17 @@ export default function Caja() {
   const [aviso, setAviso] = useState<{ txt: string; mal?: boolean } | null>(null);
   /** Sube tras cada orden guardada, para recargar las listas de órdenes. */
   const [refrescoOrdenes, setRefrescoOrdenes] = useState(0);
+  /** El sello de «Cobrada» a la vista; `clave` lo reinicia si se cobra otra. */
+  const [sello, setSello] = useState<
+    { clave: number; titulo: string; numero?: number; total: number; id?: string } | null
+  >(null);
+  const cerrarSello = useCallback(() => setSello(null), []);
+  /** Las sin cobrar, para la insignia de «Órdenes» (en teléfono no se ven). */
+  const [sinCobrar, setSinCobrar] = useState(0);
+  useEffect(() => {
+    if (!hayConfig) return;
+    ordenesAbiertas().then((a) => setSinCobrar(a.length)).catch(() => {});
+  }, [refrescoOrdenes]);
 
   const [menuDesdeCache, setMenuDesdeCache] = useState(false);
   // null = cerrado; "" = agregando una nueva; <id> = editando esa línea.
@@ -193,6 +205,7 @@ export default function Caja() {
   };
 
   const agregar = (p: Producto) => {
+    setSello(null);
     setLineas((prev) => {
       // Solo se suma a una línea SIN nota ni extras: tocar «Diabla» otra vez
       // después de ponerle bacon a la primera daba dos Diablas con bacon.
@@ -372,6 +385,8 @@ export default function Caja() {
   const terminar = (
     texto: string, detalle: string,
     r: { id?: string; impreso?: boolean; yaExistia?: boolean; numero?: number } = {},
+    /** Cobrar y corregir se confirman con el sello; guardar sin cobrar, no. */
+    estampa?: { titulo: string; numero?: number; total: number },
   ) => {
     setRefrescoOrdenes((n) => n + 1);
     limpiar();
@@ -385,8 +400,8 @@ export default function Caja() {
     if (r.yaExistia) {
       avisar({
         texto: `La orden #${r.numero} ya estaba guardada`,
-        detalle: "No se cobró dos veces. Si cambiaste algo después, ábrela en Órdenes guardadas.",
-        tono: "cambiado",
+        detalle: "No se cobró dos veces. Si cambiaste algo después, ábrela en Órdenes.",
+        tono: "atencion",
         accion: { texto: "Ver órdenes", hacer: () => setVista("ordenes") },
       });
     } else if (r.impreso === false) {
@@ -396,7 +411,12 @@ export default function Caja() {
         tono: "error", ...reimprimirla,
       });
     } else {
-      avisar({ texto, detalle, tono: "agregado", ...reimprimirla });
+      if (estampa) {
+        vibrar(10);
+        setSello({ clave: Date.now(), ...estampa, id: r.id });
+      } else {
+        avisar({ texto, detalle, tono: "agregado", ...reimprimirla });
+      }
       // El ticket quedó en la cola, pero si la PC de caja no está, ahí se
       // queda. Se dice en el momento, con el camino para imprimir ya.
       if (r.id && !imprimeDirecto()) {
@@ -408,7 +428,7 @@ export default function Caja() {
             detalle: apk
               ? "El ticket sale cuando vuelva. Para imprimir ya, elige una impresora en este teléfono."
               : "El ticket sale cuando vuelva. Para imprimir ya, conecta la impresora por Bluetooth.",
-            tono: "cambiado",
+            tono: "atencion",
             accion: { texto: apk ? "Elegir" : "Conectar", hacer: () => router.push("/impresora") },
           });
         });
@@ -428,6 +448,7 @@ export default function Caja() {
     }
     setGuardando(true);
     setAviso(null);
+    const total = t.total;
     try {
       // Cobrar exige conexión: un cobro guardado solo en el teléfono no
       // existe para el arqueo de caja.
@@ -441,10 +462,12 @@ export default function Caja() {
           edicion.pagada ? `Orden #${orden.numero} corregida` : `Orden #${orden.numero} cobrada`,
           edicion.pagada ? "Hoja corregida enviada a imprimir" : "Enviada a imprimir",
           { id: orden.id, impreso },
+          { titulo: edicion.pagada ? "Corregida" : "Cobrada", numero: orden.numero, total },
         );
       } else {
         const r = await guardarOrden(datosOrden("pagada"));
-        terminar(`Orden #${r.numero} cobrada`, "Enviada a imprimir", r);
+        terminar(`Orden #${r.numero} cobrada`, "Enviada a imprimir", r,
+          { titulo: "Cobrada", numero: r.numero, total });
       }
     } catch (e) {
       fallar(`No se pudo guardar: ${explicar(e)}`);
@@ -808,7 +831,14 @@ export default function Caja() {
         <div className="mb-1 lg:hidden">
           <Segmentado<"menu" | "ordenes"> etiqueta="Vista de la caja" valor={vista} onCambio={setVista}
             opciones={[{ valor: "menu", etiqueta: "Menú" },
-                       { valor: "ordenes", etiqueta: "Órdenes guardadas" }]} />
+                       { valor: "ordenes", etiqueta: (
+                         <span className="inline-flex items-center gap-1.5">
+                           Órdenes
+                           {sinCobrar > 0 && (
+                             <span className="insignia" aria-label={`${sinCobrar} sin cobrar`}>{sinCobrar}</span>
+                           )}
+                         </span>
+                       ) }]} />
         </div>
         <div className={vista === "ordenes" ? "hidden lg:block" : undefined}>
           <Menu menu={menu} categorias={categorias} lineas={lineas}
@@ -827,6 +857,18 @@ export default function Caja() {
           {ordenes}
         </div>
       </aside>
+
+      {sello && (
+        <SelloCobrada key={sello.clave} titulo={sello.titulo} numero={sello.numero}
+          total={sello.total} onCerrar={cerrarSello}
+          onReimprimir={sello.id ? () => {
+            const n = sello.numero;
+            reimprimir(sello.id!)
+              .then(() => avisar({ texto: `Copia de la orden #${n ?? "—"} enviada`,
+                                   detalle: "Sale marcada COPIA. No se cobra de nuevo.", tono: "agregado" }))
+              .catch((e) => avisar({ texto: "No se pudo reimprimir", detalle: explicar(e), tono: "error" }));
+          } : undefined} />
+      )}
 
       {/* En teléfono el pedido no está a la vista: esta barra dice siempre
           cuánto llevas y lo abre con el pulgar. */}

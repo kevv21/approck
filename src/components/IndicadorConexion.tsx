@@ -57,14 +57,16 @@ export default function IndicadorConexion() {
       onClick={e.enLinea && pendientes > 0 ? sincronizar : refrescar}
       // 40px: se toca para forzar la subida cuando hay pedidos pendientes, y
       // es justo el momento en que alguien lo busca con prisa.
-      className="inline-flex shrink-0 items-center gap-2 rounded-full px-3 text-xs font-semibold"
+      // min-w-0: «Sin conexión · 3 por subir» no cabe al lado de la cuenta en
+      // 360px; se recorta el texto antes que desbordar la página.
+      className="inline-flex min-w-0 items-center gap-2 rounded-full px-3 text-xs font-semibold"
       style={{ background: "var(--panel-2)", border: "1px solid var(--borde)",
                minHeight: "40px" }}
       title={e.conError > 0 ? `${e.conError} con error al subir` : undefined}
     >
-      <span className={`inline-block h-2.5 w-2.5 rounded-full ${sincronizando ? "animate-pulse" : ""}`}
+      <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${sincronizando ? "animate-pulse" : ""}`}
             style={{ background: color, boxShadow: `0 0 0 3px color-mix(in srgb, ${color} 22%, transparent)` }} />
-      <span style={{ color: "var(--txt-2)" }}>
+      <span className="truncate" style={{ color: "var(--txt-2)" }}>
         {sincronizando ? "Subiendo…" : texto}
       </span>
     </button>

@@ -1,28 +1,33 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   ROCKZZA — sistema visual (v3, «cartel de serigrafía»)
+   ROCKZZA — sistema visual (v4, «la pared del local»)
    ===========================================================================
 
-   De dónde sale: Rock Munchies es rock y pizza. Los carteles de conciertos se
-   imprimen en serigrafía con dos o tres tintas sobre papel oscuro, y el queso
-   derretido es amarillo mostaza. De ahí sale todo:
+   De dónde sale: del logo de Rock Munchies, un sticker blanco pegado en una
+   pared negra, con hiedra, flores amarillas y ladrillo. De ahí todo:
 
-   - Fondo de tinta violeta casi negra. No es negro puro, que en una pantalla
-     OLED barata hace "smear" al desplazar, y tampoco es el gris azulado de un
-     panel de control.
-   - Una sola tinta fuerte, el amarillo queso, reservada para lo que se toca:
-     la acción principal, lo seleccionado, el precio. Si todo es amarillo,
-     nada lo es.
-   - Texto color papel, no blanco azulado.
+   - Fondo: la pared negra, cálida, con un grano casi invisible. No es negro
+     puro, que en una pantalla OLED barata hace "smear" al desplazar, ni el
+     violeta de antes, que no salía de ningún lado del local.
+   - Una sola tinta fuerte, el amarillo queso (el de las flores), reservada
+     para lo que se toca: la acción principal, lo seleccionado, el precio.
+     Si todo es amarillo, nada lo es.
+   - Verde hiedra para "listo, cobrado"; ladrillo para "peligro".
+   - El blanco del sticker para lo que tiene que saltar a la vista: cuántas
+     van de un producto y el sello de "Cobrada".
 
    Por qué amarillo y no rojo: en una caja, rojo es "peligro" (cancelar,
    anular, sin conexión). Si la marca es roja, el botón de cobrar y el de
    cancelar la orden se parecen, y eso se paga.
 
-   Contrastes medidos (WCAG) sobre --panel: texto 15.4, texto-2 8.3,
-   texto-3 5.2, amarillo 11.3, error 6.3. Todo por encima de AA con margen,
-   porque esta pantalla se lee con brillo bajo, de lado y con prisa.
+   Contrastes medidos (WCAG) sobre --panel: texto 15.3, texto-2 8.5,
+   texto-3 5.8, amarillo 11.2, hiedra 8.9, ladrillo 6.3. El texto de apoyo va
+   un poco más claro que en Figma (#9e9587 y no #9a9183): así pasa AA también
+   sobre --panel-3, donde quedaba en 4.4.
+
+   Los cuatro --acc* son la marca: lo único que cambia de un local a otro.
+   Todo lo demás es de la plataforma.
    =========================================================================== */
 
 :root {
@@ -36,18 +41,20 @@
   --sa-right:  var(--safe-area-inset-right,  env(safe-area-inset-right, 0px));
 
   /* superficies, de más honda a más cerca */
-  --bg:      #121016;   /* la sala con las luces bajas */
-  --panel:   #1b1820;   /* paneles */
-  --panel-2: #25212c;   /* tarjetas y campos */
-  --panel-3: #302b39;   /* algo levantado: hoja, aviso, menú */
-  --borde:   #38323f;
-  --borde-2: #4a4254;   /* bordes cuando algo está activo o en foco */
+  --bg:      #131211;   /* la pared negra del local */
+  --panel:   #1c1a18;   /* paneles */
+  --panel-2: #26231f;   /* tarjetas y campos */
+  --panel-3: #312d28;   /* lo que flota: hoja, aviso, menú */
+  --borde:   #3d3832;
+  --borde-2: #554d45;   /* bordes cuando algo está activo o en foco */
+  --sticker: #fbf8f1;   /* el blanco del sticker troquelado del logo */
 
   /* tinta */
   --txt:   #f5f0e6;     /* papel */
-  --txt-2: #b8afc2;
-  --txt-3: #968ca1;     /* apoyos y unidades */
+  --txt-2: #bdb4a7;
+  --txt-3: #9e9587;     /* apoyos y unidades */
 
+  /* la marca */
   --acc:   #ffc83d;     /* queso: la marca y la acción */
   --acc-2: #ffe08a;     /* el mismo, más suave: descuentos, extras, avisos */
   --acc-fondo: #3a2f12; /* banda de aviso sobre fondo oscuro */
@@ -59,16 +66,22 @@
   --mitad-b: #5cd0f2;
   --sobre-mitad-b: #03161d;
 
-  --ok:  #4fe0a0;
-  --sobre-ok: #05261a;
-  --mal: #ff6b5e;
-  --sobre-mal: #2e0806;
-  --mal-fondo: #3a1512;
+  --ok:  #82cc63;       /* hiedra: listo, cobrado */
+  --sobre-ok: #0d2207;
+  --mal: #f07a55;       /* ladrillo: anular, cancelar, error */
+  --sobre-mal: #2c0a03;
+  --mal-fondo: #3d1a12;
 
-  --velo: rgb(8 6 12 / .72);   /* detrás de hojas y diálogos */
+  --velo: rgb(10 9 8 / .74);   /* detrás de hojas y diálogos */
 
   --sombra: 0 1px 2px rgb(0 0 0 / .45), 0 6px 18px rgb(0 0 0 / .32);
   --sombra-alta: 0 -4px 28px rgb(0 0 0 / .6);
+
+  /* Movimiento (Figma, «3 · Sensación»). Dos curvas y nada más:
+     el rebote, para lo que se pega (el sticker, el sello), y la de la hoja,
+     que arranca rápido y se posa despacio, como algo con peso. */
+  --rebote: cubic-bezier(.34, 1.56, .64, 1);
+  --curva-hoja: cubic-bezier(.32, .72, 0, 1);
 
   /* Alto de la barra de navegación de abajo. En PC no existe (0). Lo leen la
      barra del pedido y los avisos para no quedar tapados. */
@@ -79,8 +92,13 @@
   :root { --nav-alto: 0px; --header-alto: 56px; }
 }
 
+/* El grano de la pared: un mosaico fijo de 2 KB (public/grano.png), blanco
+   al 7 % como mucho. Es una imagen y no un filtro SVG porque el filtro se
+   vuelve a calcular en cada repintado, y en un Android barato se nota al
+   desplazar el menú. Se mueve con la página (sin `fixed`) por lo mismo. */
 html, body {
-  background: var(--bg);
+  background: var(--bg) url("/grano.png") repeat;
+  background-size: 96px 96px;
   color: var(--txt);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
@@ -143,10 +161,11 @@ body {
   @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 font-bold
          transition select-none;
   min-height: 48px;
-  transition-duration: 120ms;
+  transition-duration: 160ms;
   -webkit-user-select: none;
 }
-.btn:active { transform: scale(.97); }
+/* Se hunde rápido y vuelve con calma: 90 ms al apretar, 160 al soltar. */
+.btn:active { transform: scale(.97); transition-duration: 90ms; }
 .btn-acc   { background: var(--acc); color: var(--sobre-acc); box-shadow: var(--sombra); }
 .btn-ghost { background: var(--panel-2); color: var(--txt); border: 1px solid var(--borde); }
 .btn-ok    { background: var(--ok); color: var(--sobre-ok); }
@@ -278,6 +297,132 @@ body {
 }
 .casilla:active, .interruptor:active { transform: scale(.98); }
 
+/* --- el sticker ---------------------------------------------------------- */
+/*
+   El motivo del logo: un sticker troquelado, con borde blanco, pegado un
+   poco torcido. Dice cuántas van de un producto, sin abrir el pedido.
+   Se pega con un rebote (ver .pegar) cada vez que cambia el número.
+*/
+.sticker {
+  display: inline-grid; place-items: center;
+  min-width: 30px; height: 30px; padding: 0 7px;
+  border-radius: 999px;
+  background: var(--acc); color: var(--sobre-acc);
+  border: 2.5px solid var(--sticker);
+  box-shadow: 0 2px 4px rgb(0 0 0 / .45);
+  font-family: var(--f-mono), ui-monospace, monospace;
+  font-size: 15px; font-weight: 700; line-height: 1;
+  transform: rotate(-8deg);
+}
+/* Sobre fondo amarillo (la barra del pedido) se invierte. */
+.sticker-oscuro { background: var(--bg); color: var(--acc); }
+
+/* Cuenta pequeña junto a un rótulo: «Órdenes 2». */
+.insignia {
+  display: inline-grid; place-items: center;
+  min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 999px;
+  background: var(--acc); color: var(--sobre-acc);
+  font-family: var(--f-mono), ui-monospace, monospace;
+  font-size: 12px; font-weight: 700; line-height: 1;
+}
+.seg > button[aria-checked="true"] .insignia { background: var(--sobre-acc); color: var(--acc); }
+
+/* --- tarjeta de producto ------------------------------------------------- */
+.tarjeta {
+  position: relative;
+  display: flex; flex-direction: column;
+  min-height: 96px; padding: 14px;
+  border-radius: 16px; text-align: left;
+  background: var(--panel-2);
+  border: 1px solid var(--borde);
+  transition: transform 160ms, border-color 160ms, box-shadow 160ms;
+}
+.tarjeta:active { transform: scale(.97); transition-duration: 90ms; }
+/* En el pedido: borde amarillo de 2px. El segundo pixel va por fuera
+   (sombra) para que el contenido no salte al marcarse. */
+.tarjeta[data-en-pedido] { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc); }
+.tarjeta > .sticker { position: absolute; top: -9px; right: -7px; }
+
+/* --- teclado del PIN ----------------------------------------------------- */
+.tecla {
+  display: grid; place-items: center;
+  height: clamp(48px, 7.4dvh, 60px);
+  border-radius: 16px;
+  background: var(--panel-2); border: 1px solid var(--borde);
+  color: var(--txt);
+  font-family: var(--f-display), "Arial Narrow", sans-serif;
+  font-size: 30px; font-weight: 700; line-height: 1;
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+  transition: transform 160ms, background 160ms, border-color 160ms, box-shadow 160ms;
+}
+.tecla:active {
+  transform: scale(.97); transition-duration: 90ms;
+  background: var(--panel-3); border-color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc);
+}
+.tecla-borrar { background: transparent; border-color: transparent; color: var(--txt-2); }
+.tecla-entrar {
+  background: var(--acc); border-color: var(--acc); color: var(--sobre-acc);
+  box-shadow: 0 3px 10px rgb(0 0 0 / .4);
+}
+.tecla-entrar:active { background: var(--acc); }
+.tecla:disabled { opacity: .35; pointer-events: none; box-shadow: none; }
+
+.pin-puntos { display: flex; justify-content: center; gap: 14px; }
+.pin-puntos > span {
+  width: 16px; height: 16px; border-radius: 999px;
+  border: 2px solid var(--borde-2);
+  transition: background 120ms, border-color 120ms;
+}
+.pin-puntos > span[data-lleno] { background: var(--acc); border-color: var(--acc); }
+
+/* --- la cuenta, en el encabezado ---------------------------------------- */
+.avatar {
+  position: relative; flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 44px; height: 40px;
+}
+.avatar-letra {
+  display: grid; place-items: center;
+  width: 36px; height: 36px; border-radius: 999px;
+  background: var(--panel-3); border: 1px solid var(--borde-2);
+  font-weight: 700; font-size: 15px;
+}
+.avatar-insignia {
+  position: absolute; right: 0; bottom: -2px;
+  display: grid; place-items: center;
+  width: 20px; height: 20px; border-radius: 999px;
+  border: 2px solid var(--panel);
+}
+.avatar-insignia[data-rol="maestra"]  { background: var(--acc); color: var(--sobre-acc); }
+.avatar-insignia[data-rol="revision"] { background: var(--panel-2); color: var(--txt-2); }
+
+.insignia-cuenta {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px 4px 8px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; line-height: 17px;
+}
+.insignia-cuenta[data-rol="maestra"]  { background: var(--acc-fondo); color: var(--acc); }
+.insignia-cuenta[data-rol="revision"] { background: var(--panel-2); color: var(--txt-2); }
+
+/* --- el sello de «Cobrada» ---------------------------------------------- */
+/* Un sticker blanco que se estampa sobre el menú al cobrar. Es lo único que
+   se ve desde lejos, y por eso dice lo que importa: cobrada, número y total. */
+.sello {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 16px 22px;
+  border-radius: 14px;
+  background: var(--sticker); color: var(--bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .55);
+  transform: rotate(-4deg);
+}
+.sello-ok {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 999px;
+  background: var(--ok); color: var(--sobre-ok);
+}
+
 }
 
 /* --- la firma: el pedido se lee como el ticket que va a ser -------------- */
@@ -307,6 +452,15 @@ body {
 .tira > :last-child  { grid-column: 2; padding-left: .4rem; }
 
 /* --- movimiento, con respeto ------------------------------------------- */
+/*
+   Cada animación avisa algo; ninguna adorna (Figma, «3 · Sensación»):
+   - surgir (180 ms): un aviso llega.
+   - subir / bajar (280 / 200 ms): la hoja del pedido. Entra con calma y se
+     va rápido: al cerrar, la persona ya está mirando el menú.
+   - pegar (240 ms, con rebote): el sticker con la cantidad cambió.
+   - sellar (320 ms): la orden se cobró.
+   - temblar (320 ms): el PIN no es. Va con una vibración de 40 ms.
+*/
 @keyframes surgir {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to   { opacity: 1; transform: none; }
@@ -315,20 +469,51 @@ body {
   from { transform: translateY(100%); }
   to   { transform: none; }
 }
-@keyframes latido {
-  0%, 100% { transform: scale(1); }
-  40%      { transform: scale(1.12); }
+@keyframes bajar {
+  from { transform: translateY(var(--arrastre, 0px)); }
+  to   { transform: translateY(100%); }
 }
-.surgir { animation: surgir 160ms cubic-bezier(.2,.8,.2,1); }
-.subir  { animation: subir 220ms cubic-bezier(.2,.8,.2,1); }
-.latido { animation: latido 280ms ease-out; }
+@keyframes velo-entra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes velo-sale  { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pegar {
+  from { opacity: 0; transform: rotate(-8deg) scale(.4); }
+  to   { opacity: 1; transform: rotate(-8deg) scale(1); }
+}
+@keyframes sellar {
+  from { opacity: 0; transform: rotate(-4deg) scale(1.4); }
+  to   { opacity: 1; transform: rotate(-4deg) scale(1); }
+}
+@keyframes temblar {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes fundir { from { opacity: 0; } to { opacity: 1; } }
 
+.surgir { animation: surgir 180ms cubic-bezier(.2,.8,.2,1); }
+.subir  { animation: subir 280ms var(--curva-hoja); }
+.bajar  { animation: bajar 200ms cubic-bezier(.4,0,1,1) forwards; }
+.velo-entra { animation: velo-entra 280ms ease-out; }
+.velo-sale  { animation: velo-sale 200ms ease-in forwards; }
+.pegar  { animation: pegar 240ms var(--rebote) both; }
+.sellar { animation: sellar 320ms var(--rebote) both; }
+.temblar { animation: temblar 320ms cubic-bezier(.36,.07,.19,.97) both; }
+
+/* Con «reducir movimiento», nada se desplaza ni rebota: lo que aparece,
+   aparece fundiéndose en 120 ms, y lo que se va, se va. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 1ms !important;
     transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
   }
-  .btn:active, .casilla:active, .interruptor:active { transform: none; }
+  .surgir, .subir, .pegar, .sellar, .velo-entra {
+    animation: fundir 120ms ease-out both !important;
+  }
+  .bajar, .velo-sale { animation: velo-sale 120ms ease-in forwards !important; }
+  .temblar { animation: none !important; }
+  .btn:active, .casilla:active, .interruptor:active, .tecla:active, .tarjeta:active { transform: none; }
 }
 
 /* Foco visible para quien usa teclado en la PC de caja. */
@@ -352,3 +537,9 @@ body {
 
 /* Espacio para la barra de navegación de abajo, en teléfono. */
 .con-nav { padding-bottom: calc(var(--nav-alto) + var(--sa-bottom)); }
+
+/* Con la puerta a la vista (sin sesión) no hay navegación: cada pestaña
+   llevaría a la misma pantalla del PIN. Ver MarcarPuerta en Acceso.tsx. */
+html[data-puerta] .nav-abajo,
+html[data-puerta] .pestanas-arriba { display: none; }
+html[data-puerta] .con-nav { padding-bottom: var(--sa-bottom); }

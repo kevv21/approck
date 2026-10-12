@@ -3,8 +3,8 @@
   "short_name": "Rockzza",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#121016",
-  "theme_color": "#1b1820",
+  "background_color": "#131211",
+  "theme_color": "#1c1a18",
   "orientation": "any",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }

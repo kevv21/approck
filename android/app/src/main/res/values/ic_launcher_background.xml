@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Colores de la app (src/app/globals.css). -->
-    <color name="ic_launcher_background">#121016</color>
-    <color name="fondo">#121016</color>
-    <color name="panel">#1B1820</color>
+    <color name="ic_launcher_background">#131211</color>
+    <color name="fondo">#131211</color>
+    <color name="panel">#1C1A18</color>
     <color name="acento">#FFC83D</color>
 </resources>

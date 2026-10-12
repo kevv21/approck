@@ -53,7 +53,7 @@ export function PestanasArriba() {
   const ruta = usePathname();
   const { principales, otras } = useSecciones();
   return (
-    <nav className="hidden min-w-0 flex-1 gap-1 lg:flex" aria-label="Secciones">
+    <nav className="pestanas-arriba hidden min-w-0 flex-1 gap-1 lg:flex" aria-label="Secciones">
       {[...principales, ...otras].map((n) => {
         const on = activa(ruta, n.href);
         return (
@@ -94,7 +94,7 @@ export function NavAbajo() {
   return (
     <>
       <nav aria-label="Secciones"
-           className="fixed inset-x-0 bottom-0 z-40 grid border-t lg:hidden"
+           className="nav-abajo fixed inset-x-0 bottom-0 z-40 grid border-t lg:hidden"
            style={{ background: "var(--panel)", borderColor: "var(--borde)",
                     gridTemplateColumns: `repeat(${principales.length + 1}, minmax(0, 1fr))`,
                     paddingBottom: "var(--sa-bottom)" }}>

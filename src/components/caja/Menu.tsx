@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtC } from "@/lib/money";
 import type { LineaOrden, Producto } from "@/lib/types";
+import { Buscar } from "@/components/Iconos";
 
 /**
  * EL MENÚ, EN UNA SOLA TIRA QUE SE DESPLAZA
@@ -128,10 +129,7 @@ export default function Menu({
             <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full"
                     style={{ background: "var(--panel-2)", border: "1px solid var(--borde)" }}
                     aria-label="Buscar en el menú" onClick={() => setBuscando(true)}>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-                   strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
-              </svg>
+              <Buscar size={20} />
             </button>
             <div ref={fila} className="desliza flex min-w-0 flex-1 gap-1.5 pr-6">
               {categorias.map((c) => (
@@ -164,20 +162,19 @@ export default function Menu({
           {categorias.map((c) => (
             <section key={c} aria-label={c}
                      ref={(el) => { if (el) secciones.current.set(c, el); else secciones.current.delete(c); }}>
-              <h2 className="display mb-2 text-xl" style={{ color: "var(--txt-2)" }}>{c}</h2>
+              <h2 className="display mb-3 text-[22px] leading-6" style={{ color: "var(--txt-2)" }}>{c}</h2>
               <Rejilla>
                 {hayPizzas && c === primeraDePizzas && (
-                  <button onClick={onMitades}
-                          className="flex flex-col rounded-xl p-3 text-left transition active:scale-[0.97]"
+                  <button onClick={onMitades} className="tarjeta"
                           style={{ background: "var(--panel)", border: "1.5px dashed var(--acc)" }}>
-                    <svg viewBox="0 0 100 100" className="h-8 w-8" aria-hidden="true">
+                    <svg viewBox="0 0 100 100" className="h-7 w-7" aria-hidden="true">
                       <path d="M50 4 A46 46 0 0 0 50 96 Z" fill="var(--acc)" />
                       <path d="M50 4 A46 46 0 0 1 50 96 Z" fill="var(--mitad-b)" />
                     </svg>
-                    <span className="mt-2 text-sm font-bold leading-tight" style={{ color: "var(--acc)" }}>
+                    <span className="mt-2 text-[15px] font-bold leading-5" style={{ color: "var(--acc)" }}>
                       Mitad y mitad
                     </span>
-                    <span className="mt-0.5 text-xs leading-snug" style={{ color: "var(--txt-2)" }}>
+                    <span className="mt-0.5 text-[13px] leading-[17px]" style={{ color: "var(--txt-2)" }}>
                       Elige dos pizzas
                     </span>
                   </button>
@@ -195,7 +192,7 @@ export default function Menu({
 }
 
 function Rejilla({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">{children}</div>;
+  return <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">{children}</div>;
 }
 
 function Tarjeta({
@@ -207,33 +204,29 @@ function Tarjeta({
   conCategoria?: boolean;
 }) {
   return (
-    <button onClick={() => onAgregar(p)}
-            className="relative flex min-h-[84px] flex-col rounded-xl p-3 text-left transition active:scale-[0.97]"
-            style={{
-              background: yaVan ? "var(--panel-2)" : "var(--panel)",
-              border: `1.5px solid ${yaVan ? "var(--acc)" : "var(--borde)"}`,
-              transitionDuration: "120ms",
-            }}>
-      {/* Cuántas van ya, sin abrir el pedido. Con prisa se tocaba de más. */}
-      {yaVan > 0 && (
-        <span className="mono absolute right-2 top-2 grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-xs font-bold"
-              style={{ background: "var(--acc)", color: "var(--sobre-acc)" }}
-              aria-label={`${yaVan} en el pedido`}>
-          {yaVan}
-        </span>
-      )}
+    <button onClick={() => onAgregar(p)} className="tarjeta"
+            data-en-pedido={yaVan > 0 ? "" : undefined}>
       {conCategoria && (
         <span className="rotulo mb-0.5">{p.categoria}</span>
       )}
-      <span className="pr-7 text-sm font-semibold leading-tight">{p.nombre}</span>
+      <span className="pr-5 text-[15px] font-bold leading-5">{p.nombre}</span>
       {p.descripcion && (
-        <span className="mt-1 line-clamp-2 text-xs leading-snug" style={{ color: "var(--txt-3)" }}>
+        <span className="mt-1 line-clamp-2 text-[13px] leading-[17px]" style={{ color: "var(--txt-2)" }}>
           {p.descripcion}
         </span>
       )}
-      <span className="mono mt-auto pt-2 text-sm font-bold" style={{ color: "var(--acc)" }}>
+      <span className="mono mt-auto pt-2 text-[15px] font-bold" style={{ color: "var(--acc)" }}>
         {fmtC(p.precio)}
       </span>
+      {/* Cuántas van ya, sin abrir el pedido: con prisa se tocaba de más.
+          Va al final para que el lector de pantalla diga primero QUÉ es y
+          después cuántas van; se dibuja arriba igual (posición absoluta).
+          `key` hace que el sticker se vuelva a pegar cada vez que cambia. */}
+      {yaVan > 0 && (
+        <span key={yaVan} className="sticker pegar" aria-label={`, ${yaVan} en el pedido`}>
+          {yaVan}
+        </span>
+      )}
     </button>
   );
 }

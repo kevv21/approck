@@ -75,8 +75,9 @@ jobs:
         if: steps.llave.outputs.lista == 'true'
         run: npx cap sync android
 
-      # El número de versión sube solo con cada corrida. El APK 1 se compiló
-      # a mano; desde aquí empiezan en 2.
+      # El número de versión sube solo con cada corrida. Los APK 1 y 2 se
+      # compilaron a mano, y las corridas 1 y 2 no compilaron (faltaban los
+      # secretos): el primero automático sale con 4 o más, nunca repite.
       - name: Número de versión
         if: steps.llave.outputs.lista == 'true'
         run: echo "ROCKZZA_VERSION=$(( ${{ github.run_number }} + 1 ))" >> "$GITHUB_ENV"

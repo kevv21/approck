@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { entrar, nombresRecordados, salir, useSesion } from "@/lib/auth/sesion";
-import { ROLES, inicioDe, puedeVer } from "@/lib/auth/permisos";
+import { useSesion } from "@/lib/auth/sesion";
+import { inicioDe, puedeVer } from "@/lib/auth/permisos";
 import {
   alCambiarVinculo, requiereCuenta, sesionGuardada,
 } from "@/lib/auth/dispositivo";
 import VincularDispositivo from "@/components/VincularDispositivo";
-import Firma from "@/components/Firma";
-import { registrar } from "@/lib/auth/auditoria";
+import PantallaPin from "@/components/PantallaPin";
 import { hayConfig } from "@/lib/supabase";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -25,11 +24,6 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   // undefined = todavía no se sabe. true = se puede pasar al PIN, sea porque
   // la base no exige cuenta o porque este aparato ya está vinculado.
   const [puedePasar, setPuedePasar] = useState<boolean | undefined>(undefined);
-  const [nombre, setNombre] = useState("");
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [entrando, setEntrando] = useState(false);
-  const [previos, setPrevios] = useState<string[]>([]);
   const ruta = usePathname();
   const router = useRouter();
   // Una pantalla que no es de esta cuenta (la Caja, para revisión) lleva a la
@@ -41,7 +35,6 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   }, [fuera, sesion, router]);
 
   useEffect(() => {
-    setPrevios(nombresRecordados());
     if (!hayConfig) { setPuedePasar(true); return; }
 
     // Se pregunta a la BASE si hace falta una cuenta, en vez de suponerlo.
@@ -74,102 +67,30 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   // Puerta de afuera, y solo cuando la base la exige: si no responde a la
   // clave sola, no hay nada que ver sin una cuenta.
   if (!puedePasar) {
-    return <VincularDispositivo alVincular={() => setPuedePasar(true)} />;
+    return <><MarcarPuerta /><VincularDispositivo alVincular={() => setPuedePasar(true)} /></>;
   }
 
   if (sesion) {
     if (fuera) return null;
-    return (
-      <>
-        <div className="flex items-center gap-2 px-3 text-xs"
-             style={{ background: "var(--panel-2)", color: "var(--txt-2)",
-                      minHeight: "40px" }}>
-          <span className="min-w-0 truncate">
-            Trabajando: <b style={{ color: "var(--txt)" }}>{sesion.nombre}</b>
-          </span>
-          <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                style={sesion.rol === "maestra"
-                  ? { background: "var(--acc-fondo)", color: "var(--acc)" }
-                  : { background: "var(--panel-3)", color: "var(--txt-2)" }}>
-            {ROLES[sesion.rol].etiqueta}
-          </span>
-          {/*
-            "Desvincular" NO va al lado de "Salir". En un teléfono, con los
-            dedos y a media atención, tocar el de al lado deja el aparato
-            fuera de la base y hace falta la contraseña del dueño para
-            volver — en plena atención. Salir es de todos los días;
-            desvincular es de una vez en la vida del aparato, así que vive
-            en Estado, que es donde se va a buscar a propósito.
-          */}
-          <button className="ml-auto flex items-center px-2 underline"
-                  style={{ minHeight: "40px" }}
-                  onClick={() => salir()}>Salir</button>
-        </div>
-        {children}
-      </>
-    );
+    // Quién está trabajando y «Salir» viven en el encabezado (CuentaEncabezado):
+    // la barra de 40px que había aquí se comía el alto del menú en el teléfono.
+    return <>{children}</>;
   }
 
-  const acceder = async () => {
-    if (!nombre.trim()) return;
-    setEntrando(true);
-    setError(null);
-    try {
-      const s = await entrar(nombre, pin);
-      if (!s) {
-        setError("PIN incorrecto.");
-        await registrar({ accion: "login_fallido", detalle: { nombre } });
-        setPin("");
-        return;
-      }
-      setPin("");
-    } catch (e) {
-      setError(`No se pudo verificar: ${(e as Error).message}`);
-    } finally {
-      setEntrando(false);
-    }
-  };
+  return <><MarcarPuerta /><PantallaPin /></>;
+}
 
-  return (
-    <div className="mx-auto max-w-sm p-6">
-      <div className="panel space-y-3 p-5">
-        <div className="text-center">
-          <h1 className="text-xl font-black" style={{ color: "var(--acc)" }}>
-            ROCK MUNCHIES
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--txt-2)" }}>
-            Pon tu nombre y el PIN de tu cuenta
-          </p>
-        </div>
-
-        <input className="input" placeholder="Tu nombre" value={nombre}
-               autoComplete="off"
-               onChange={(e) => setNombre(e.target.value)} />
-
-        {previos.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {previos.map((n) => (
-              <button key={n} className={`chip ${nombre === n ? "chip-on" : ""}`}
-                      onClick={() => setNombre(n)}>{n}</button>
-            ))}
-          </div>
-        )}
-
-        <input className="input text-center tracking-[0.5em]" placeholder="PIN"
-               type="password" inputMode="numeric" value={pin}
-               onChange={(e) => setPin(e.target.value)}
-               onKeyDown={(e) => { if (e.key === "Enter") acceder(); }} />
-
-        <button className="btn btn-acc w-full" disabled={!nombre.trim() || entrando}
-                onClick={acceder}>
-          {entrando ? "Entrando…" : "Entrar"}
-        </button>
-
-        {error && (
-          <p className="text-center text-sm" style={{ color: "var(--mal)" }}>{error}</p>
-        )}
-      </div>
-      <Firma className="mt-4" />
-    </div>
-  );
+/**
+ * Mientras se ve la puerta, la barra de abajo se esconde: sin sesión, cada
+ * pestaña lleva a esta misma pantalla, y en un teléfono chico le quitaba el
+ * lugar al teclado del PIN. Lo dice un atributo en <html>; el CSS hace el
+ * resto (ver .nav-abajo en globals.css).
+ */
+function MarcarPuerta() {
+  useEffect(() => {
+    const raiz = document.documentElement;
+    raiz.dataset.puerta = "";
+    return () => { delete raiz.dataset.puerta; };
+  }, []);
+  return null;
 }

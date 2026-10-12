@@ -1091,16 +1091,18 @@ Auditoría: 0 vulnerabilidades.
 
 **297 pruebas.**
 
-### Retoques visuales en Figma — propuesta, sin aprobar
+### Retoques visuales en Figma — propuesta (aprobada el 2026-10-12)
 
 Pedido: usar Figma para retoques visuales y de sensación de la app actual, y
 dejar preparado el cambio de marca para otros locales (solo logo y colores).
 Archivo: <https://www.figma.com/design/BHKTBBbZ3MwSS2Rvhw6kHM>
 — «1 · Sistema» (tokens, tipografía, componentes), «2 · Pantallas» (Acceso,
 Caja, Pedido, Cobrada y las dos de «Otro local») y «3 · Sensación»
-(movimiento, vibración, textura). **Nada de esto está en el código**: espera
-aprobación. El plan de Figma (Starter) solo deja un modo por colección de
-variables, así que cada marca es una colección aparte.
+(movimiento, vibración, textura). Aprobado y pasado al código: ver
+«Retoques visuales en la app», más abajo. El plan de Figma (Starter) solo
+deja un modo por colección de variables, así que cada marca es una colección
+aparte, y llega a su tope de llamadas al mes rápido: lo que falte medir se
+mide sobre el código.
 
 ### Firma de autoría — 2026-10-11
 
@@ -1118,10 +1120,8 @@ Nunca en el recibo: ese papel es del cliente. Es de la plataforma, no de la
 marca: cuando la app lleve el nombre de otro local, se queda.
 
 Límite: es una constancia, no una protección. El repositorio es público y la
-firma se borra con una línea. Pendiente de decidir: el certificado de la
-llave de firma del APK dice `CN=Rockzza, O=Rock Munchies`; si tiene que decir
-kjd, hay que generar otra llave **antes** del primer APK automático (hoy solo
-existe el APK 1, entregado a mano).
+firma se borra con una línea. La llave de firma del APK, que sí no se puede
+falsificar, se cambió el 2026-10-12 por una a nombre de kjd (ver abajo).
 
 Dos pruebas nuevas fijan que el autor va en las propiedades de cada Excel y
 no en la hoja; comprobadas al revés (con el autor viejo, fallan). Verificado
@@ -1129,6 +1129,86 @@ a 360px: la firma sale en el acceso y en Estado, sin desbordamiento, y la
 página lleva los dos `<meta>`.
 
 **300 pruebas.**
+
+### Retoques visuales en la app — 2026-10-12
+
+Lo aprobado en Figma, en el código. Nada cambia de lugar ni de flujo: la caja
+se usa igual, se ve y se siente distinto.
+
+**La pared del local.** La paleta sale del logo de Rock Munchies —un sticker
+blanco en una pared negra con hiedra, flores amarillas y ladrillo— en vez
+del violeta de antes, que no salía de ningún lado del local. Fondo negro
+cálido (`#131211`) con un grano casi invisible (una imagen fija de 2 KB, no un
+filtro que se recalcule al desplazar), verde hiedra para «listo, cobrado» y
+ladrillo para «peligro». El amarillo queso sigue siendo lo único que se toca.
+Contrastes medidos: todo AA; el texto de apoyo va un poco más claro que en
+Figma (`#9e9587`) porque sobre los paneles flotantes quedaba en 4.4:1. Los
+mismos colores en la barra de Android, el ícono, el manifiesto y la página
+sin conexión del APK.
+
+**Acceso.** El logo de verdad, «¿Quién trabaja hoy?» con los nombres que ya
+entraron como botones (+ Otro para uno nuevo) y un teclado de PIN propio, de
+botones grandes. Detalles que importan:
+- Ningún nombre viene marcado: el nombre va a la bitácora y al recibo, y uno
+  preelegido que nadie cambió deja anulaciones a nombre de otra persona.
+- No entra solo al cuarto número: hay PIN de hasta 8, y uno de 6 entraría a
+  medias y fallaría siempre. Se confirma con ✓.
+- Un PIN que no es hace temblar los puntos y vibra 40 ms.
+- Si la base no responde, el error lleva a Estado. Con la barra de abajo
+  escondida en la puerta (cada pestaña llevaba a la misma pantalla), ese
+  enlace es el camino a Estado sin sesión.
+- En la PC se escribe el PIN con el teclado de verdad.
+
+**La cuenta en el encabezado.** La barra «Trabajando: Ana · Maestra · Salir»
+le quitaba 40px al menú todo el turno. Ahora es la inicial con la marca de la
+cuenta —el sombrero de copa del logo para la maestra, un ojo para revisión—
+y al tocarla, el nombre, la cuenta, desde qué hora y «Salir».
+
+**El sticker.** Cuántas van de un producto sale en un sticker inclinado sobre
+la tarjeta, que se vuelve a pegar con un rebote cada vez que cambia; la barra
+del pedido lleva el mismo. Va al final del botón para que el lector de
+pantalla diga primero qué es y después cuántas van (antes decía «1 en el
+pedido» antes del nombre).
+
+**El sello de «Cobrada».** El cobro se confirmaba con el mismo aviso chico que
+«Agregado». Ahora se estampa un sticker blanco sobre el menú con el número y
+el total («COBRADA #152 · C$ 1,299.00»), con Reimprimir debajo; agregar el
+primer producto del siguiente pedido lo quita. El aviso de «la PC de caja no
+responde» sigue saliendo igual.
+
+**Lo demás:**
+- «Órdenes» lleva una insignia con las que faltan cobrar: en el teléfono no
+  se ven sin abrir la pestaña.
+- Los avisos tienen ícono según lo que dicen (palomita, lápiz, alerta, menos),
+  no solo color. «La PC no responde» y «ya estaba guardada» pasan a un tono de
+  atención propio: el lápiz de «cambiado» no decía nada ahí.
+- La hoja del pedido sube en 280 ms y baja en 200, y se cierra bajándola con
+  el dedo desde la manija (más de 120px; menos, vuelve a su lugar).
+- Con «reducir movimiento» del teléfono nada se desplaza ni rebota: lo que
+  aparece, se funde en 120 ms, y el PIN equivocado no tiembla (vibra igual).
+- El logo y el grano se guardan para abrir sin señal: el service worker solo
+  servía de la cache las páginas y el código, así que el logo del PIN habría
+  salido como un hueco. Se sacó `/estacion`, que ya no existe, de la lista.
+- El nombre y el logo del local viven en `src/lib/marca.ts`: es la costura
+  para el cambio de marca por local, que va aparte.
+
+Verificado en un Android de 360px y en PC de 1366px contra el PostgREST
+simulado: acceso sin barra de abajo, PIN malo (tiembla y avisa), entrar,
+stickers, menú de la cuenta, hoja (se cierra arrastrando más de 120px y vuelve
+con menos), cobrar (sello «COBRADA #151 · C$ 1,299.00» = 2 promos + Jamón con
+IVA), «Órdenes 1», salir, entrar con revisión (va a Cierres, con el ojo), PIN
+desde el teclado en la PC, y Cierres, Inventario, Estado e Impresora sin
+desbordar. Un falso positivo al probar: la caja «se caía» porque seguía vivo
+un servidor de la compilación anterior sirviendo trozos que ya no existían;
+con el servidor nuevo, cero errores.
+
+**La llave del APK, a nombre de kjd.** La anterior decía `CN=Rockzza,
+O=Rock Munchies` en su certificado. Se generó otra (`CN=kjd, O=Rockzza`,
+RSA 4096, vence en 2056) antes del primer APK automático: el APK 1 no llegó a
+instalarse en ningún teléfono, así que el cambio no cuesta nada. El APK 2 ya
+va firmado con ella y trae los colores nuevos. La llave vieja no sirve más.
+
+**301 pruebas.**
 
 ## Fuera del spec original
 - [x] **Pizza mitad y mitad.** Precio = suma de las dos ÷ 2, por decisión del
