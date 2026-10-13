@@ -11,6 +11,9 @@ import PantallaPin from "@/components/PantallaPin";
 import { hayConfig } from "@/lib/supabase";
 import { usePathname, useRouter } from "next/navigation";
 
+/** Lo último que dijo la base: "1" se pasa al PIN, "0" hay que vincular el aparato. */
+const CLAVE_PASO = "rockzza:puede-pasar";
+
 /**
  * Puerta de entrada. El nombre de quien trabaja y el PIN de su cuenta:
  * maestra o revisión. El PIN decide qué cuenta se abre.
@@ -37,12 +40,23 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hayConfig) { setPuedePasar(true); return; }
 
+    // Mientras la base contesta, se usa lo último que dijo, y la primera vez,
+    // lo de fábrica (no hace falta cuenta). Antes la pantalla quedaba en negro
+    // hasta la respuesta: 2 s con buena señal, y sin señal lo que tardara en
+    // fallar. Adelantarse no abre nada: el PIN y los datos los decide la base.
+    // Lo peor que pasa es que, con EXIGIR_CUENTA.sql recién corrido, la
+    // primera vez se vea el PIN un instante antes de la pantalla de vincular.
+    try { setPuedePasar(localStorage.getItem(CLAVE_PASO) !== "0"); }
+    catch { setPuedePasar(true); }
+
     // Se pregunta a la BASE si hace falta una cuenta, en vez de suponerlo.
     // Por defecto no hace falta y nadie ve una pantalla de contraseña; si
     // alguien corre EXIGIR_CUENTA.sql, aparece sola.
     const mirar = async () => {
       const [sesion, hace] = await Promise.all([sesionGuardada(), requiereCuenta()]);
-      setPuedePasar(Boolean(sesion) || !hace);
+      const paso = Boolean(sesion) || !hace;
+      setPuedePasar(paso);
+      try { localStorage.setItem(CLAVE_PASO, paso ? "1" : "0"); } catch { /* modo privado */ }
     };
     mirar();
     // Si el token caduca sin poder renovarse, la pantalla vuelve sola a pedir
@@ -50,8 +64,7 @@ export default function Acceso({ children }: { children: React.ReactNode }) {
     return alCambiarVinculo(() => { mirar(); });
   }, []);
 
-  // Mientras se pregunta a la base no se dibuja nada, para no mostrar la
-  // pantalla de acceso un instante a quien ya entró.
+  // Solo en el primer cuadro, antes de leer lo guardado: no se dibuja nada.
   if (puedePasar === undefined) return null;
   // Dos rutas quedan libres, las dos por la misma razón: se usan JUSTO
   // cuando el PIN no se puede verificar.
